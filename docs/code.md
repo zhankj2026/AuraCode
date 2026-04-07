@@ -20,7 +20,7 @@ L1 理解能力: 语义搜索 / 符号索引 / 依赖分析
 L0 基础能力: Agent Loop / 工具注册 / 权限控制
 ```
 
-**当前状态**: L0 已完成  
+**当前状态**: L2 已完成 (Phase 0/1/2)  
 **目标**: 6 周内达到 L4
 
 ---
@@ -109,7 +109,7 @@ from . import my_tool  # 触发注册
 
 **新增工具**:
 
-```python
+```
 # tools/builtin/grep.py
 def grep_handler(
     pattern: str, 
@@ -193,7 +193,7 @@ AI: 找到 15 个匹配,分析后给出建议
 
 **实施方案**: 使用 AST 分析代码结构
 
-```python
+```
 # tools/builtin/analyze_file.py
 import ast
 import json
@@ -303,7 +303,7 @@ register_tool("project_summary", {
 
 **解决方案**: 添加行级编辑原语
 
-```python
+```
 # tools/builtin/edit_file.py
 import difflib
 
@@ -401,7 +401,7 @@ def undo_last_edit() -> str:
 
 ### 5.1 静态检查集成
 
-```python
+```
 # tools/builtin/lint.py
 def lint_handler(path: str = None, language: str = None) -> str:
     """运行静态检查"""
@@ -440,7 +440,7 @@ register_tool("lint", {
 
 ### 5.2 测试执行
 
-```python
+```
 # tools/builtin/test.py
 def run_tests_handler(
     test_path: str = None,
@@ -492,7 +492,7 @@ register_tool("run_tests", {
 **参考 Claude Code 实现**: `src/plugins/builtinPlugins.ts`
 
 **Python 实现**:
-```python
+```
 # plugins/base.py
 from abc import ABC, abstractmethod
 from typing import List, Dict
@@ -543,7 +543,7 @@ def load_plugins(plugins_dir: str = "plugins") -> List[ToolPlugin]:
 | `PostToolUseFailure` | 工具失败时 | 自动重试、错误修复 |
 
 **实现方案**:
-```python
+```
 # hooks/manager.py
 from typing import Callable, Dict, Any, List
 from dataclasses import dataclass
@@ -589,7 +589,7 @@ class HookManager:
 ```
 
 **使用示例**:
-```python
+```
 # hooks/auto_format.py
 from hooks.manager import HookManager
 
@@ -634,7 +634,7 @@ skills/
 ```
 
 **SKILL.md 示例**:
-```markdown
+```
 ---
 name: python-standards
 description: Python 编码规范和最佳实践
@@ -659,7 +659,7 @@ trigger: 当编写或修改 Python 代码时激活
 ```
 
 **实现方案**:
-```python
+```
 # skills/loader.py
 import os
 import yaml
@@ -700,7 +700,7 @@ class SkillManager:
 ```
 
 **集成到 Agent Loop**:
-```python
+```
 # 在系统提示词中添加 skill 列表
 def build_system_prompt(self) -> str:
     parts = [self._base_role()]
@@ -723,7 +723,7 @@ def build_system_prompt(self) -> str:
 **核心概念**: Subagent 是独立运行的子 Agent,拥有自己的上下文和工具集
 
 **实现方案**(简化版):
-```python
+```
 # core/subagent.py
 import threading
 from typing import Dict, Any, List
@@ -786,7 +786,7 @@ class SubagentManager:
 ```
 
 **工具化**:
-```python
+```
 # tools/builtin/subagent.py
 from core.subagent import SubagentManager
 
@@ -855,7 +855,7 @@ AI: 使用 join_subagent 获取所有结果并汇总
 
 **增强到 7 层**:
 
-```python
+```
 def build_system_prompt(self) -> str:
     parts = []
     
@@ -895,7 +895,7 @@ def build_system_prompt(self) -> str:
 **问题**: 长对话导致 token 溢出
 
 **解决方案**:
-```python
+```
 def compress_context(self, max_tokens: int = 190000) -> List[Dict]:
     """上下文压缩"""
     current_tokens = self._estimate_tokens()
@@ -935,7 +935,7 @@ def compress_context(self, max_tokens: int = 190000) -> List[Dict]:
 
 **增强**: 支持 allow/deny 规则配置
 
-```yaml
+```
 # config.yaml
 permissions:
   allow:
@@ -951,7 +951,7 @@ permissions:
 
 ### 8.2 审计日志
 
-```python
+```
 # utils/audit.py
 import json
 from datetime import datetime
@@ -1036,7 +1036,7 @@ class AuditLogger:
 
 只需添加 3 个工具,立即提升编程能力:
 
-```bash
+```
 cd opencode
 
 # 1. 创建 grep 工具
