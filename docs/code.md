@@ -20,7 +20,7 @@ L1 理解能力: 语义搜索 / 符号索引 / 依赖分析
 L0 基础能力: Agent Loop / 工具注册 / 权限控制
 ```
 
-**当前状态**: L2 已完成 (Phase 0/1/2)  
+**当前状态**: L2 已完成 (Phase 0/1/2) - 10 个工具  
 **目标**: 6 周内达到 L4
 
 ---
@@ -295,7 +295,7 @@ register_tool("project_summary", {
 
 ---
 
-## 4. 代码编辑能力(L2) - 🎯 Phase 2 (第3周)
+## 4. 代码编辑能力(L2) - ✅ Phase 2 已完成
 
 ### 4.1 精确替换工具
 
@@ -360,40 +360,21 @@ register_tool("replace_in_file", {
 })
 ```
 
-### 4.2 安全机制
+### 4.2 安全机制 - ✅ 已完成
 
-**自动备份**:
-```python
-def backup_file(path: str) -> str:
-    """编辑前自动备份"""
-    import shutil
-    from datetime import datetime
-    
-    backup_dir = os.path.join(os.path.dirname(path), ".backup")
-    os.makedirs(backup_dir, exist_ok=True)
-    
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = os.path.join(backup_dir, f"{os.path.basename(path)}.{timestamp}")
-    
-    shutil.copy2(path, backup_path)
-    return backup_path
-```
+**自动备份**: ✅ 已实现
+- 时间戳 + 微秒确保唯一性
+- 备份到 `.backup` 目录
 
-**撤销支持**:
-```python
-# 编辑历史记录
-edit_history = []
+**撤销支持**: ✅ 已实现
+- `undo_edit` 工具 - 撤销上次编辑
+- `edit_history` 工具 - 查看编辑历史
+- 最多保留 50 条记录
+- 支持指定文件撤销
 
-def undo_last_edit() -> str:
-    """撤销上次编辑"""
-    if not edit_history:
-        return "没有可撤销的操作"
-    
-    last_edit = edit_history.pop()
-    # 恢复备份
-    shutil.copy2(last_edit["backup_path"], last_edit["path"])
-    return f"✅ 已撤销 {last_edit['path']}"
-```
+**实现位置**: 
+- `tools/builtin/undo_edit.py` (163行)
+- `tools/builtin/replace_in_file.py` 集成记录功能
 
 ---
 
@@ -991,14 +972,14 @@ class AuditLogger:
 | 阶段 | 时间 | 能力 | 关键实现 | 工具数量 | 依赖 |
 |-----|------|------|---------|---------|------|
 | **Phase 0** | ✅ 完成 | 基础循环 | Agent Loop, 工具注册 | 4 | 无 |
-| **Phase 1** | 第1-2周 | 代码搜索 | grep, find, analyze_file | +3 | Phase 0 |
-| **Phase 2** | 第3周 | 精确编辑 | replace_in_file, diff | +2 | Phase 0 |
+| **Phase 1** | ✅ 完成 | 代码搜索 | grep, find, analyze_file | +3 | Phase 0 |
+| **Phase 2** | ✅ 完成 | 精确编辑+撤销 | replace_in_file, undo_edit, edit_history | +3 | Phase 0 |
 | **Phase 3** | 第4周 | 验证能力 | lint, run_tests | +2 | Phase 0 |
 | **Phase 4** | 第5周 | 插件+Hook | 插件加载器,Hooks | +1 | Phase 0 |
 | **Phase 5** | 第6周 | Skill系统 | 渐进式披露 | +1 | Phase 0 |
 | **Phase 6** | 第6周 | Subagent | 并行任务 | +2 | Phase 0 |
 
-**总计**: 7 周内从 4 个工具扩展到 15+ 个工具
+**总计**: 7 周内从 4 个工具扩展到 16+ 个工具
 
 ---
 
@@ -1092,8 +1073,8 @@ python cli.py --mode bypass "搜索所有包含 'class' 的 Python 文件"
 本方案基于 Claude Code 源码架构分析,提供了**从 L0 到 L4 的完整实施路径**:
 
 1. **L0 (已完成)**: Agent Loop + 工具注册 + 权限管理
-2. **L1 (Phase 1)**: 代码搜索(grep/find) + 结构分析(AST)
-3. **L2 (Phase 2)**: 精确编辑 + diff 预览 + 自动备份
+2. **L1 (已完成)**: 代码搜索(grep/find) + 结构分析(AST)
+3. **L2 (已完成)**: 精确编辑 + diff 预览 + 自动备份 + 撤销支持
 4. **L3 (Phase 3)**: Linter 集成 + 测试执行
 5. **L4 (Phase 4-6)**: 插件系统 + Hook 拦截 + Skill 注入 + Subagent 并行
 
@@ -1103,4 +1084,6 @@ python cli.py --mode bypass "搜索所有包含 'class' 的 Python 文件"
 - ✅ 参考 Claude Code 实战验证的设计
 - ✅ 保持简洁,避免过度设计
 
-**下一步**: 从 Phase 1 开始,先实现 grep/find/analyze_file 三个工具,立即提升代码理解能力。
+**进度**: 10/16 工具已完成 (62.5%)
+
+**下一步**: 从 Phase 3 开始,实现 lint/run_tests 两个工具,提升代码验证能力。
