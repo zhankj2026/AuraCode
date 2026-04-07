@@ -9,6 +9,7 @@ import os
 import difflib
 from datetime import datetime
 from tools.registry import register_tool
+from .undo_edit import record_edit
 
 
 def replace_in_file_handler(
@@ -59,6 +60,9 @@ def replace_in_file_handler(
         with open(path, 'w', encoding='utf-8') as f:
             f.write(new_content)
         
+        # 记录编辑历史
+        record_edit(path, backup_path, original_content)
+
         # 生成结果
         result = [f"✅ 成功替换 {count} 处"]
         result.append(f"文件: {path}")
@@ -82,10 +86,17 @@ def _create_backup(path: str) -> str:
     backup_dir = os.path.join(os.path.dirname(path) or '.', '.backup')
     os.makedirs(backup_dir, exist_ok=True)
     
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    # 使用微秒 + 计数器确保唯一性
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
     filename = os.path.basename(path)
     backup_path = os.path.join(backup_dir, f"{filename}.{timestamp}.bak")
     
+    # 如果文件已存在,添加计数器
+    counter = 1
+    while os.path.exists(backup_path):
+        backup_path = os.path.join(backup_dir, f"{filename}.{timestamp}_{counter}.bak")
+        counter += 1
+
     # 复制文件
     with open(path, 'r', encoding='utf-8') as src:
         with open(backup_path, 'w', encoding='utf-8') as dst:
