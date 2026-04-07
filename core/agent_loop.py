@@ -31,15 +31,22 @@ class AgentLoop:
         Args:
             config: 配置字典,包含:
                 - api_key: LLM API 密钥(可选,从环境变量读取)
-                - base_url: API 基础 URL
-                - model: 模型名称(默认 gpt-4o)
+                - base_url: API 基础 URL(可选,从环境变量读取)
+                - model: 模型名称(默认 glm-4-plus)
                 - max_iterations: 最大迭代次数(默认 20)
                 - permission_mode: 权限模式(normal/auto/plan/bypass)
         """
         # 1. 初始化 LLM 客户端
+        api_key = config.get("api_key") or os.environ.get("OPENAI_API_KEY")
+        base_url = config.get("base_url") or os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
+        
+        if not api_key:
+            raise ValueError("未设置 API Key,请设置 OPENAI_API_KEY 环境变量")
+        
         self.client = OpenAI(
-            api_key=config.get("api_key") or os.environ.get("OPENAI_API_KEY"),
-            base_url=config.get("base_url", "https://api.openai.com/v1")
+            api_key=api_key,
+            base_url=base_url,
+            timeout=60.0  # 60秒超时
         )
         
         # 2. 配置参数
@@ -195,24 +202,33 @@ class AgentLoop:
         """调用 LLM"""
         logger.debug(f"Calling LLM with {len(self.messages)} messages")
         
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=self.messages,
-            tools=self.tools,
-            tool_choice="auto",
-            temperature=0.2,
-            max_tokens=4096
-        )
+        # 打印调用信息(使用 print 确保可见)
+        print(f"\n🤔 思考中... (使用 {len(self.messages)} 条消息历史)")
         
-        # 记录 token 使用情况
-        usage = response.usage
-        if usage:
-            logger.info(f"Token usage: prompt={usage.prompt_tokens}, "
-                       f"completion={usage.completion_tokens}, "
-                       f"total={usage.total_tokens}")
-        
-        return response
-    
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=self.messages,
+                tools=self.tools,
+                tool_choice="auto",
+                temperature=0.2,
+                max_tokens=4096
+            )
+            
+            # 记录 token 使用情况
+            usage = response.usage
+            if usage:
+                logger.info(f"Token usage: prompt={usage.prompt_tokens}, "
+                           f"completion={usage.completion_tokens}, "
+                           f"total={usage.total_tokens}")
+                print(f"💰 Token 使用: 输入={usage.prompt_tokens}, 输出={usage.completion_tokens}, 总计={usage.total_tokens}")
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"LLM API 调用失败: {e}")
+            raise
+
     def _execute_tool(self, tool_call) -> Dict[str, Any]:
         """执行工具调用(经过权限检查)"""
         tool_name = tool_call.function.name
