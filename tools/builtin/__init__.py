@@ -8,3 +8,6 @@ from . import list_directory
 from . import grep
 from . import find
 from . import analyze_file
+
+# Phase 2
+from . import replace_in_file
