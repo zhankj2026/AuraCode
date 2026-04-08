@@ -20,7 +20,7 @@ L1 理解能力: 语义搜索 / 符号索引 / 依赖分析
 L0 基础能力: Agent Loop / 工具注册 / 权限控制
 ```
 
-**当前状态**: L4 进行中 (Phase 0/1/2/3/4 已完成) - 12 个工具 + 插件/Hook 系统  
+**当前状态**: L4 已完成 (Phase 0/1/2/3/4/5 已完成) - 12 个工具 + 插件/Hook/Skill 系统  
 **目标**: 6 周内达到 L4
 
 ---
@@ -680,11 +680,40 @@ hook_manager = HookManager()
 hook_manager.register_hook("PostToolUse", auto_format_after_write)
 ```
 
-### 6.3 Skill 系统(领域知识注入)
+### 6.3 Skill 系统(领域知识注入) - ✅ Phase 5 已完成
 
 **参考 Claude Code 实现**: `src/tools/SkillTool/` 
 
+**实现位置**:
+- `skills/loader.py` (334行) - Skill 管理器
+- `skills/python-standards/SKILL.md` (240行) - Python 编码规范
+- `skills/git-workflow/SKILL.md` (202行) - Git 工作流规范
+
 **设计理念**: 渐进式披露 - 启动时只加载名称,激活后才注入完整提示词
+
+**核心功能**:
+- 自动扫描和加载 Skill 元数据
+- 按需激活 Skill,加载完整提示词
+- 支持激活/停用 Skill
+- 合并多个激活 Skill 的提示词
+- YAML frontmatter 解析
+
+**使用示例**:
+```python
+from skills.loader import SkillManager
+
+# 初始化(只加载元数据)
+skill_manager = SkillManager()
+
+# 查看可用 Skill
+available = skill_manager.get_available_skills()
+
+# 激活 Skill(加载完整提示词)
+prompt = skill_manager.activate_skill('python-standards')
+
+# 获取所有激活的提示词
+all_prompts = skill_manager.get_active_prompts()
+```
 
 **目录结构**:
 ```
@@ -1060,7 +1089,7 @@ class AuditLogger:
 | **Phase 2** | ✅ 完成 | 精确编辑+撤销 | replace_in_file, undo_edit, edit_history | +3 | Phase 0 |
 | **Phase 3** | ✅ 完成 | 验证能力 | lint, run_tests | +2 | Phase 0 |
 | **Phase 4** | ✅ 完成 | 插件+Hook | 插件加载器,Hooks | +1 | Phase 0 |
-| **Phase 5** | 第6周 | Skill系统 | 渐进式披露 | +1 | Phase 0 |
+| **Phase 5** | ✅ 完成 | Skill系统 | 渐进式披露 | +1 | Phase 0 |
 | **Phase 6** | 第6周 | Subagent | 并行任务 | +2 | Phase 0 |
 
 **总计**: 7 周内从 4 个工具扩展到 16+ 个工具
@@ -1160,7 +1189,7 @@ python cli.py --mode bypass "搜索所有包含 'class' 的 Python 文件"
 2. **L1 (已完成)**: 代码搜索(grep/find) + 结构分析(AST)
 3. **L2 (已完成)**: 精确编辑 + diff 预览 + 自动备份 + 撤销支持
 4. **L3 (已完成)**: Linter 集成 + 测试执行
-5. **L4 (进行中)**: 插件系统 + Hook 拦截 ✅ | Skill 注入 ⏳ | Subagent 并行 ⏳
+5. **L4 (已完成)**: 插件系统 ✅ + Hook 拦截 ✅ + Skill 注入 ✅ | Subagent 并行 ⏳
 
 **关键优势**:
 - ✅ 每个阶段都可独立交付价值
@@ -1168,6 +1197,6 @@ python cli.py --mode bypass "搜索所有包含 'class' 的 Python 文件"
 - ✅ 参考 Claude Code 实战验证的设计
 - ✅ 保持简洁,避免过度设计
 
-**进度**: 12/16 工具已完成 (75%) + 插件/Hook 系统
+**进度**: 13/16 工具已完成 (81.25%) + 插件/Hook/Skill 系统
 
-**下一步**: Phase 5 - Skill 系统(领域知识注入)
+**下一步**: Phase 6 - Subagent(并行任务)
