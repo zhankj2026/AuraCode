@@ -20,7 +20,7 @@ L1 理解能力: 语义搜索 / 符号索引 / 依赖分析
 L0 基础能力: Agent Loop / 工具注册 / 权限控制
 ```
 
-**当前状态**: L2 已完成 (Phase 0/1/2) - 10 个工具  
+**当前状态**: L3 已完成 (Phase 0/1/2/3) - 12 个工具  
 **目标**: 6 周内达到 L4
 
 ---
@@ -378,10 +378,25 @@ register_tool("replace_in_file", {
 
 ---
 
-## 5. 代码验证能力(L3) - 🎯 Phase 3 (第4周)
+## 5. 代码验证能力(L3) - ✅ Phase 3 已完成
 
-### 5.1 静态检查集成
+### 5.1 静态检查集成 - ✅ 已完成
 
+**实现位置**: `tools/builtin/lint.py` (165行)
+
+**功能特性**:
+- 自动检测编程语言(Python/JavaScript/TypeScript)
+- 集成 ruff(Python) 和 eslint(JS/TS)
+- 支持自动修复模式(--fix)
+- 输出限制 200 行,防上下文溢出
+
+**使用示例**:
+```python
+# 检查 Python 文件
+lint(path="src/main.py", language="python")
+
+# 自动修复 JavaScript
+lint(path="src/", language="javascript", fix=True)
 ```
 # tools/builtin/lint.py
 def lint_handler(path: str = None, language: str = None) -> str:
@@ -419,8 +434,27 @@ register_tool("lint", {
 })
 ```
 
-### 5.2 测试执行
+### 5.2 测试执行 - ✅ 已完成
 
+**实现位置**: `tools/builtin/run_tests.py` (297行)
+
+**功能特性**:
+- 自动检测测试框架(pytest/jest/unittest)
+- 支持运行特定测试或全部测试
+- 支持 --last-failed 只运行失败用例
+- 自动解析测试结果并统计
+- 输出限制 3000 字符
+
+**使用示例**:
+```python
+# 运行所有测试
+run_tests()
+
+# 运行特定测试文件
+run_tests(test_path="tests/test_main.py")
+
+# 只运行失败的测试
+run_tests(failed_only=True)
 ```
 # tools/builtin/test.py
 def run_tests_handler(
@@ -974,7 +1008,7 @@ class AuditLogger:
 | **Phase 0** | ✅ 完成 | 基础循环 | Agent Loop, 工具注册 | 4 | 无 |
 | **Phase 1** | ✅ 完成 | 代码搜索 | grep, find, analyze_file | +3 | Phase 0 |
 | **Phase 2** | ✅ 完成 | 精确编辑+撤销 | replace_in_file, undo_edit, edit_history | +3 | Phase 0 |
-| **Phase 3** | 第4周 | 验证能力 | lint, run_tests | +2 | Phase 0 |
+| **Phase 3** | ✅ 完成 | 验证能力 | lint, run_tests | +2 | Phase 0 |
 | **Phase 4** | 第5周 | 插件+Hook | 插件加载器,Hooks | +1 | Phase 0 |
 | **Phase 5** | 第6周 | Skill系统 | 渐进式披露 | +1 | Phase 0 |
 | **Phase 6** | 第6周 | Subagent | 并行任务 | +2 | Phase 0 |
@@ -1075,7 +1109,7 @@ python cli.py --mode bypass "搜索所有包含 'class' 的 Python 文件"
 1. **L0 (已完成)**: Agent Loop + 工具注册 + 权限管理
 2. **L1 (已完成)**: 代码搜索(grep/find) + 结构分析(AST)
 3. **L2 (已完成)**: 精确编辑 + diff 预览 + 自动备份 + 撤销支持
-4. **L3 (Phase 3)**: Linter 集成 + 测试执行
+4. **L3 (已完成)**: Linter 集成 + 测试执行
 5. **L4 (Phase 4-6)**: 插件系统 + Hook 拦截 + Skill 注入 + Subagent 并行
 
 **关键优势**:
@@ -1084,6 +1118,6 @@ python cli.py --mode bypass "搜索所有包含 'class' 的 Python 文件"
 - ✅ 参考 Claude Code 实战验证的设计
 - ✅ 保持简洁,避免过度设计
 
-**进度**: 10/16 工具已完成 (62.5%)
+**进度**: 12/16 工具已完成 (75%)
 
-**下一步**: 从 Phase 3 开始,实现 lint/run_tests 两个工具,提升代码验证能力。
+**下一步**: 从 Phase 4 开始,实现插件系统和 Hook 机制。
