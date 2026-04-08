@@ -20,7 +20,7 @@ L1 理解能力: 语义搜索 / 符号索引 / 依赖分析
 L0 基础能力: Agent Loop / 工具注册 / 权限控制
 ```
 
-**当前状态**: L3 已完成 (Phase 0/1/2/3) - 12 个工具  
+**当前状态**: L4 进行中 (Phase 0/1/2/3/4 已完成) - 12 个工具 + 插件/Hook 系统  
 **目标**: 6 周内达到 L4
 
 ---
@@ -500,13 +500,36 @@ register_tool("run_tests", {
 
 ---
 
-## 6. 扩展与协同能力(L4) - 🎯 Phase 4-6 (第5-6周)
+## 6. 扩展与协同能力(L4) - ✅ Phase 4 已完成 (Phase 5-6 进行中)
 
-### 6.1 插件化架构
+### 6.1 插件化架构 - ✅ 已完成
 
 **参考 Claude Code 实现**: `src/plugins/builtinPlugins.ts`
 
-**Python 实现**:
+**实现位置**:
+- `plugins/base.py` (89行) - 插件基类
+- `plugins/loader.py` (199行) - 插件加载器
+- `plugins/example_autoformat.py` (106行) - 示例插件
+
+**核心设计**:
+- ToolPlugin 抽象基类,定义插件接口
+- PluginLoader 动态扫描和加载插件
+- 支持工具定义和钩子注册
+- 自动检查插件可用性
+
+**使用示例**:
+```python
+from plugins.loader import PluginLoader
+
+# 加载所有插件
+loader = PluginLoader()
+plugins = loader.load_all_plugins()
+
+# 获取插件提供的工具
+all_tools = loader.get_all_tools()
+
+# 获取插件提供的钩子
+all_hooks = loader.get_all_hooks()
 ```
 # plugins/base.py
 from abc import ABC, abstractmethod
@@ -544,9 +567,11 @@ def load_plugins(plugins_dir: str = "plugins") -> List[ToolPlugin]:
     return plugins
 ```
 
-### 6.2 Hook 系统
+### 6.2 Hook 系统 - ✅ 已完成
 
 **参考 Claude Code 实现**: `src/utils/hooks.ts` (3400+行)
+
+**实现位置**: `hooks/manager.py` (254行)
 
 **核心钩子点**:
 
@@ -557,7 +582,32 @@ def load_plugins(plugins_dir: str = "plugins") -> List[ToolPlugin]:
 | `SessionStart` | 会话开始时 | 加载用户配置 |
 | `PostToolUseFailure` | 工具失败时 | 自动重试、错误修复 |
 
-**实现方案**:
+**功能特性**:
+- 支持优先级排序
+- 支持工具匹配器(matcher)
+- 支持修改工具输入
+- 支持阻止工具执行
+- 异步/同步钩子兼容
+
+**使用示例**:
+```python
+from hooks.manager import HookManager, HookResult
+
+hook_manager = HookManager()
+
+# 注册钩子
+async def check_dangerous(**kwargs):
+    if kwargs.get('tool_name') == 'rm':
+        return HookResult(allow=False, block_reason="危险命令")
+    return HookResult(allow=True)
+
+hook_manager.register_hook("PreToolUse", check_dangerous, priority=10)
+
+# 执行钩子
+result = await hook_manager.execute_hooks(
+    "PreToolUse",
+    tool_name="rm"
+)
 ```
 # hooks/manager.py
 from typing import Callable, Dict, Any, List
@@ -1009,7 +1059,7 @@ class AuditLogger:
 | **Phase 1** | ✅ 完成 | 代码搜索 | grep, find, analyze_file | +3 | Phase 0 |
 | **Phase 2** | ✅ 完成 | 精确编辑+撤销 | replace_in_file, undo_edit, edit_history | +3 | Phase 0 |
 | **Phase 3** | ✅ 完成 | 验证能力 | lint, run_tests | +2 | Phase 0 |
-| **Phase 4** | 第5周 | 插件+Hook | 插件加载器,Hooks | +1 | Phase 0 |
+| **Phase 4** | ✅ 完成 | 插件+Hook | 插件加载器,Hooks | +1 | Phase 0 |
 | **Phase 5** | 第6周 | Skill系统 | 渐进式披露 | +1 | Phase 0 |
 | **Phase 6** | 第6周 | Subagent | 并行任务 | +2 | Phase 0 |
 
@@ -1110,7 +1160,7 @@ python cli.py --mode bypass "搜索所有包含 'class' 的 Python 文件"
 2. **L1 (已完成)**: 代码搜索(grep/find) + 结构分析(AST)
 3. **L2 (已完成)**: 精确编辑 + diff 预览 + 自动备份 + 撤销支持
 4. **L3 (已完成)**: Linter 集成 + 测试执行
-5. **L4 (Phase 4-6)**: 插件系统 + Hook 拦截 + Skill 注入 + Subagent 并行
+5. **L4 (进行中)**: 插件系统 + Hook 拦截 ✅ | Skill 注入 ⏳ | Subagent 并行 ⏳
 
 **关键优势**:
 - ✅ 每个阶段都可独立交付价值
@@ -1118,6 +1168,6 @@ python cli.py --mode bypass "搜索所有包含 'class' 的 Python 文件"
 - ✅ 参考 Claude Code 实战验证的设计
 - ✅ 保持简洁,避免过度设计
 
-**进度**: 12/16 工具已完成 (75%)
+**进度**: 12/16 工具已完成 (75%) + 插件/Hook 系统
 
-**下一步**: 从 Phase 4 开始,实现插件系统和 Hook 机制。
+**下一步**: Phase 5 - Skill 系统(领域知识注入)
