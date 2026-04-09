@@ -20,8 +20,8 @@ L1 理解能力: 语义搜索 / 符号索引 / 依赖分析
 L0 基础能力: Agent Loop / 工具注册 / 权限控制
 ```
 
-**当前状态**: L4 已完成 (Phase 0/1/2/3/4/5 已完成) - 12 个工具 + 插件/Hook/Skill 系统  
-**目标**: 6 周内达到 L4
+**当前状态**: L4 已完成 (Phase 0/1/2/3/4/5/6 已完成) - 16 个工具 + 插件/Hook/Skill/Subagent 系统  
+**目标**: ✅ 已完成 (6 周计划已完成)
 
 ---
 
@@ -929,6 +929,22 @@ register_tool("join_subagent", {
 })
 ```
 
+**✅ 实现完成**:
+- `core/subagent.py` (388行): SubagentManager 完整实现
+  - SubagentHandle dataclass
+  - 并发控制(最大并发数限制,线程安全)
+  - 后台/同步两种执行模式
+  - 结果持久化到 `.subagent_output/`
+  - 清理和统计功能
+  
+- `tools/builtin/subagent.py` (238行): 4个工具
+  - `spawn_subagent`: 创建子Agent
+  - `join_subagent`: 等待并获取结果
+  - `list_subagents`: 列出所有Agent
+  - `subagent_stats`: 统计信息
+
+- `test_phase6_tools.py` (304行): 8个测试用例
+
 **使用场景**:
 ```
 用户: "并行分析 src/ 目录下的所有模块"
@@ -1197,6 +1213,6 @@ python cli.py --mode bypass "搜索所有包含 'class' 的 Python 文件"
 - ✅ 参考 Claude Code 实战验证的设计
 - ✅ 保持简洁,避免过度设计
 
-**进度**: 13/16 工具已完成 (81.25%) + 插件/Hook/Skill 系统
+**进度**: 16/16 工具已完成 (100%) + 插件/Hook/Skill/Subagent 系统 ✅
 
-**下一步**: Phase 6 - Subagent(并行任务)
+**下一步**: ✅ 所有 Phase 已完成,系统达到 L4 能力层级
