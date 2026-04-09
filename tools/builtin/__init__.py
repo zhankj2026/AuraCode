@@ -16,3 +16,33 @@ from . import undo_edit
 # Phase 3
 from . import lint
 from . import run_tests
+
+# Phase 4
+from . import search_web
+from . import fetch_url
+
+# Phase 5
+from . import load_skill
+
+# Phase 6
+from . import subagent
+
+# Phase 4
+from . import search_web
+from . import fetch_url
+
+# Phase 5
+from . import load_skill
+
+# Phase 6
+from . import subagent
+
+# Phase 4
+from . import search_web
+from . import fetch_url
+
+# Phase 5
+from . import load_skill
+
+# Phase 6
+from . import subagent
