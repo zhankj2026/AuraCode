@@ -10,7 +10,8 @@
       "Bash(python tests/test_command_mode.py)",
       "Bash(ls -1 *.py *.md)",
       "Bash(ls -1 tests/*.py)",
-      "Bash(ls -1 docs/*.md)"
+      "Bash(ls -1 docs/*.md)",
+      "Bash(python tests/test_chat_mode.py)"
     ]
   }
 }

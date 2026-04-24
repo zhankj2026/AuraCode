@@ -42,17 +42,22 @@ export OPENAI_BASE_URL="https://open.bigmodel.cn/api/paas/v4"
 
 ### 3. 运行
 
-#### 对话模式
+#### 多轮对话模式（推荐）
 
 ```bash
-# 基本使用
-python cli.py "帮我分析这个项目的结构"
+# 启动交互式对话
+python cli.py
 
-# 指定模型
-python cli.py "重构这个函数" --model glm-4-plus
+# 带初始问题启动
+python cli.py "帮我分析这个项目"
 
-# 自动模式（无需确认）
-python cli.py "运行测试" --mode auto
+# 对话中可用的命令
+> /help          # 显示帮助
+> /skills        # 列出技能
+> /activate python-standards  # 激活技能
+> /clear         # 清空历史
+> /status        # 查看状态
+> /exit          # 退出
 ```
 
 #### 命令模式
@@ -74,7 +79,9 @@ python cli.py --command status
 python cli.py --command help
 ```
 
-**详细文档**: [命令模式文档](docs/COMMAND_MODE.md)
+**详细文档**: 
+- [多轮对话模式](docs/CHAT_MODE.md)
+- [命令模式文档](docs/COMMAND_MODE.md)
 
 ## 项目结构
 
