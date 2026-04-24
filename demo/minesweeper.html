@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>扫雷游戏 - Claude Code MVP</title>
+    <link rel="stylesheet" href="minesweeper.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 扫雷游戏</h1>
+            <p class="subtitle">由 Claude Code Python MVP 生成</p>
+        </header>
+
+        <div class="game-info">
+            <div class="info-item">
+                <span class="label">剩余地雷:</span>
+                <span class="value" id="mines-count">10</span>
+            </div>
+            <div class="info-item">
+                <span class="label">用时:</span>
+                <span class="value" id="timer">0</span>
+                <span class="unit">秒</span>
+            </div>
+        </div>
+
+        <div class="difficulty-selector">
+            <button class="difficulty-btn active" data-difficulty="easy">简单</button>
+            <button class="difficulty-btn" data-difficulty="medium">中等</button>
+            <button class="difficulty-btn" data-difficulty="hard">困难</button>
+        </div>
+
+        <div class="board" id="board"></div>
+
+        <div class="controls">
+            <button class="restart-btn" onclick="initGame()">🔄 重新开始</button>
+        </div>
+
+        <div class="instructions">
+            <h3>📖 游戏说明</h3>
+            <ul>
+                <li>左键点击方块来揭开</li>
+                <li>右键点击方块来标记地雷（插旗）</li>
+                <li>数字表示周围 8 个方块中的地雷数量</li>
+                <li>揭开所有非地雷方块即可获胜</li>
+            </ul>
+        </div>
+    </div>
+
+    <script src="minesweeper.js"></script>
+</body>
+</html>
