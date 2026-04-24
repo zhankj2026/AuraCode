@@ -155,60 +155,130 @@ def detect_tech_stack(project_root: str) -> Optional[str]:
     return "\n".join(detected) if detected else None
 
 
-def detect_project_structure(project_root: str) -> Optional[str]:
+def detect_project_structure(
+    project_root: str,
+    max_depth: int = 2,
+    max_items_per_level: int = 20
+) -> Optional[str]:
     """
-    检测项目结构(顶层目录)
-    
+    检测项目结构（递归显示目录树）
+
     Args:
         project_root: 项目根目录
-        
+        max_depth: 最大递归深度（默认 2 层）
+        max_items_per_level: 每层最多显示的文件数（默认 20）
+
     Returns:
-        项目结构描述
+        项目结构描述（树形结构）
     """
-    try:
-        items = os.listdir(project_root)
-        
-        # 过滤隐藏文件和常见忽略项
-        ignore_prefixes = [".", "__", "node_modules", "venv", ".git"]
-        visible_items = [
-            item for item in items 
-            if not any(item.startswith(p) for p in ignore_prefixes)
+    def _should_ignore(name: str) -> bool:
+        """判断是否应该忽略该文件/目录"""
+        ignore_patterns = [
+            # 版本控制
+            ".git", ".svn", ".hg",
+            # 依赖目录
+            "node_modules", "__pycache__", "venv", ".venv", "env",
+            "dist", "build", "target", "bin", "obj",
+            # IDE
+            ".idea", ".vscode", ".eclipse",
+            # 临时文件
+            "*.pyc", "*.pyo", ".DS_Store", "Thumbs.db",
+            # 其他
+            ".cache", ".pytest_cache", ".coverage",
         ]
-        
-        # 分类
+        # 检查是否匹配忽略模式
+        for pattern in ignore_patterns:
+            if pattern.startswith("*"):
+                # 通配符匹配
+                if name.endswith(pattern[1:]):
+                    return True
+            elif name == pattern:
+                return True
+        return False
+
+    def _scan_directory(
+        path: str,
+        prefix: str = "",
+        depth: int = 0
+    ) -> List[str]:
+        """
+        递归扫描目录
+
+        Args:
+            path: 当前目录路径
+            prefix: 树形前缀
+            depth: 当前深度
+
+        Returns:
+            目录树行列表
+        """
+        if depth > max_depth:
+            return []
+
+        try:
+            items = os.listdir(path)
+        except (PermissionError, OSError):
+            return []
+
+        # 过滤和排序
         dirs = []
         files = []
-        
-        for item in visible_items:
-            full_path = os.path.join(project_root, item)
+
+        for item in items:
+            if _should_ignore(item):
+                continue
+
+            full_path = os.path.join(path, item)
             if os.path.isdir(full_path):
-                dirs.append(item + "/")
+                dirs.append(item)
             else:
                 files.append(item)
-        
-        # 只显示重要的目录和文件
-        important_dirs = [d for d in dirs if d in [
-            "src/", "lib/", "app/", "tests/", "docs/", 
-            "config/", "scripts/", "tools/"
-        ]]
-        
-        important_files = [f for f in files if f in [
-            "README.md", "LICENSE", "Makefile", "CHANGELOG.md"
-        ]]
-        
-        output_parts = []
-        
-        if important_dirs:
-            output_parts.append("主要目录:")
-            for d in sorted(important_dirs):
-                output_parts.append(f"  - {d}")
-        
-        if important_files:
-            output_parts.append("\n重要文件:")
-            for f in sorted(important_files):
-                output_parts.append(f"  - {f}")
-        
-        return "\n".join(output_parts) if output_parts else None
-    
-    except Exception:
+
+        # 限制数量
+        dirs = sorted(dirs)[:max_items_per_level]
+        files = sorted(files)[:max_items_per_level]
+
+        lines = []
+
+        # 添加目录
+        for i, dir_name in enumerate(dirs):
+            is_last = (i == len(dirs) - 1) and not files
+            connector = "└── " if is_last else "├── "
+            lines.append(f"{prefix}{connector}{dir_name}/")
+
+            # 递归子目录
+            child_prefix = prefix + ("    " if is_last else "│   ")
+            child_path = os.path.join(path, dir_name)
+            lines.extend(_scan_directory(child_path, child_prefix, depth + 1))
+
+        # 添加文件
+        for i, file_name in enumerate(files):
+            is_last = i == len(files) - 1
+            connector = "└── " if is_last else "├── "
+            lines.append(f"{prefix}{connector}{file_name}")
+
+        return lines
+
+    try:
+        # 生成目录树
+        tree_lines = _scan_directory(project_root)
+
+        if not tree_lines:
+            return None
+
+        # 组装输出
+        output = [f"项目结构 ({project_root}):", ""]
+        output.append(f".")
+        output.extend(tree_lines)
+
+        # 添加省略提示
+        total_items = len(os.listdir(project_root))
+        visible_items = len([i for i in os.listdir(project_root) if not _should_ignore(i)])
+        if visible_items > max_items_per_level:
+            output.append(f"...")
+            output.append(f"(仅显示前 {max_items_per_level} 项，部分项已省略)")
+
+        return "\n".join(output)
+
+    except Exception as e:
         return None
