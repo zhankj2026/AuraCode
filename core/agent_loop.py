@@ -96,11 +96,25 @@ class AgentLoop:
                 message = response.choices[0].message
                 assistant_content = message.content or ""
                 
-                # 追加助手消息到历史
-                self.messages.append({
+                # 追加助手消息到历史 — 必须保留 tool_calls 字段
+                # 参考 OpenAI API 规范: assistant 消息须带 tool_calls,否则后续 tool 消息会报错
+                assistant_msg: Dict[str, Any] = {
                     "role": "assistant",
                     "content": assistant_content
-                })
+                }
+                if message.tool_calls:
+                    assistant_msg["tool_calls"] = [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments
+                            }
+                        }
+                        for tc in message.tool_calls
+                    ]
+                self.messages.append(assistant_msg)
                 
                 # 打印助手回复
                 if assistant_content:
@@ -116,14 +130,18 @@ class AgentLoop:
                 for tool_call in message.tool_calls:
                     tool_result = self._execute_tool(tool_call)
                     
-                    # Step 5: 工具结果追加为 user 消息
+                    # Step 5: 工具结果以 role=tool 返回(OpenAI 规范)
+                    # 必须包含 tool_call_id 与 assistant 消息对应
+                    result_content = tool_result.get("result") if tool_result.get("success") else f"Error: {tool_result.get('error')}"
                     self.messages.append({
-                        "role": "user",
-                        "content": json.dumps(tool_result, ensure_ascii=False)
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": str(result_content)
                     })
                     
                     # 打印工具执行结果
-                    print(f"✅ Tool Result: {tool_result.get('result', '')[:200]}")
+                    status = "✅" if tool_result.get("success") else "❌"
+                    print(f"{status} [{tool_call.function.name}] {str(result_content)[:200]}")
                 
                 # Step 6: 继续循环
                 
