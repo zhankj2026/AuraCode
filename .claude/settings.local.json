@@ -3,7 +3,8 @@
     "allow": [
       "Bash(python test_integration.py)",
       "Bash(python test_hooks_execution.py)",
-      "Bash(python demo_skills.py)"
+      "Bash(python demo_skills.py)",
+      "Bash(python test_skill_metadata.py)"
     ]
   }
 }

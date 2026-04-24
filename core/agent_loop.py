@@ -270,14 +270,31 @@ class AgentLoop:
         if project_context:
             parts.append(project_context)
 
-        # 第 3 层: 技能提示词(新增)
+        # 第 3 层: 技能系统（改进版：元数据 + 激活内容）
         if self.skill_manager and self.skills_enabled:
+            # 3.1 可用技能列表（元数据，轻量）
+            available = self.skill_manager.get_available_skills()
+            if available:
+                skill_list = []
+                skill_list.append("## 可用技能\n\n")
+                skill_list.append("以下技能可用于增强特定任务的专业性:\n\n")
+
+                for skill_info in available:
+                    status = "[已激活]" if skill_info['is_active'] else "[未激活]"
+                    skill_list.append(f"- **{skill_info['name']}**: {skill_info['description']}\n")
+                    skill_list.append(f"  触发: {skill_info['trigger']}\n")
+                    skill_list.append(f"  状态: {status}\n\n")
+
+                parts.append("".join(skill_list))
+                logger.debug(f"展示 {len(available)} 个可用技能的元数据")
+
+            # 3.2 已激活技能的完整内容（重量，按需加载）
             active_skills = self.skill_manager.get_active_skills()
             if active_skills:
                 skill_prompts = self.skill_manager.get_active_prompts()
                 if skill_prompts:
-                    parts.append(f"## 激活的技能\n\n{skill_prompts}")
-                    logger.debug(f"包含 {len(active_skills)} 个激活的技能提示词")
+                    parts.append(f"\n## 已激活技能的详细内容\n\n{skill_prompts}")
+                    logger.debug(f"包含 {len(active_skills)} 个激活的技能完整提示词")
 
         # 第 4 层: 工具说明
         parts.append(self._tools_description())
