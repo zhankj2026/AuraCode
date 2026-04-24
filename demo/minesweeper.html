@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>扫雷游戏</title>
+    <link rel="stylesheet" href="minesweeper.css">
+</head>
+<body>
+    <div class="container">
+        <h1>💣 扫雷游戏</h1>
+
+        <div class="controls">
+            <div class="difficulty-selector">
+                <button class="difficulty-btn active" data-difficulty="easy">简单 (9x9, 10雷)</button>
+                <button class="difficulty-btn" data-difficulty="medium">中等 (16x16, 40雷)</button>
+                <button class="difficulty-btn" data-difficulty="hard">困难 (30x16, 99雷)</button>
+            </div>
+
+            <div class="stats">
+                <div class="stat">
+                    <span class="stat-label">💣 剩余地雷:</span>
+                    <span class="stat-value" id="mineCount">10</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">⏱️ 时间:</span>
+                    <span class="stat-value" id="timer">0</span>
+                </div>
+            </div>
+
+            <button class="restart-btn" id="restartBtn">🔄 重新开始</button>
+        </div>
+
+        <div class="game-board" id="gameBoard"></div>
+
+        <div class="message" id="message"></div>
+
+        <div class="instructions">
+            <h3>游戏说明:</h3>
+            <ul>
+                <li>🖱️ 左键点击：揭开格子</li>
+                <li>🖱️ 右键点击：标记/取消标记地雷</li>
+                <li>🎯 目标：揭开所有非地雷格子</li>
+                <li>🚫 踩到地雷：游戏结束</li>
+            </ul>
+        </div>
+    </div>
+
+    <script src="minesweeper.js"></script>
+</body>
+</html>
