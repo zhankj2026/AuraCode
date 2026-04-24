@@ -146,7 +146,19 @@ class AgentLoop:
         if self.skills_enabled:
             try:
                 self.skill_manager = SkillManager()
-                logger.info(f"加载了 {len(self.skill_manager.skills)} 个技能")
+                logger.info(f"加载了 {len(self.skill_manager.skills)} 个技能 (仅元数据)")
+
+                # 自动激活配置中指定的技能
+                active_skills = config.get("active_skills", [])
+                if active_skills:
+                    logger.info(f"自动激活技能: {active_skills}")
+                    for skill_name in active_skills:
+                        try:
+                            self.skill_manager.activate_skill(skill_name)
+                            logger.info(f"  -> 激活成功: {skill_name}")
+                        except ValueError as e:
+                            logger.warning(f"  -> 激活失败 {skill_name}: {e}")
+
             except Exception as e:
                 logger.warning(f"技能系统初始化失败: {e}")
                 self.skill_manager = None
