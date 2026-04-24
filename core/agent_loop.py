@@ -15,6 +15,7 @@ from openai import OpenAI
 from tools.registry import TOOL_REGISTRY, get_tool_schemas, register_tool
 from permissions.manager import PermissionManager
 from core.context import load_project_context
+from core.memory import get_memory_manager
 
 # 集成扩展系统
 from plugins.loader import PluginLoader
@@ -76,6 +77,17 @@ class AgentLoop:
         self.permission_manager = PermissionManager(
             config.get("permission_mode", "normal")
         )
+
+        # 7. 记忆系统
+        self.memory_enabled = config.get("enable_memory", True)
+        self.memory_manager = None
+        if self.memory_enabled:
+            try:
+                self.memory_manager = get_memory_manager(config.get("project_root", "."))
+                logger.info("Memory system enabled")
+            except Exception as e:
+                logger.warning(f"Memory system initialization failed: {e}")
+                self.memory_enabled = False
 
         logger.info(f"AgentLoop initialized with model={self.model}, "
                    f"max_iterations={self.max_iterations}")
@@ -264,20 +276,26 @@ class AgentLoop:
         logger.debug(f"Messages initialized, system prompt length: {len(system_prompt)}")
     
     def _build_system_prompt(self) -> str:
-        """构建系统提示词(增强版 5 层)"""
+        """构建系统提示词(增强版 6 层)"""
         parts = []
 
         # 第 1 层: 基础角色定义
         parts.append(self._base_role())
 
-        # 第 2 层: 项目上下文(CLAUDE.md)
+        # 第 2 层: 记忆系统(用户信息、反馈、项目上下文)
+        if self.memory_manager and self.memory_enabled:
+            memory_context = self._build_memory_context()
+            if memory_context:
+                parts.append(memory_context)
+
+        # 第 3 层: 项目上下文(CLAUDE.md)
         # project_context = load_project_context()
         # if project_context:
         #     parts.append(project_context)
 
-        # 第 3 层: 技能系统（改进版：元数据 + 激活内容）
+        # 第 4 层: 技能系统（改进版：元数据 + 激活内容）
         if self.skill_manager and self.skills_enabled:
-            # 3.1 可用技能列表（元数据，轻量）
+            # 4.1 可用技能列表（元数据，轻量）
             available = self.skill_manager.get_available_skills()
             if available:
                 skill_list = []
@@ -293,7 +311,7 @@ class AgentLoop:
                 parts.append("".join(skill_list))
                 logger.debug(f"展示 {len(available)} 个可用技能的元数据")
 
-            # 3.2 已激活技能的完整内容（重量，按需加载）
+            # 4.2 已激活技能的完整内容（重量，按需加载）
             active_skills = self.skill_manager.get_active_skills()
             if active_skills:
                 skill_prompts = self.skill_manager.get_active_prompts()
@@ -301,14 +319,73 @@ class AgentLoop:
                     parts.append(f"\n## 已激活技能的详细内容\n\n{skill_prompts}")
                     logger.debug(f"包含 {len(active_skills)} 个激活的技能完整提示词")
 
-        # 第 4 层: 工具说明
+        # 第 5 层: 工具说明
         parts.append(self._tools_description())
 
-        # 第 5 层: 安全规则
+        # 第 6 层: 安全规则
         parts.append(self._security_rules())
 
         return "\n\n".join(parts)
     
+    def _build_memory_context(self) -> str:
+        """构建记忆上下文(从持久化记忆中提取相关信息)"""
+        try:
+            # 获取所有记忆摘要
+            all_memories = self.memory_manager.list_memories()
+
+            if not all_memories:
+                return ""
+
+            parts = ["## 记忆系统\n\n"]
+            parts.append("以下是从之前的会话中保存的重要信息:\n\n")
+
+            # 按类型分组
+            from collections import defaultdict
+            by_type = defaultdict(list)
+            for mem in all_memories:
+                by_type[mem["type"]].append(mem)
+
+            # 只包含 user 和 feedback 类型到系统提示词
+            # project 和 reference 类型按需加载
+            priority_types = ["user", "feedback"]
+
+            for mem_type in priority_types:
+                if mem_type not in by_type:
+                    continue
+
+                type_memories = by_type[mem_type]
+                if not type_memories:
+                    continue
+
+                # 类型描述
+                type_descriptions = {
+                    "user": "用户画像",
+                    "feedback": "工作方式偏好"
+                }
+
+                parts.append(f"### {type_descriptions.get(mem_type, mem_type)}\n\n")
+
+                # 添加每个记忆的摘要
+                for mem in type_memories[:5]:  # 每种类型最多显示 5 个
+                    # 加载完整内容以获取更多信息
+                    full_mem = self.memory_manager.load_memory(mem["type"], mem["title"])
+                    if full_mem:
+                        # 提取关键信息(前 200 字)
+                        content_preview = full_mem.content[:200]
+                        if len(full_mem.content) > 200:
+                            content_preview += "..."
+                        parts.append(f"- **{full_mem.title}**: {content_preview}\n")
+
+                parts.append("\n")
+
+            result = "".join(parts)
+            logger.debug(f"Memory context included: {len(result)} chars")
+            return result
+
+        except Exception as e:
+            logger.warning(f"Failed to build memory context: {e}")
+            return ""
+
     def _base_role(self) -> str:
         """基础角色定义"""
 #         return """你是一个 AI 编程助手,可以读写文件、执行命令来帮助用户完成编程任务。
