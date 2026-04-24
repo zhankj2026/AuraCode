@@ -348,6 +348,8 @@ class AgentLoop:
         logger.debug(f"Calling LLM with {len(self.messages)} messages")
         
         # 打印调用信息(使用 print 确保可见)
+        print(f"\n🤔 request= {self.messages} ")
+
         print(f"\n🤔 思考中... (使用 {len(self.messages)} 条消息历史)")
         
         try:
@@ -367,7 +369,7 @@ class AgentLoop:
                            f"completion={usage.completion_tokens}, "
                            f"total={usage.total_tokens}")
                 print(f"💰 Token 使用: 输入={usage.prompt_tokens}, 输出={usage.completion_tokens}, 总计={usage.total_tokens}")
-            
+                print(f"response = {response}")
             return response
             
         except Exception as e:
