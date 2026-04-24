@@ -42,6 +42,8 @@ export OPENAI_BASE_URL="https://open.bigmodel.cn/api/paas/v4"
 
 ### 3. 运行
 
+#### 对话模式
+
 ```bash
 # 基本使用
 python cli.py "帮我分析这个项目的结构"
@@ -52,6 +54,27 @@ python cli.py "重构这个函数" --model glm-4-plus
 # 自动模式（无需确认）
 python cli.py "运行测试" --mode auto
 ```
+
+#### 命令模式
+
+```bash
+# 分析代码
+python cli.py --command analyze .
+
+# 运行测试
+python cli.py --command test
+
+# 管理技能
+python cli.py --command skills activate python-standards
+
+# 查看状态
+python cli.py --command status
+
+# 查看帮助
+python cli.py --command help
+```
+
+**详细文档**: [命令模式文档](docs/COMMAND_MODE.md)
 
 ## 项目结构
 

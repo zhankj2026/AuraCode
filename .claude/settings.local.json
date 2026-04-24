@@ -5,7 +5,12 @@
       "Bash(python test_hooks_execution.py)",
       "Bash(python demo_skills.py)",
       "Bash(python test_skill_metadata.py)",
-      "Bash(python test_skill_tools.py)"
+      "Bash(python test_skill_tools.py)",
+      "Bash(python cli.py --command help)",
+      "Bash(python tests/test_command_mode.py)",
+      "Bash(ls -1 *.py *.md)",
+      "Bash(ls -1 tests/*.py)",
+      "Bash(ls -1 docs/*.md)"
     ]
   }
 }
