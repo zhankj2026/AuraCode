@@ -11,7 +11,6 @@ import argparse
 import os
 import sys
 import logging
-import json
 from datetime import datetime
 
 # Windows 控制台编码修复
@@ -24,270 +23,92 @@ if sys.platform == "win32":
 sys.path.insert(0, os.path.dirname(__file__))
 
 from core.agent_loop import AgentLoop
-from tools.builtin import skill_tools
-from core.subagent import subagent_manager
+from commands.registry import COMMAND_REGISTRY, get_command_list, get_commands_by_category
 
 # 配置日志
 logging.basicConfig(
-    level=logging.WARNING,  # 减少日志输出
+    level=logging.WARNING,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
 logger = logging.getLogger(__name__)
 
 
-class CommandMode:
-    """命令模式处理器"""
+class CommandExecutor:
+    """命令执行器"""
 
-    def __init__(self, loop: AgentLoop):
+    def __init__(self, loop: AgentLoop = None):
         self.loop = loop
 
-    def execute(self, command: str, args: list):
-        """执行命令"""
-        command_map = {
-            'analyze': self.cmd_analyze,
-            'test': self.cmd_test,
-            'lint': self.cmd_lint,
-            'skills': self.cmd_skills,
-            'plugins': self.cmd_plugins,
-            'status': self.cmd_status,
-            'subagents': self.cmd_subagents,
-            'help': self.cmd_help,
-        }
+    def execute(self, command_name: str, args: list) -> bool:
+        """
+        执行命令
 
-        if command not in command_map:
-            print(f"❌ 未知命令: {command}")
-            print(f"使用 'python cli.py --command help' 查看可用命令")
+        Args:
+            command_name: 命令名称
+            args: 命令参数
+
+        Returns:
+            True 表示成功，False 表示失败
+        """
+        # 处理别名
+        aliases = {
+            '?': 'help',
+            'h': 'help',
+            'ls': 'list',
+        }
+        command_name = aliases.get(command_name, command_name)
+
+        # 查找命令
+        cmd_def = COMMAND_REGISTRY.get(command_name)
+        if not cmd_def:
+            print(f"❌ 未知命令: {command_name}")
+            print(f"使用 'help' 查看可用命令")
             return False
 
         try:
-            command_map[command](args)
+            handler = cmd_def["handler"]
+
+            # 根据处理函数类型调用
+            if callable(handler):
+                # 检查是否是 Command 类实例
+                if hasattr(handler, 'execute'):
+                    # Command 类
+                    if hasattr(handler, 'set_loop') and self.loop:
+                        handler.set_loop(self.loop)
+                    result = handler.execute(args)
+                else:
+                    # 普通函数
+                    if hasattr(handler, '__code__'):
+                        # 检查函数签名
+                        import inspect
+                        sig = inspect.signature(handler)
+                        if 'loop' in sig.parameters:
+                            result = handler(args, loop=self.loop)
+                        else:
+                            result = handler(args)
+                    else:
+                        result = handler(args)
+                print(result)
+            else:
+                print(f"❌ 命令处理函数无效")
+                return False
+
             return True
+
         except Exception as e:
             print(f"❌ 命令执行失败: {e}")
+            logger.error(f"Command {command_name} failed: {e}", exc_info=True)
             return False
-
-    def cmd_analyze(self, args):
-        """分析代码"""
-        if not args:
-            print("❌ 请指定要分析的文件或目录")
-            print("用法: python cli.py --command analyze <path>")
-            return
-
-        path = args[0]
-        print(f"🔍 分析: {path}")
-        print("-" * 60)
-
-        # 使用 AgentLoop 的分析工具
-        from tools.builtin.analyze_file import analyze_file_handler
-        from tools.builtin.find import find_handler
-
-        if os.path.isfile(path):
-            result = analyze_file_handler(path)
-            print(result)
-        elif os.path.isdir(path):
-            # 查找 Python 文件
-            files = find_handler(path, "*.py", max_depth=3)
-            print(f"找到 {len(files.splitlines())} 个 Python 文件\n")
-
-            # 分析每个文件
-            for line in files.splitlines()[:10]:  # 限制数量
-                if line.strip() and not line.startswith('找到'):
-                    file_path = line.strip()
-                    if os.path.isfile(file_path):
-                        print(f"\n📄 {file_path}")
-                        try:
-                            result = analyze_file_handler(file_path)
-                            if result and len(result) < 500:
-                                print(result)
-                        except:
-                            pass
-        else:
-            print(f"❌ 路径不存在: {path}")
-
-    def cmd_test(self, args):
-        """运行测试"""
-        print("🧪 运行测试")
-        print("-" * 60)
-
-        from tools.builtin.run_tests import run_tests_handler
-
-        # 支持指定测试路径
-        test_path = args[0] if args else "."
-        result = run_tests_handler(path=test_path)
-
-        print(result)
-
-    def cmd_lint(self, args):
-        """代码检查"""
-        print("🔍 代码检查")
-        print("-" * 60)
-
-        from tools.builtin.lint import lint_handler
-
-        # 支持指定路径
-        path = args[0] if args else "."
-        result = lint_handler(path=path)
-
-        print(result)
-
-    def cmd_skills(self, args):
-        """技能管理"""
-        if not args:
-            self.skills_list()
-            return
-
-        subcommand = args[0]
-
-        if subcommand == 'list':
-            self.skills_list()
-        elif subcommand == 'activate':
-            if len(args) < 2:
-                print("❌ 请指定技能名称")
-                return
-            self.skills_activate(args[1])
-        elif subcommand == 'deactivate':
-            if len(args) < 2:
-                print("❌ 请指定技能名称")
-                return
-            self.skills_deactivate(args[1])
-        elif subcommand == 'active':
-            self.skills_active()
-        else:
-            print(f"❌ 未知子命令: {subcommand}")
-            print("可用子命令: list, activate, deactivate, active")
-
-    def skills_list(self):
-        """列出所有技能"""
-        result = skill_tools.show_available_skills_handler()
-        print(result)
-
-    def skills_activate(self, name: str):
-        """激活技能"""
-        result = skill_tools.activate_skill_handler(name)
-        print(result)
-
-    def skills_deactivate(self, name: str):
-        """停用技能"""
-        result = skill_tools.deactivate_skill_handler(name)
-        print(result)
-
-    def skills_active(self):
-        """显示已激活的技能"""
-        result = skill_tools.get_active_skills_handler()
-        print(result)
-
-    def cmd_plugins(self, args):
-        """插件管理"""
-        print("🔌 插件系统")
-        print("-" * 60)
-
-        if self.loop.plugin_loader:
-            result = self.loop.list_plugins()
-            print(result)
-
-            # 显示钩子
-            hooks = self.loop.list_hooks()
-            if hooks:
-                print("\n📌 已注册的钩子:")
-                print(hooks)
-        else:
-            print("插件系统未启用")
-
-    def cmd_status(self, args):
-        """显示系统状态"""
-        print("📊 系统状态")
-        print("=" * 60)
-
-        status = self.loop.get_system_status()
-
-        print(f"插件系统: {'✅ 启用' if self.loop.plugins_enabled else '❌ 禁用'}")
-        print(f"  已加载: {status['plugins']['loaded']} 个")
-
-        print(f"\n钩子系统: {'✅ 启用' if self.loop.hooks_enabled else '❌ 禁用'}")
-        print(f"  已注册: {status['hooks']['registered']} 个")
-
-        print(f"\n技能系统: {'✅ 启用' if self.loop.skills_enabled else '❌ 禁用'}")
-        print(f"  总数: {status['skills']['total']} 个")
-        print(f"  已激活: {status['skills']['active']} 个")
-
-        print(f"\n工具总数: {status['tools']['total']} 个")
-
-        # 显示 Subagent 状态
-        subagent_stats = subagent_manager.get_stats()
-        print(f"\nSubagent:")
-        print(f"  总数: {subagent_stats['total']} 个")
-        print(f"  运行中: {subagent_stats['running']} 个")
-        print(f"  已完成: {subagent_stats['completed']} 个")
-
-    def cmd_subagents(self, args):
-        """Subagent 管理"""
-        print("🤖 Subagent 管理")
-        print("-" * 60)
-
-        if not args:
-            # 列出所有 Subagent
-            result = skill_tools.subagent_stats_handler()
-            print(result)
-
-            subagents = subagent_manager.list_agents()
-            if subagents:
-                print("\nSubagent 列表:")
-                for agent in subagents:
-                    status_icon = {
-                        'running': '🔄',
-                        'completed': '✅',
-                        'failed': '❌',
-                    }.get(agent['status'], '❓')
-
-                    print(f"  {status_icon} {agent['agent_id']}")
-                    print(f"     任务: {agent['task']}")
-                    print()
-        else:
-            subcommand = args[0]
-
-            if subcommand == 'list':
-                result = skill_tools.list_subagents_handler()
-                print(result)
-            elif subcommand == 'stats':
-                result = skill_tools.subagent_stats_handler()
-                print(result)
-
-    def cmd_help(self, args):
-        """显示帮助"""
-        print("📖 命令帮助")
-        print("=" * 60)
-        print()
-        print("可用命令:")
-        print()
-        print("  analyze <path>      分析代码文件或目录")
-        print("  test [path]         运行测试")
-        print("  lint [path]         代码检查")
-        print()
-        print("  skills list         列出所有技能")
-        print("  skills activate <name>  激活技能")
-        print("  skills deactivate <name> 停用技能")
-        print("  skills active       显示已激活的技能")
-        print()
-        print("  plugins             显示插件信息")
-        print("  status              显示系统状态")
-        print("  subagents           管理 Subagent")
-        print()
-        print("示例:")
-        print()
-        print("  python cli.py --command analyze .")
-        print("  python cli.py --command test")
-        print("  python cli.py --command skills activate python-standards")
-        print("  python cli.py --command status")
-        print()
 
 
 class ChatMode:
     """多轮对话模式处理器"""
 
-    def __init__(self, loop: AgentLoop, config: dict):
+    def __init__(self, loop: AgentLoop, config: dict, executor: CommandExecutor):
         self.loop = loop
         self.config = config
+        self.executor = executor
         self.round = 0
         self.total_tokens = 0
         self.start_time = datetime.now()
@@ -299,13 +120,12 @@ class ChatMode:
         print("=" * 60)
         print(f"   Model: {self.config['model']}")
         print(f"   Permission Mode: {self.config['permission_mode']}")
-        print(f"   Max Iterations: {self.config['max_iterations']}")
         print()
         print("💡 提示:")
         print("   - 输入你的问题或指令")
-        print("   - 输入 /help 查看可用命令")
-        print("   - 输入 /clear 清空对话历史")
-        print("   - 输入 /exit 或 /quit 退出")
+        print("   - 输入 'help' 查看可用命令")
+        print("   - 输入 'clear' 清空对话历史")
+        print("   - 输入 'exit' 或 'quit' 退出")
         print("   - 按 Ctrl+C 退出")
         print()
         print("=" * 60)
@@ -325,69 +145,54 @@ class ChatMode:
             print(f"   平均 Token/轮: {self.total_tokens // self.round}")
         print("=" * 60)
 
-    def handle_command(self, user_input: str) -> bool:
-        """处理特殊命令"""
-        input_stripped = user_input.strip()
+    def handle_input(self, user_input: str) -> bool:
+        """
+        处理用户输入
+
+        Args:
+            user_input: 用户输入
+
+        Returns:
+            True 表示继续对话，False 表示退出
+        """
+        user_input = user_input.strip()
 
         # 空输入
-        if not input_stripped:
+        if not user_input:
             return True
 
         # 退出命令
-        if input_stripped in ['/exit', '/quit', ':q', 'exit', 'quit']:
+        if user_input in ['exit', 'quit', ':q', '/exit', '/quit']:
             return False
 
         # 帮助命令
-        if input_stripped in ['/help', 'help', '?']:
+        if user_input in ['help', '/help', '?']:
             self.show_help()
             return True
 
         # 清空历史命令
-        if input_stripped in ['/clear', 'clear']:
+        if user_input in ['clear', '/clear']:
             self.loop.messages = []
             self.round = 0
             print("✅ 对话历史已清空")
             return True
 
         # 状态命令
-        if input_stripped in ['/status', 'status']:
-            self.show_status()
+        if user_input in ['status', '/status']:
+            self.executor.execute('status', [])
             return True
 
         # 技能命令
-        if input_stripped.startswith('/skills'):
-            self.handle_skills_command(input_stripped)
-            return True
+        if user_input.startswith('/'):
+            # 解析 /command 格式
+            parts = user_input[1:].split()
+            if parts:
+                cmd_name = parts[0]
+                cmd_args = parts[1:]
+                return self.executor.execute(cmd_name, cmd_args)
 
-        # 激活技能快捷方式
-        if input_stripped.startswith('/activate'):
-            parts = input_stripped.split()
-            if len(parts) >= 2:
-                skill_name = parts[1]
-                result = skill_tools.activate_skill_handler(skill_name)
-                print(result)
-            else:
-                print("用法: /activate <skill_name>")
-            return True
-
-        # 停用技能快捷方式
-        if input_stripped.startswith('/deactivate'):
-            parts = input_stripped.split()
-            if len(parts) >= 2:
-                skill_name = parts[1]
-                result = skill_tools.deactivate_skill_handler(skill_name)
-                print(result)
-            else:
-                print("用法: /deactivate <skill_name>")
-            return True
-
-        # 显示激活的技能
-        if input_stripped in ['/active', 'active']:
-            result = skill_tools.get_active_skills_handler()
-            print(result)
-            return True
-
-        return False  # 不是特殊命令，需要 AI 处理
+        # 普通对话
+        return self.process_round(user_input)
 
     def show_help(self):
         """显示帮助"""
@@ -396,106 +201,43 @@ class ChatMode:
         print("📖 可用命令")
         print("=" * 60)
         print()
-        print("对话控制:")
-        print("  /help          - 显示此帮助")
-        print("  /clear         - 清空对话历史")
-        print("  /status        - 显示系统状态")
-        print("  /exit, /quit   - 退出对话")
-        print()
-        print("技能管理:")
-        print("  /skills        - 列出所有技能")
-        print("  /activate <name>  - 激活技能")
-        print("  /deactivate <name> - 停用技能")
-        print("  /active        - 显示已激活的技能")
-        print()
+
+        categories = {
+            "system": "系统命令",
+            "skills": "技能管理",
+            "tools": "工具命令",
+            "analysis": "代码分析"
+        }
+
+        for cat_key, cat_name in categories.items():
+            commands = get_commands_by_category(cat_key)
+            if commands:
+                print(f"{cat_name}:")
+                for cmd_name in commands:
+                    cmd = COMMAND_REGISTRY[cmd_name]
+                    args_help = cmd.get("args_help", "")
+                    if args_help:
+                        print(f"  {cmd_name:15} {args_help}")
+                    else:
+                        print(f"  {cmd_name}")
+                    print(f"    {cmd['description']}")
+                print()
+
         print("其他:")
         print("  直接输入问题或指令与 AI 对话")
         print()
         print("=" * 60)
 
-    def show_status(self):
-        """显示状态"""
-        print()
-        print("=" * 60)
-        print("📊 当前状态")
-        print("=" * 60)
+    def process_round(self, user_input: str) -> bool:
+        """
+        处理一轮对话
 
-        status = self.loop.get_system_status()
+        Args:
+            user_input: 用户输入
 
-        print(f"插件: {status['plugins']['loaded']} 个")
-        print(f"钩子: {status['hooks']['registered']} 个")
-        print(f"技能: {status['skills']['active']}/{status['skills']['total']} 个激活")
-        print(f"工具: {status['tools']['total']} 个")
-        print(f"对话轮次: {self.round}")
-        print(f"使用 Token: {self.total_tokens}")
-
-        print("=" * 60)
-
-    def handle_skills_command(self, input_cmd: str):
-        """处理技能命令"""
-        parts = input_cmd.split()
-
-        if len(parts) == 1:
-            # /skills
-            result = skill_tools.show_available_skills_handler()
-            print(result)
-        elif len(parts) >= 2:
-            action = parts[1]
-
-            if action == 'list':
-                result = skill_tools.show_available_skills_handler()
-                print(result)
-            elif action == 'activate' and len(parts) >= 3:
-                result = skill_tools.activate_skill_handler(parts[2])
-                print(result)
-            elif action == 'deactivate' and len(parts) >= 3:
-                result = skill_tools.deactivate_skill_handler(parts[2])
-                print(result)
-            else:
-                print("用法:")
-                print("  /skills                - 列出所有技能")
-                print("  /skills activate <name> - 激活技能")
-                print("  /skills deactivate <name> - 停用技能")
-
-    def run(self, initial_input: str = None):
-        """运行多轮对话"""
-        self.show_welcome()
-
-        # 如果有初始输入，先处理
-        if initial_input:
-            self.process_round(initial_input)
-
-        # 多轮对话循环
-        while True:
-            try:
-                # 获取用户输入
-                user_input = input(f"[{self.round}]> ").strip()
-
-                # 处理空输入
-                if not user_input:
-                    continue
-
-                # 处理特殊命令
-                should_continue = self.handle_command(user_input)
-                if not should_continue:
-                    break
-
-                # 处理普通对话
-                self.process_round(user_input)
-
-            except KeyboardInterrupt:
-                print("\n\n👋 用户中断")
-                break
-            except EOFError:
-                print("\n\n👋 输入结束")
-                break
-
-        # 显示会话统计
-        self.show_stats()
-        print("\n✅ 感谢使用！再见！")
-
-    def process_round(self, user_input: str):
-        """处理一轮对话"""
+        Returns:
+            True 表示继续，False 表示失败
+        """
         self.round += 1
 
         print()
@@ -508,7 +250,6 @@ class ChatMode:
 
             # 统计 token 使用
             if self.loop.messages:
-                # 从最后一条助手消息中获取 token 使用情况
                 for msg in reversed(self.loop.messages):
                     if msg.get('role') == 'assistant' and 'usage' in msg:
                         usage = msg['usage']
@@ -525,8 +266,36 @@ class ChatMode:
 
         except Exception as e:
             print(f"\n❌ 错误: {e}")
+            logger.error(f"Round {self.round} failed: {e}", exc_info=True)
 
         print()
+        return True
+
+    def run(self, initial_input: str = None):
+        """运行多轮对话循环"""
+        self.show_welcome()
+
+        # 处理初始输入
+        if initial_input:
+            if not self.handle_input(initial_input):
+                return
+
+        # 对话循环
+        while True:
+            try:
+                user_input = input(f"[{self.round}]> ")
+                if not self.handle_input(user_input):
+                    break
+            except KeyboardInterrupt:
+                print("\n\n👋 用户中断")
+                break
+            except EOFError:
+                print("\n\n👋 输入结束")
+                break
+
+        # 显示会话统计
+        self.show_stats()
+        print("\n✅ 感谢使用！再见！")
 
 
 def check_api_key():
@@ -645,8 +414,8 @@ def main():
             sys.exit(1)
 
         # 执行命令
-        cmd_mode = CommandMode(loop)
-        success = cmd_mode.execute(command, command_args)
+        executor = CommandExecutor(loop)
+        success = executor.execute(command, command_args)
         sys.exit(0 if success else 1)
 
     # 对话模式（多轮）
@@ -657,6 +426,9 @@ def main():
         print(f"❌ 初始化失败: {e}")
         sys.exit(1)
 
+    # 创建命令执行器
+    executor = CommandExecutor(loop)
+
     # 获取初始输入
     initial_input = None
     if args.prompt:
@@ -664,7 +436,7 @@ def main():
 
     # 运行多轮对话
     try:
-        chat_mode = ChatMode(loop, config)
+        chat_mode = ChatMode(loop, config, executor)
         chat_mode.run(initial_input)
     except KeyboardInterrupt:
         print("\n\n👋 用户中断")
