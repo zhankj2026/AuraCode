@@ -14,7 +14,7 @@ body {
     text-align: center;
     background: rgba(255, 255, 255, 0.1);
     padding: 30px;
-    border-radius: 20px;
+    border-radius: 15px;
     backdrop-filter: blur(10px);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
@@ -33,16 +33,23 @@ h1 {
     font-weight: bold;
 }
 
+.score, .high-score {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 10px 20px;
+    border-radius: 25px;
+    min-width: 120px;
+}
+
 #gameCanvas {
     border: 3px solid #fff;
     border-radius: 10px;
     background: #2c3e50;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-    margin-bottom: 20px;
+    margin: 20px 0;
 }
 
 .controls {
-    margin-bottom: 20px;
+    margin: 20px 0;
 }
 
 button {
@@ -75,9 +82,13 @@ button:disabled {
 }
 
 .instructions {
+    margin-top: 20px;
     font-size: 14px;
     opacity: 0.8;
-    line-height: 1.6;
+}
+
+.instructions p {
+    margin: 5px 0;
 }
 
 .game-over {
@@ -109,9 +120,13 @@ button:disabled {
         height: 300px;
     }
     
+    .game-info {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
     button {
-        padding: 10px 20px;
-        font-size: 14px;
         margin: 5px;
+        padding: 10px 20px;
     }
 }
