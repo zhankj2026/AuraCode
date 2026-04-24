@@ -101,21 +101,25 @@ class SkillManager:
         if not os.path.exists(self.skills_dir):
             logger.warning(f"Skill 目录不存在: {self.skills_dir}")
             return
-        
+
         skill_count = 0
-        
+
         # 遍历 skills 目录
         for skill_name in os.listdir(self.skills_dir):
+            # 跳过特殊目录
+            if skill_name.startswith('__'):
+                continue
+
             skill_path = os.path.join(self.skills_dir, skill_name)
-            
+
             # 只处理目录
             if not os.path.isdir(skill_path):
                 continue
-            
+
             # 查找 SKILL.md
             skill_md = os.path.join(skill_path, 'SKILL.md')
             if not os.path.exists(skill_md):
-                logger.warning(f"Skill {skill_name} 缺少 SKILL.md")
+                logger.debug(f"Skill {skill_name} 缺少 SKILL.md，跳过")
                 continue
             
             try:

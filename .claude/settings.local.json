@@ -14,7 +14,8 @@
       "Bash(python tests/test_chat_mode.py)",
       "Bash(OPENAI_API_KEY=test_key python -c \"from commands.registry import COMMAND_REGISTRY, get_command_list, get_commands_by_category; print\\('Commands:', get_command_list\\(\\)\\); print\\('System:', get_commands_by_category\\('system'\\)\\); print\\('Skills:', get_commands_by_category\\('skills'\\)\\)\")",
       "Bash(ls -1 commands/builtin/*.py)",
-      "Bash(ls -1 tools/builtin/*.py)"
+      "Bash(ls -1 tools/builtin/*.py)",
+      "Bash(OPENAI_API_KEY=test_key python cli.py --command status)"
     ]
   }
 }
