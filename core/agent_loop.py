@@ -20,6 +20,7 @@ from core.context import load_project_context
 from plugins.loader import PluginLoader
 from hooks.manager import HookManager, HookResult
 from skills.loader import SkillManager
+from skills.context import SkillContext
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +148,10 @@ class AgentLoop:
             try:
                 self.skill_manager = SkillManager()
                 logger.info(f"加载了 {len(self.skill_manager.skills)} 个技能 (仅元数据)")
+
+                # 设置全局技能上下文，让工具可以访问
+                SkillContext.set_skill_manager(self.skill_manager)
+                logger.debug("技能上下文已设置")
 
                 # 自动激活配置中指定的技能
                 active_skills = config.get("active_skills", [])
