@@ -57,7 +57,7 @@ class AutoFormatPlugin(ToolPlugin):
     
     def initialize(self) -> bool:
         """初始化插件"""
-        print(f"✅ 插件 {self.name} 已启用: 自动格式化 Python 文件")
+        print(f"[OK] Plugin {self.name} enabled: Auto-format Python files")
         return True
     
     async def _format_after_write(self, **kwargs) -> 'HookResult':
