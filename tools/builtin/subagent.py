@@ -119,7 +119,10 @@ def list_subagents_handler(status: str = None) -> str:
         agents = subagent_manager.list_agents(status=status)
 
         if not agents:
-            return f"{'没有' if not status else f\"没有状态为 '{status}' 的\"} Subagent"
+            if not status:
+                return "没有 Subagent"
+            else:
+                return f"没有状态为 '{status}' 的 Subagent"
 
         # 格式化输出
         lines = [f"📋 Subagent 列表 (共 {len(agents)} 个):", ""]

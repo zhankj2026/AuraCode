@@ -18,7 +18,9 @@
       "Bash(OPENAI_API_KEY=test_key python cli.py --command status)",
       "Bash(ls -la *.html *.css *.js)",
       "mcp__web-reader__webReader",
-      "Bash(python tests/test_subagent_enhanced.py)"
+      "Bash(python tests/test_subagent_enhanced.py)",
+      "Bash(python -c \"from tools.builtin import subagent; print\\('Import successful'\\)\")",
+      "Bash(python cli.py --help)"
     ]
   }
 }
