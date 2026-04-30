@@ -46,7 +46,7 @@ opencode/
 | 模块 | 文件 | 行数 | 状态 | 说明 |
 |------|------|------|------|------|
 | 消息管理 | `core/message.py` | 106 | ✅ 完成 | 消息创建、验证 |
-| 上下文加载 | `core/context.py` | 215 | ✅ 完成 | CLAUDE.md、技术栈检测 |
+| 上下文加载 | `core/context.py` | 215 | ✅ 完成 | OPENCODE.md、技术栈检测 |
 | 工具注册表 | `tools/registry.py` | 82 | ✅ 完成 | 工具注册、Schema 生成 |
 
 ---

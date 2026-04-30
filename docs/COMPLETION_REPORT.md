@@ -105,7 +105,7 @@ DANGEROUS_PATTERNS = [
 
 **文件**: `core/context.py` (215行)
 
-- ✅ CLAUDE.md 多层级加载
+- ✅ OPENCODE.md 多层级加载
 - ✅ 技术栈自动检测(requirements.txt, package.json等)
 - ✅ 项目结构分析
 - ✅ 深度配置合并
@@ -152,7 +152,7 @@ python cli.py --model gpt-3.5-turbo "你的指令"
    - 扩展指南
 
 4. **[04-context-and-config.md](docs/04-context-and-config.md)** (1151行)
-   - CLAUDE.md 加载器
+   - OPENCODE.md 加载器
    - YAML 配置系统
    - 环境变量优先级
    - 配置验证
@@ -296,7 +296,7 @@ python cli.py --mode bypass "列出当前目录"
 
 ### 生产环境
 1. 使用 `--mode normal` 确保安全
-2. 定期审查 CLAUDE.md 配置
+2. 定期审查 OPENCODE.md 配置
 3. 监控 Token 使用情况
 
 ### 扩展开发

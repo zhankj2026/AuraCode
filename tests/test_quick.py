@@ -119,7 +119,7 @@ try:
     if context:
         print(f"✅ 上下文加载成功 (长度: {len(context)} 字符)")
     else:
-        print("⚠️  未找到 CLAUDE.md (这是正常的)")
+        print("⚠️  未找到 OPENCODE.md (这是正常的)")
     
     tech_stack = detect_tech_stack(".")
     if tech_stack:

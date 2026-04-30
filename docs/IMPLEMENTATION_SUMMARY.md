@@ -144,14 +144,14 @@ opencode/
 ### 文档 4: 上下文管理与配置系统 (04-context-and-config.md)
 
 **核心内容:**
-- CLAUDE.md 加载机制(多层级搜索)
+- OPENCODE.md 加载机制(多层级搜索)
 - 技术栈自动检测(支持 10+ 种语言)
 - 项目结构检测
 - YAML 配置系统设计
 - 默认配置(defaults.yaml)完整内容
 - 配置加载器(deep_merge + 环境变量覆盖)
 - 配置验证函数
-- CLAUDE.md 最佳实践(标准模板 + 精简版)
+- OPENCODE.md 最佳实践(标准模板 + 精简版)
 - 动态上下文注入(Git 分支、最近修改文件)
 - 上下文缓存优化(lru_cache)
 
@@ -160,7 +160,7 @@ opencode/
 - 技术栈检测逻辑
 - 配置合并算法
 - 环境变量应用
-- CLAUDE.md 模板
+- OPENCODE.md 模板
 
 ---
 
@@ -275,7 +275,7 @@ python cli.py  # 应该从 config.yaml 或环境变量读取配置
 ```
 
 **验收标准:**
-- ✅ 自动加载项目根目录的 `.claude/CLAUDE.md`
+- ✅ 自动加载项目根目录的 `.opencode/OPENCODE.md`
 - ✅ 配置文件可通过 YAML 自定义
 - ✅ 环境变量正确覆盖配置
 

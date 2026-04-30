@@ -50,7 +50,7 @@ opencode/
 │   ├── __init__.py
 │   ├── agent_loop.py        # TAOR 循环实现(~150行)
 │   ├── message.py           # 消息模型与管理
-│   └── context.py           # 上下文加载器(CLAUDE.md)
+│   └── context.py           # 上下文加载器(OPENCODE.md)
 │
 ├── tools/                   # 工具系统层
 │   ├── __init__.py
@@ -102,7 +102,7 @@ opencode/
 └─────────┬───────────┘
           │
           ├─► 加载上下文 (core/context.py)
-          │       └─► .claude/CLAUDE.md
+          │       └─► .opencode/OPENCODE.md
           │
           ├─► 组装提示词 (agent_loop._build_system_prompt)
           │       ├─ 角色定义

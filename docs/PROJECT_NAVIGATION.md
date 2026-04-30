@@ -57,7 +57,7 @@ python cli.py --mode bypass "列出当前目录"
 | 文件 | 功能 | 行数 | 说明 |
 |------|------|------|------|
 | `core/agent_loop.py` | Agent Loop 引擎 | 258 | **核心!** TAOR 循环实现 |
-| `core/context.py` | 上下文加载器 | 215 | CLAUDE.md 和技术栈检测 |
+| `core/context.py` | 上下文加载器 | 215 | OPENCODE.md 和技术栈检测 |
 | `core/message.py` | 消息管理 | 106 | 消息创建和验证 |
 
 ### 工具系统

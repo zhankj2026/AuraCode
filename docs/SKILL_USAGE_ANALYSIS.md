@@ -115,7 +115,7 @@ def _build_system_prompt(self) -> str:
     # 第 1 层: 基础角色定义
     parts.append(self._base_role())
 
-    # 第 2 层: 项目上下文(CLAUDE.md)
+    # 第 2 层: 项目上下文(OPENCODE.md)
     project_context = load_project_context()
     if project_context:
         parts.append(project_context)

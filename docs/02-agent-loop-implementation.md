@@ -199,7 +199,7 @@ class AgentLoop:
         # 第 1 层: 基础角色定义
         parts.append(self._base_role())
         
-        # 第 2 层: 项目上下文(CLAUDE.md)
+        # 第 2 层: 项目上下文(OPENCODE.md)
         project_context = load_project_context()
         if project_context:
             parts.append(project_context)
@@ -416,7 +416,7 @@ user → assistant → assistant (连续两个 assistant)
 | 层级 | 内容 | 稳定性 | Token 占用 |
 |------|------|-------|-----------|
 | 1. 角色定义 | "你是 AI 编程助手..." | 固定 | ~100 |
-| 2. 项目上下文 | CLAUDE.md + 技术栈检测 | 每次会话加载 | ~500-2000 |
+| 2. 项目上下文 | OPENCODE.md + 技术栈检测 | 每次会话加载 | ~500-2000 |
 | 3. 工具说明 | 工具列表 + 参数描述 | 固定 | ~300 |
 | 4. 安全规则 | 禁止操作清单 | 固定 | ~150 |
 

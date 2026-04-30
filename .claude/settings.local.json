@@ -16,7 +16,8 @@
       "Bash(ls -1 commands/builtin/*.py)",
       "Bash(ls -1 tools/builtin/*.py)",
       "Bash(OPENAI_API_KEY=test_key python cli.py --command status)",
-      "Bash(ls -la *.html *.css *.js)"
+      "Bash(ls -la *.html *.css *.js)",
+      "mcp__web-reader__webReader"
     ]
   }
 }

@@ -11,7 +11,7 @@ LLM 本身是无状态的,每次调用都是独立的。为了让 AI 理解你�
 - 📝 **历史记忆** - 之前的对话和决策
 - 🎯 **当前任务** - 待解决的问题和目标
 
-Claude Code 通过 **CLAUDE.md** 文件和多层级上下文加载机制实现这一点。
+Claude Code 通过 **OPENCODE.md** 文件和多层级上下文加载机制实现这一点。
 
 ### 1.2 Claude Code 的上下文层级
 
@@ -20,11 +20,11 @@ Claude Code 通过 **CLAUDE.md** 文件和多层级上下文加载机制实现�
 ┌─────────────────────────────────────┐
 │ 1. 企业级配置 (Enterprise)           │ ← 组织统一规范
 ├─────────────────────────────────────┤
-│ 2. 用户级配置 (~/.claude/CLAUDE.md) │ ← 个人偏好
+│ 2. 用户级配置 (~/.opencode/OPENCODE.md) │ ← 个人偏好
 ├─────────────────────────────────────┤
-│ 3. 项目级配置 (.claude/CLAUDE.md)    │ ← 项目特定约定
+│ 3. 项目级配置 (.opencode/OPENCODE.md)    │ ← 项目特定约定
 ├─────────────────────────────────────┤
-│ 4. 子目录级配置 (src/.claude/...)   │ ← 模块级规范
+│ 4. 子目录级配置 (src/.opencode/...)   │ ← 模块级规范
 └─────────────────────────────────────┘
 ```
 
@@ -32,7 +32,7 @@ Claude Code 通过 **CLAUDE.md** 文件和多层级上下文加载机制实现�
 
 ---
 
-## 2. CLAUDE.md 加载机制
+## 2. OPENCODE.md 加载机制
 
 ### 2.1 核心实现
 
@@ -44,7 +44,7 @@ from typing import Optional, List
 
 def load_project_context(project_root: str = ".") -> str:
     """
-    加载项目上下文(CLAUDE.md + 技术栈检测)
+    加载项目上下文(OPENCODE.md + 技术栈检测)
     
     Args:
         project_root: 项目根目录路径
@@ -54,7 +54,7 @@ def load_project_context(project_root: str = ".") -> str:
     """
     context_parts = []
     
-    # 1. 加载 CLAUDE.md
+    # 1. 加载 OPENCODE.md
     claude_md_content = load_claude_md(project_root)
     if claude_md_content:
         context_parts.append(f"## 项目约定\n\n{claude_md_content}")
@@ -78,11 +78,11 @@ def load_project_context(project_root: str = ".") -> str:
 
 def load_claude_md(project_root: str) -> Optional[str]:
     """
-    加载 CLAUDE.md 文件
+    加载 OPENCODE.md 文件
     
     搜索路径:
-    1. {project_root}/.claude/CLAUDE.md
-    2. {project_root}/CLAUDE.md (备选)
+    1. {project_root}/.opencode/OPENCODE.md
+    2. {project_root}/OPENCODE.md (备选)
     
     Args:
         project_root: 项目根目录
@@ -90,8 +90,8 @@ def load_claude_md(project_root: str) -> Optional[str]:
     Returns:
         文件内容,如果不存在则返回 None
     """
-    # 优先搜索 .claude/ 目录
-    claude_dir_path = os.path.join(project_root, ".claude", "CLAUDE.md")
+    # 优先搜索 .opencode/ 目录
+    claude_dir_path = os.path.join(project_root, ".opencode", "OPENCODE.md")
     if os.path.exists(claude_dir_path):
         try:
             with open(claude_dir_path, "r", encoding="utf-8") as f:
@@ -99,10 +99,10 @@ def load_claude_md(project_root: str) -> Optional[str]:
                 if content:
                     return content
         except Exception as e:
-            print(f"⚠️  读取 CLAUDE.md 失败: {e}")
+            print(f"⚠️  读取 OPENCODE.md 失败: {e}")
     
-    # 备选: 根目录下的 CLAUDE.md
-    root_path = os.path.join(project_root, "CLAUDE.md")
+    # 备选: 根目录下的 OPENCODE.md
+    root_path = os.path.join(project_root, "OPENCODE.md")
     if os.path.exists(root_path):
         try:
             with open(root_path, "r", encoding="utf-8") as f:
@@ -110,7 +110,7 @@ def load_claude_md(project_root: str) -> Optional[str]:
                 if content:
                     return content
         except Exception as e:
-            print(f"⚠️  读取 CLAUDE.md 失败: {e}")
+            print(f"⚠️  读取 OPENCODE.md 失败: {e}")
     
     return None
 
@@ -284,12 +284,12 @@ class AgentLoop:
 
 ---
 
-## 3. CLAUDE.md 最佳实践
+## 3. OPENCODE.md 最佳实践
 
 ### 3.1 标准模板
 
 ```markdown
-# .claude/CLAUDE.md
+# .opencode/OPENCODE.md
 
 ## 项目概述
 
@@ -419,7 +419,7 @@ A:
 ### 3.2 精简版模板(小型项目)
 
 ```markdown
-# .claude/CLAUDE.md
+# .opencode/OPENCODE.md
 
 ## 技术栈
 
@@ -790,23 +790,23 @@ jobs:
 ```bash
 # 项目 A
 cd /path/to/project-a
-python cli.py "分析项目结构"  # 加载 project-a/.claude/CLAUDE.md
+python cli.py "分析项目结构"  # 加载 project-a/.opencode/OPENCODE.md
 
 # 项目 B
 cd /path/to/project-b
-python cli.py "添加新功能"  # 加载 project-b/.claude/CLAUDE.md
+python cli.py "添加新功能"  # 加载 project-b/.opencode/OPENCODE.md
 ```
 
 ### 6.2 动态上下文注入
 
-除了静态的 CLAUDE.md,还可以在运行时动态注入上下文:
+除了静态的 OPENCODE.md,还可以在运行时动态注入上下文:
 
 ```python
 class AgentLoop:
     def _build_system_prompt(self) -> str:
         parts = []
         
-        # 1. 静态上下文(CLAUDE.md)
+        # 1. 静态上下文(OPENCODE.md)
         parts.append(load_project_context())
         
         # 2. 动态上下文: 当前 Git 分支
@@ -858,7 +858,7 @@ def get_recently_modified_files(limit: int = 5) -> List[str]:
 
 ### 6.3 上下文缓存优化
 
-对于大型项目,频繁读取 CLAUDE.md 和检测技术栈可能较慢。可以引入缓存:
+对于大型项目,频繁读取 OPENCODE.md 和检测技术栈可能较慢。可以引入缓存:
 
 ```python
 from functools import lru_cache
@@ -870,14 +870,14 @@ def load_project_context_cached(project_root: str) -> str:
     """
     带缓存的上下文加载
     
-    缓存键: 项目路径 + CLAUDE.md 的 MD5
+    缓存键: 项目路径 + OPENCODE.md 的 MD5
     """
     return load_project_context(project_root)
 
 
 def get_context_cache_key(project_root: str) -> str:
     """生成上下文缓存键"""
-    claude_md_path = os.path.join(project_root, ".claude", "CLAUDE.md")
+    claude_md_path = os.path.join(project_root, ".opencode", "OPENCODE.md")
     
     if os.path.exists(claude_md_path):
         with open(claude_md_path, "rb") as f:
@@ -903,13 +903,13 @@ from core.context import load_project_context, load_claude_md, detect_tech_stack
 
 
 def test_load_claude_md():
-    """测试 CLAUDE.md 加载"""
+    """测试 OPENCODE.md 加载"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        # 创建 .claude/CLAUDE.md
-        claude_dir = os.path.join(tmpdir, ".claude")
+        # 创建 .opencode/OPENCODE.md
+        claude_dir = os.path.join(tmpdir, ".opencode")
         os.makedirs(claude_dir)
         
-        claude_md_path = os.path.join(claude_dir, "CLAUDE.md")
+        claude_md_path = os.path.join(claude_dir, "OPENCODE.md")
         with open(claude_md_path, "w") as f:
             f.write("## 测试项目\n这是测试内容")
         
@@ -918,7 +918,7 @@ def test_load_claude_md():
 
 
 def test_load_claude_md_not_exists():
-    """测试 CLAUDE.md 不存在的情况"""
+    """测试 OPENCODE.md 不存在的情况"""
     with tempfile.TemporaryDirectory() as tmpdir:
         content = load_claude_md(tmpdir)
         assert content is None
@@ -949,10 +949,10 @@ def test_detect_tech_stack_nodejs():
 def test_load_project_context_complete():
     """测试完整的上下文加载"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        # 创建 CLAUDE.md
-        claude_dir = os.path.join(tmpdir, ".claude")
+        # 创建 OPENCODE.md
+        claude_dir = os.path.join(tmpdir, ".opencode")
         os.makedirs(claude_dir)
-        with open(os.path.join(claude_dir, "CLAUDE.md"), "w") as f:
+        with open(os.path.join(claude_dir, "OPENCODE.md"), "w") as f:
             f.write("## 约定\n使用 TypeScript")
         
         # 创建 package.json
@@ -1084,27 +1084,27 @@ def test_validate_config_invalid():
 
 ## 8. 常见问题
 
-### Q1: CLAUDE.md 应该放在哪里?
+### Q1: OPENCODE.md 应该放在哪里?
 
-**A:** 推荐放在 `.claude/CLAUDE.md`,备选方案是项目根目录的 `CLAUDE.md`。
+**A:** 推荐放在 `.opencode/OPENCODE.md`,备选方案是项目根目录的 `OPENCODE.md`。
 
 ```
 my_project/
-├── .claude/
-│   └── CLAUDE.md  ← 推荐位置
+├── .opencode/
+│   └── OPENCODE.md  ← 推荐位置
 ├── src/
 └── README.md
 ```
 
 ### Q2: 如何让不同子目录有不同的约定?
 
-**A:** 在每个子目录创建独立的 `.claude/CLAUDE.md`:
+**A:** 在每个子目录创建独立的 `.opencode/OPENCODE.md`:
 
 ```
 my_project/
-├── .claude/CLAUDE.md          # 全局约定
-├── frontend/.claude/CLAUDE.md # React 规范
-└── backend/.claude/CLAUDE.md  # FastAPI 规范
+├── .opencode/OPENCODE.md          # 全局约定
+├── frontend/.opencode/OPENCODE.md # React 规范
+└── backend/.opencode/OPENCODE.md  # FastAPI 规范
 ```
 
 ### Q3: 配置文件的优先级如何工作?

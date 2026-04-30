@@ -979,7 +979,7 @@ def build_system_prompt(self) -> str:
     parts.append(self._environment_info())
     # OS、路径、Git 状态
     
-    # 第 4 层: 项目约定(加载 CLAUDE.md)
+    # 第 4 层: 项目约定(加载 OPENCODE.md)
     project_context = load_project_context()
     if project_context:
         parts.append(project_context)

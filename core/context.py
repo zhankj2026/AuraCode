@@ -1,7 +1,7 @@
 """
 上下文加载器
 
-负责加载 CLAUDE.md 文件、检测技术栈和项目结构,
+负责加载 OPENCODE.md 文件、检测技术栈和项目结构,
 为 Agent Loop 提供项目相关的上下文信息。
 """
 
@@ -12,7 +12,7 @@ from typing import Optional, List
 
 def load_project_context(project_root: str = ".") -> str:
     """
-    加载项目上下文(CLAUDE.md + 技术栈检测)
+    加载项目上下文(OPENCODE.md + 技术栈检测)
     
     Args:
         project_root: 项目根目录路径
@@ -22,7 +22,7 @@ def load_project_context(project_root: str = ".") -> str:
     """
     context_parts = []
     
-    # 1. 加载 CLAUDE.md
+    # 1. 加载 OPENCODE.md
     claude_md_content = load_claude_md(project_root)
     if claude_md_content:
         context_parts.append(f"## 项目约定\n\n{claude_md_content}")
@@ -46,11 +46,11 @@ def load_project_context(project_root: str = ".") -> str:
 
 def load_claude_md(project_root: str) -> Optional[str]:
     """
-    加载 CLAUDE.md 文件
+    加载 OPENCODE.md 文件
     
     搜索路径:
-    1. {project_root}/.claude/CLAUDE.md
-    2. {project_root}/CLAUDE.md (备选)
+    1. {project_root}/.opencode/OPENCODE.md
+    2. {project_root}/OPENCODE.md (备选)
     
     Args:
         project_root: 项目根目录
@@ -58,8 +58,8 @@ def load_claude_md(project_root: str) -> Optional[str]:
     Returns:
         文件内容,如果不存在则返回 None
     """
-    # 优先搜索 .claude/ 目录
-    claude_dir_path = os.path.join(project_root, ".claude", "CLAUDE.md")
+    # 优先搜索 .opencode/ 目录
+    claude_dir_path = os.path.join(project_root, ".opencode", "OPENCODE.md")
     if os.path.exists(claude_dir_path):
         try:
             with open(claude_dir_path, "r", encoding="utf-8") as f:
@@ -67,10 +67,10 @@ def load_claude_md(project_root: str) -> Optional[str]:
                 if content:
                     return content
         except Exception as e:
-            print(f"⚠️  读取 CLAUDE.md 失败: {e}")
+            print(f"⚠️  读取 OPENCODE.md 失败: {e}")
     
-    # 备选: 根目录下的 CLAUDE.md
-    root_path = os.path.join(project_root, "CLAUDE.md")
+    # 备选: 根目录下的 OPENCODE.md
+    root_path = os.path.join(project_root, "OPENCODE.md")
     if os.path.exists(root_path):
         try:
             with open(root_path, "r", encoding="utf-8") as f:
@@ -78,7 +78,7 @@ def load_claude_md(project_root: str) -> Optional[str]:
                 if content:
                     return content
         except Exception as e:
-            print(f"⚠️  读取 CLAUDE.md 失败: {e}")
+            print(f"⚠️  读取 OPENCODE.md 失败: {e}")
     
     return None
 

@@ -372,7 +372,7 @@ class ProjectMemory:
     
     def __init__(self, project_root: str):
         self.project_root = project_root
-        self.memory_file = os.path.join(project_root, ".claude_memory.json")
+        self.memory_file = os.path.join(project_root, ".opencode_memory.json")
         self.memory = self._load_memory()
     
     def _load_memory(self) -> Dict:

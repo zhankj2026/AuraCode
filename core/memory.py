@@ -118,7 +118,7 @@ class MemoryManager:
             project_root: 项目根目录
         """
         self.project_root = Path(project_root).resolve()
-        self.memory_dir = self.project_root / ".claude" / "memory"
+        self.memory_dir = self.project_root / ".opencode" / "memory"
 
         # 确保记忆目录存在
         self.memory_dir.mkdir(parents=True, exist_ok=True)

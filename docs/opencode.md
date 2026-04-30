@@ -25,7 +25,7 @@ Step 1 — 用户输入
 Step 2 — 消息创建 (Message Normalization)
     │
     ▼
-Step 3 — 上下文加载 (Memory & CLAUDE.md)
+Step 3 — 上下文加载 (Memory & OPENCODE.md)
     │
     ▼
 Step 4 — 系统提示词组装 (7层提示词)
@@ -67,10 +67,10 @@ Step 12 — 循环继续 (返回 Step 5)
 
 #### Step 3: 上下文加载
 
-Claude Code 从 4 个层级加载 `CLAUDE.md` 配置文件：
+Claude Code 从 4 个层级加载 `OPENCODE.md` 配置文件：
 - 企业级配置 (Enterprise)
-- 用户级配置 (~/.claude/CLAUDE.md)
-- 项目级配置 (项目根目录 .claude/CLAUDE.md)
+- 用户级配置 (~/.opencode/OPENCODE.md)
+- 项目级配置 (项目根目录 .opencode/OPENCODE.md)
 - 子目录级配置
 
 这些文件中的约定、规范和偏好被合并为系统提示词的固定部分[reference:6]。
@@ -82,7 +82,7 @@ Claude Code 从 4 个层级加载 `CLAUDE.md` 配置文件：
 1. 基础角色定义（“你是一个 AI 编程助手”）
 2. 工具定义（约 40+ 个工具的 JSON Schema）
 3. 环境信息（操作系统、当前路径、Git 状态）
-4. CLAUDE.md 内容（项目约定和架构模式）
+4. OPENCODE.md 内容（项目约定和架构模式）
 5. 历史记忆摘要（从记忆系统检索）
 6. 安全守则（高达 5,677 个 token）[reference:8]
 7. 当前任务上下文（待解决问题、最近操作）
@@ -175,7 +175,7 @@ while True:
 | **扁平消息历史** | 所有消息按时间顺序扁平存储，不维护分支 | 简化调试和状态管理[reference:25] |
 | **工具注册表** | 集中式工具注册，统一 Schema 校验 | JSON Schema 定义输入，权限级别标注[reference:26] |
 | **并行/串行混合执行** | 只读工具并行，写入工具串行 | 平衡效率与安全[reference:27] |
-| **分层上下文** | 4 级 CLAUDE.md + 7 层系统提示词 | 按优先级和稳定性分层组装[reference:28] |
+| **分层上下文** | 4 级 OPENCODE.md + 7 层系统提示词 | 按优先级和稳定性分层组装[reference:28] |
 | **权限检查流水线** | 工具调用经过 14 步治理流水线 | 三道防线：黑名单→用户确认→输出截断[reference:29] |
 | **流式响应解析** | 边接收边解析 text/thinking/tool_use | 毫秒级延迟反馈[reference:30] |
 | **上下文自动压缩** | 当上下文达 95%（~190K tokens）时触发摘要压缩 | 保留关键信息，释放空间[reference:31] |
@@ -319,7 +319,7 @@ class AgentLoop:
         # 1. 基础角色定义
         base_prompt = "你是一个 AI 编程助手，可以读写文件、执行命令来帮助用户完成编程任务。"
         
-        # 2. 项目上下文（CLAUDE.md 风格）
+        # 2. 项目上下文（OPENCODE.md 风格）
         project_context = load_project_context()
         
         # 3. 工具说明
@@ -571,7 +571,7 @@ class PermissionManager:
         return "\n".join(truncated)
 ```
 
-#### 2.4.5 上下文管理（CLAUDE.md 风格）
+#### 2.4.5 上下文管理（OPENCODE.md 风格）
 
 ```python
 # context.py
@@ -580,13 +580,13 @@ from typing import Optional
 
 def load_project_context(project_root: str = ".") -> str:
     """
-    加载项目约定文件（类似 CLAUDE.md）
-    支持多层级: 项目根目录 .claude/CLAUDE.md
+    加载项目约定文件（类似 OPENCODE.md）
+    支持多层级: 项目根目录 .opencode/OPENCODE.md
     """
     context_parts = []
     
     # 项目级约定
-    claude_md_path = os.path.join(project_root, ".claude", "CLAUDE.md")
+    claude_md_path = os.path.join(project_root, ".opencode", "OPENCODE.md")
     if os.path.exists(claude_md_path):
         with open(claude_md_path, "r", encoding="utf-8") as f:
             context_parts.append(f"## 项目约定\n{f.read()}")
@@ -754,7 +754,7 @@ Claude Code 的设计哲学值得借鉴：
 - ✅ Agent Loop 核心循环
 - ✅ 工具系统（注册表 + Schema 校验）
 - ✅ 权限管理（4 种模式 + 黑名单）
-- ✅ 上下文管理（CLAUDE.md 风格）
+- ✅ 上下文管理（OPENCODE.md 风格）
 - ✅ 扩展接口（MCP、插件）
 
 这个简化版可以作为：

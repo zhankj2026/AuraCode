@@ -308,7 +308,7 @@ config = {
     "active_skills": [],  # 默认激活的技能
 
     # 记忆系统
-    "memory_dir": ".claude/memory",  # 记忆存储目录
+    "memory_dir": ".opencode/memory",  # 记忆存储目录
 }
 ```
 
