@@ -220,18 +220,30 @@ def list_agent_types_handler() -> str:
         lines = ["🤖 可用的 Agent 类型", ""]
 
         for agent_type in available_types:
-            if agent_type == "general":
-                lines.append(f"### general")
-                lines.append("通用 Agent，适用于各种任务")
+            agent_def = subagent_manager.get_agent_definition(agent_type)
+            if agent_def:
+                lines.append(f"### {agent_type}")
+                lines.append(f"{agent_def.get('description', '无描述')}")
+                tools = agent_def.get('tools', [])
+                if tools and tools != ['*']:
+                    lines.append(f"**工具**: {', '.join(tools)}")
+                lines.append(f"**模型**: {agent_def.get('model', 'sonnet')}")
+
+                # 显示额外属性
+                if agent_def.get('omitClaudeMd'):
+                    lines.append(f"**省略 Claude.md**: 是")
+                if agent_def.get('background'):
+                    lines.append(f"**后台运行**: 是")
+                if agent_def.get('disallowedTools'):
+                    disallowed = agent_def.get('disallowedTools', [])
+                    lines.append(f"**禁止工具**: {', '.join(disallowed)}")
+
                 lines.append("")
             else:
-                agent_def = subagent_manager.get_agent_definition(agent_type)
-                if agent_def:
-                    lines.append(f"### {agent_type}")
-                    lines.append(f"{agent_def.get('description', '无描述')}")
-                    lines.append(f"**工具**: {', '.join(agent_def.get('tools', []))}")
-                    lines.append(f"**模型**: {agent_def.get('model', 'sonnet')}")
-                    lines.append("")
+                # 降级处理：如果没有定义文件，显示默认描述
+                lines.append(f"### {agent_type}")
+                lines.append("通用 Agent，适用于各种任务")
+                lines.append("")
 
         return "\n".join(lines)
 

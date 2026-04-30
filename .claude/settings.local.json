@@ -20,7 +20,8 @@
       "mcp__web-reader__webReader",
       "Bash(python tests/test_subagent_enhanced.py)",
       "Bash(python -c \"from tools.builtin import subagent; print\\('Import successful'\\)\")",
-      "Bash(python cli.py --help)"
+      "Bash(python cli.py --help)",
+      "Bash(python cli.py --command subagents types)"
     ]
   }
 }

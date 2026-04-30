@@ -81,13 +81,16 @@ class AgentDefinition:
         name: explore
         description: 搜索和理解代码库
         tools: Read, Grep, Glob
-        model: sonnet
+        disallowedTools: Write, Edit, Agent
+        model: haiku
+        omitClaudeMd: true
+        background: false
         ---
 
         Agent 具体提示词内容...
 
         Returns:
-            包含 name, description, tools, model, prompt 的字典
+            包含 name, description, tools, disallowedTools, model, prompt, omitClaudeMd, background 等的字典
         """
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -111,11 +114,52 @@ class AgentDefinition:
                     value = value.strip()
                     metadata[key] = value
 
+            # 解析工具列表（支持逗号分隔）
+            tools_str = metadata.get('tools', '[]')
+            if tools_str == '""':
+                tools_list = []
+            elif tools_str.startswith('[') and tools_str.endswith(']'):
+                # JSON 格式
+                import json
+                try:
+                    tools_list = json.loads(tools_str)
+                except:
+                    tools_list = []
+            elif tools_str == '"*"':
+                tools_list = ['*']
+            else:
+                # 逗号分隔
+                tools_list = [t.strip() for t in tools_str.split(',') if t.strip()]
+
+            # 解析禁止工具列表
+            disallowed_str = metadata.get('disallowedTools', '[]')
+            if disallowed_str == '""':
+                disallowed_list = []
+            elif disallowed_str.startswith('[') and disallowed_str.endswith(']'):
+                import json
+                try:
+                    disallowed_list = json.loads(disallowed_str)
+                except:
+                    disallowed_list = []
+            else:
+                disallowed_list = [t.strip() for t in disallowed_str.split(',') if t.strip()]
+
+            # 解析布尔值
+            def parse_bool(value: str) -> bool:
+                if isinstance(value, bool):
+                    return value
+                if isinstance(value, str):
+                    return value.lower() in ('true', 'yes', '1', 'on')
+                return False
+
             return {
                 'name': metadata.get('name', Path(file_path).stem),
                 'description': metadata.get('description', ''),
-                'tools': [t.strip() for t in metadata.get('tools', '').split(',')],
+                'tools': tools_list,
+                'disallowedTools': disallowed_list,
                 'model': metadata.get('model', 'sonnet'),
+                'omitClaudeMd': parse_bool(metadata.get('omitClaudeMd', 'false')),
+                'background': parse_bool(metadata.get('background', 'false')),
                 'prompt': prompt_text,
                 'file_path': file_path
             }
@@ -580,7 +624,9 @@ Do NOT return raw search results or verbose logs."""
     def get_available_agent_types(self) -> List[str]:
         """获取可用的 Agent 类型"""
         types = list(self.agent_definitions.keys())
-        types.append("general")  # 默认通用类型
+        # 只有当 "general" 不在定义中时才添加默认的通用类型
+        if "general" not in types:
+            types.append("general")
         return sorted(types)
 
     def get_agent_definition(self, agent_type: str) -> Optional[Dict]:
