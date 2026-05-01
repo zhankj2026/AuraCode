@@ -10,10 +10,12 @@ MCP (Model Context Protocol) is a protocol for connecting AI assistants to exter
 
 ```
 mcp/
+├── auth/           # OAuth 2.0 authentication
 ├── client/         # MCP client implementations
 ├── config/         # Configuration management
-├── tools/          # Tool adaptation layer
 ├── plugins/        # Plugin integration
+├── skills/         # Skill discovery and integration
+├── tools/          # Tool, resource, and prompt adaptation
 ├── transport/      # Transport protocols (stdio, HTTP, WebSocket)
 └── utils/          # Utility functions
 ```
@@ -32,6 +34,13 @@ mcp/
 - **WebSocket Transport**: Real-time bidirectional communication
 - **Plugin Integration**: Load MCP servers from plugins
 - **Output Validation**: Token counting and truncation for large outputs
+
+### Advanced Features
+
+- **OAuth Authentication**: OAuth 2.0 flow for secure server access
+- **Resource Tools**: Access MCP server resources (files, data, etc.)
+- **Prompt Tools**: Use pre-defined prompts from MCP servers
+- **Skill Discovery**: Auto-discover MCP servers as skills
 
 ## Quick Start
 
@@ -310,3 +319,210 @@ pytest tests/test_mcp_integration.py -v
 ## License
 
 This MCP integration is part of opencode and follows the same license.
+
+## Advanced Features
+
+### OAuth Authentication
+
+MCP servers that require OAuth 2.0 authentication can be configured with OAuth settings:
+
+```json
+{
+  "type": "sse",
+  "url": "https://api.example.com/mcp",
+  "oauth": {
+    "clientId": "your-client-id",
+    "callbackPort": 3000,
+    "authServerMetadataUrl": "https://auth.example.com/.well-known/oauth-authorization-server"
+  }
+}
+```
+
+#### Programmatic OAuth Authentication
+
+```python
+from mcp.auth import authenticate_oauth, OAuthClient
+
+# Automatic OAuth flow with local callback server
+client = await authenticate_oauth(
+    client_id="your-client-id",
+    auth_server_metadata_url="https://auth.example.com/.well-known/oauth-authorization-server",
+    scope="read write",
+)
+
+# Use the authenticated client
+access_token = await client.get_access_token()
+print(f"Access token: {access_token}")
+```
+
+#### Manual OAuth Flow
+
+```python
+from mcp.auth import OAuthClient
+
+client = OAuthClient(
+    client_id="your-client-id",
+    auth_server_metadata_url="https://auth.example.com/.well-known/oauth-authorization-server",
+)
+
+# Generate authorization URL
+code_verifier = client.generate_code_verifier()
+auth_url = client.build_authorization_url(
+    code_verifier=code_verifier,
+    scope="read write",
+)
+
+# User visits auth_url and authorizes...
+
+# Exchange code for token
+await client.exchange_code_for_token(code, code_verifier)
+
+# Get access token
+token = await client.get_access_token()
+```
+
+### Resource Access
+
+MCP servers can expose resources (files, database records, API endpoints) that can be accessed.
+
+#### Listing Resources
+
+```python
+from mcp.tools.resources import ListMcpResourcesTool, register_resource_tools
+
+# Register resource tools
+await register_resource_tools("server-name", client)
+
+# List resources
+list_tool = ListMcpResourcesTool("server-name", client)
+result = await list_tool.execute()
+
+print(f"Found {result['count']} resources:")
+for resource in result['resources']:
+    print(f"  - {resource['uri']}: {resource.get('name', 'No name')}")
+```
+
+#### Reading Resources
+
+```python
+from mcp.tools.resources import ReadMcpResourceTool
+
+read_tool = ReadMcpResourceTool("server-name", client)
+result = await read_tool.execute(uri="file:///path/to/file.txt")
+
+content = result.get('content')
+print(f"Content: {content}")
+```
+
+### Prompt Tools
+
+MCP servers can provide pre-defined prompts that can be used to generate specific types of messages.
+
+#### Listing Prompts
+
+```python
+from mcp.tools.prompts import ListMcpPromptsTool, register_prompt_tools
+
+# Register prompt tools
+await register_prompt_tools("server-name", client)
+
+# List prompts
+list_tool = ListMcpPromptsTool("server-name", client)
+result = await list_tool.execute()
+
+print(f"Found {result['count']} prompts:")
+for prompt in result['prompts']:
+    print(f"  - {prompt['name']}: {prompt.get('description', 'No description')}")
+```
+
+#### Getting Prompts
+
+```python
+from mcp.tools.prompts import GetMcpPromptTool
+
+get_tool = GetMcpPromptTool("server-name", client)
+result = await get_tool.execute(
+    name="summarize",
+    arguments={"text": "Long text to summarize..."}
+)
+
+prompt = result.get('prompt')
+print(f"Generated prompt: {prompt}")
+```
+
+### Skill Discovery
+
+MCP servers can be automatically discovered and exposed as skills in the opencode skill system.
+
+```python
+from mcp.skills import discover_mcp_skills, McpSkillDiscoverer
+
+# Discover all MCP servers as skills
+discoverer = McpSkillDiscoverer()
+skills = await discoverer.discover_all_skills()
+
+for skill_name, skill_def in skills.items():
+    print(f"Skill: {skill_name}")
+    print(f"  Description: {skill_def.description}")
+    print(f"  Has tools: {skill_def.has_tools}")
+    print(f"  Has resources: {skill_def.has_resources}")
+    print(f"  Has prompts: {skill_def.has_prompts}")
+```
+
+#### Skill Execution
+
+```python
+from mcp.skills import McpSkillExecutor
+
+executor = McpSkillExecutor()
+
+# Execute a tool via skill
+result = await executor.execute_tool(
+    server_name="github",
+    server_config=config,
+    tool_name="create_issue",
+    arguments={"title": "Bug fix", "body": "Fixes issue #123"}
+)
+
+# Read a resource via skill
+content = await executor.read_resource(
+    server_name="filesystem",
+    server_config=config,
+    uri="file:///path/to/file.txt"
+)
+
+# Get a prompt via skill
+prompt = await executor.get_prompt(
+    server_name="my-server",
+    server_config=config,
+    prompt_name="summarize",
+    arguments={"text": "Summary text"}
+)
+
+# Clean up
+await executor.close_all()
+```
+
+### Skill Registry Integration
+
+MCP skills can be integrated with the opencode skill registry:
+
+```python
+from mcp.skills.registry import (
+    register_mcp_skill_builders,
+    discover_and_create_mcp_skills,
+    load_mcp_skills_to_registry,
+)
+
+# Register skill builders (do this during initialization)
+from skills.loader import create_skill_command, parse_skill_frontmatter
+register_mcp_skill_builders(create_skill_command, parse_skill_frontmatter)
+
+# Load MCP skills into the skill registry
+skill_names = await load_mcp_skills_to_registry(
+    skill_registry=SKILL_REGISTRY,
+    skills_dir=Path("./skills/mcp"),
+)
+
+print(f"Loaded {len(skill_names)} MCP skills")
+```
