@@ -21,7 +21,9 @@
       "Bash(python tests/test_subagent_enhanced.py)",
       "Bash(python -c \"from tools.builtin import subagent; print\\('Import successful'\\)\")",
       "Bash(python cli.py --help)",
-      "Bash(python cli.py --command subagents types)"
+      "Bash(python cli.py --command subagents types)",
+      "Bash(dir \"F:\\\\aigen\\\\claudecode\\\\claude-code-sourcemap-main\\\\restored-src\\\\opencode\\\\skills\" /b)",
+      "Bash(dir \"F:\\\\aigen\\\\claudecode\\\\claude-code-sourcemap-main\\\\restored-src\\\\src\\\\skills\" /b)"
     ]
   }
 }
