@@ -7,3 +7,9 @@ from . import analyze_command
 from . import test_command
 from . import lint_command
 from . import subagents_command
+from . import commit_command
+from . import compact_command
+from . import plan_command
+from . import diff_command
+from . import context_command
+from . import init_command
