@@ -13,3 +13,4 @@ from . import plan_command
 from . import diff_command
 from . import context_command
 from . import init_command
+from . import skill_commands
