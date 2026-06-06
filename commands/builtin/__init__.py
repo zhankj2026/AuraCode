@@ -14,3 +14,4 @@ from . import diff_command
 from . import context_command
 from . import init_command
 from . import skill_commands
+from . import bridge_command

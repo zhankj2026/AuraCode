@@ -335,6 +335,11 @@ def main():
 
   # 权限模式
   python cli.py "执行命令" --mode auto
+
+  # Bridge 远程控制模式
+  python cli.py --bridge
+  python cli.py --bridge --bridge-port 9000 --bridge-max-sessions 10
+  python cli.py --bridge --bridge-token my-secret-token
         """
     )
 
@@ -377,11 +382,55 @@ def main():
         help="显示详细日志"
     )
 
+    # Bridge 远程控制模式
+    parser.add_argument(
+        "--bridge",
+        action="store_true",
+        help="启动 Bridge 远程控制服务器模式"
+    )
+    parser.add_argument(
+        "--bridge-port",
+        type=int,
+        default=8765,
+        help="Bridge 服务器端口 (默认: 8765)"
+    )
+    parser.add_argument(
+        "--bridge-host",
+        default="127.0.0.1",
+        help="Bridge 服务器绑定地址 (默认: 127.0.0.1)"
+    )
+    parser.add_argument(
+        "--bridge-max-sessions",
+        type=int,
+        default=5,
+        help="Bridge 最大会话数 (默认: 5)"
+    )
+    parser.add_argument(
+        "--bridge-token",
+        default=None,
+        help="Bridge 认证 Token (默认自动生成)"
+    )
+
     args = parser.parse_args()
 
     # 设置日志级别
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
+
+    # Bridge 远程控制模式
+    if args.bridge:
+        from bridge.server import start_bridge_server
+        try:
+            start_bridge_server(
+                host=args.bridge_host,
+                port=args.bridge_port,
+                max_sessions=args.bridge_max_sessions,
+                auth_token=args.bridge_token,
+            )
+        except KeyboardInterrupt:
+            print("\n👋 Bridge 服务器已停止")
+            sys.exit(0)
+        return
 
     # 检查 API 密钥
     if not check_api_key():
