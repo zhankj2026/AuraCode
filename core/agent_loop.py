@@ -9,7 +9,7 @@ import os
 import json
 import logging
 import asyncio
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from openai import OpenAI
 
 from tools.registry import TOOL_REGISTRY, get_tool_schemas, register_tool
@@ -63,6 +63,7 @@ class AgentLoop:
         # 2. 配置参数
         self.model = config.get("model", "glm-4-plus")
         self.max_iterations = config.get("max_iterations", 20)
+        self.max_tokens = config.get("max_tokens", 8192)
 
         # 3. 消息历史(扁平存储)
         self.messages: List[Dict[str, Any]] = []
@@ -322,6 +323,23 @@ class AgentLoop:
         # 第 5 层: 工具说明
         parts.append(self._tools_description())
 
+        # 第 5.5 层: 计划模式指示
+        try:
+            from tools.builtin.plan_mode import is_plan_mode_active, get_plan_mode_reason
+            if is_plan_mode_active():
+                reason = get_plan_mode_reason()
+                plan_msg = (
+                    "\n## ⚠️ 当前处于计划模式\n\n"
+                    "你只能使用只读工具（read_file、grep、find、glob、list_directory 等）。\n"
+                    "**禁止**使用 write_file、replace_in_file、run_command 等写入/执行工具。\n"
+                    "请使用只读工具探索代码库，设计方案后调用 exit_plan_mode 退出计划模式。\n"
+                )
+                if reason:
+                    plan_msg += f"\n规划原因: {reason}\n"
+                parts.append(plan_msg)
+        except ImportError:
+            pass
+
         # 第 6 层: 安全规则
         parts.append(self._security_rules())
 
@@ -531,7 +549,7 @@ class AgentLoop:
                 tools=self.tools,
                 tool_choice="auto",
                 temperature=0.2,
-                max_tokens=4096
+                max_tokens=self.max_tokens
             )
             
             # 记录 token 使用情况
@@ -548,10 +566,80 @@ class AgentLoop:
             logger.error(f"LLM API 调用失败: {e}")
             raise
 
+    def _try_fix_json(self, raw: str) -> Optional[Dict]:
+        """尝试修复 LLM 返回的截断/不完整 JSON"""
+        if not raw or not raw.strip():
+            return {}
+
+        s = raw.strip()
+
+        # 策略 1: 补全未闭合的字符串和括号
+        # 统计未闭合的引号
+        in_string = False
+        escape = False
+        for i, ch in enumerate(s):
+            if escape:
+                escape = False
+                continue
+            if ch == '\\':
+                escape = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+
+        # 如果字符串未闭合，补全引号
+        if in_string:
+            s += '"'
+
+        # 补全未闭合的花括号
+        open_braces = s.count('{') - s.count('}')
+        if open_braces > 0:
+            s += '}' * open_braces
+
+        try:
+            result = json.loads(s)
+            if isinstance(result, dict):
+                return result
+        except json.JSONDecodeError:
+            pass
+
+        # 策略 2: 截断到最后一个完整的 key-value 对
+        # 找最后一个 "key": "value" 或 "key": number 模式
+        import re
+        # 移除末尾不完整的键值对
+        truncated = re.sub(r',\s*"[^"]*"\s*:\s*("[^"]*|[0-9]+|true|false|null)?$', '}', s)
+        if truncated != s:
+            # 确保括号平衡
+            open_b = truncated.count('{') - truncated.count('}')
+            if open_b > 0:
+                truncated += '}' * open_b
+            try:
+                result = json.loads(truncated)
+                if isinstance(result, dict):
+                    return result
+            except json.JSONDecodeError:
+                pass
+
+        return None
+
     def _execute_tool(self, tool_call) -> Dict[str, Any]:
         """执行工具调用(经过钩子和权限检查)"""
         tool_name = tool_call.function.name
-        arguments = json.loads(tool_call.function.arguments)
+
+        # 解析工具参数（LLM 有时返回截断/不完整的 JSON）
+        raw_args = tool_call.function.arguments
+        try:
+            arguments = json.loads(raw_args) if raw_args else {}
+        except json.JSONDecodeError:
+            # 尝试修复截断的 JSON：补全缺失的引号和括号
+            fixed = self._try_fix_json(raw_args)
+            if fixed is not None:
+                arguments = fixed
+                logger.warning(f"Fixed malformed JSON for tool '{tool_name}': {raw_args[:100]}...")
+            else:
+                error_msg = f"工具参数 JSON 解析失败: {raw_args[:200]}"
+                logger.error(error_msg)
+                return {"success": False, "error": error_msg}
 
         logger.info(f"Executing tool: {tool_name}, args: {arguments}")
 
@@ -612,6 +700,20 @@ class AgentLoop:
                 self._trigger_failure_hook(tool_name, arguments, error_msg)
 
             return {"success": False, "error": error_msg}
+
+        # 3.5 计划模式检查：禁止写入/执行类工具
+        try:
+            from tools.builtin.plan_mode import is_plan_mode_active, is_tool_allowed_in_plan_mode
+            if is_plan_mode_active() and not is_tool_allowed_in_plan_mode(tool_name):
+                error_msg = (
+                    f"计划模式下禁止使用工具 '{tool_name}'。"
+                    f"当前只能使用只读工具（read_file、grep、find、glob 等）。"
+                    f"如需执行写入/命令操作，请先使用 exit_plan_mode 退出计划模式。"
+                )
+                logger.warning(error_msg)
+                return {"success": False, "error": error_msg}
+        except ImportError:
+            pass  # plan_mode 模块未加载，跳过检查
 
         # 4. 执行工具
         try:
