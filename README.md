@@ -7,16 +7,19 @@
 | 功能 | 说明 |
 |------|------|
 | **TAOR 循环** | Think-Act-Observe-Repeat 智能体循环 |
-| **22+ 工具** | 文件操作、搜索、代码分析、命令执行等 |
-| **18+ 命令** | Git 提交、压缩历史、任务规划、代码审查等 |
+| **24+ 工具** | 文件操作、搜索、代码分析、命令执行、Web 搜索等 |
+| **16 命令** | Git 提交、压缩历史、任务规划、代码审查等 |
 | **7 技能** | 简化代码、验证变更、调试诊断、批量变更等 |
-| **Bridge 远程控制** | REST API + WebSocket 多会话远程控制 |
+| **Bridge 远程控制** | REST API + WebSocket 多会话远程控制，支持权限审批 |
 | **MCP 协议** | Model Context Protocol 集成，支持外部工具服务 |
+| **官方网站** | 内置网站模块，提供产品展示和文档 |
 | **权限管理** | 4 级权限控制 (normal/auto/plan/bypass) |
 | **插件系统** | 动态加载插件扩展功能 |
 | **钩子系统** | 工具执行前后插入自定义逻辑 |
 | **记忆系统** | 持久化用户/项目/反馈记忆 |
 | **Subagent** | 并行多智能体任务执行 |
+| **LSP 支持** | 语言服务器协议集成，代码智能补全 |
+| **Todo 系统** | 任务管理和跟踪 |
 
 ## 快速开始
 
@@ -113,8 +116,9 @@ python cli.py    # 启动对话模式
 | `/analyze` | 分析代码文件 | `/analyze .` |
 | `/test` | 运行测试 | `/test` |
 | `/lint` | 代码检查 | `/lint` |
+| `/ask` | 向用户提问 | `/ask "选择哪个方案?"` |
 
-### 二、22+ 内置工具
+### 二、24+ 内置工具
 
 AI 自动调用的工具，无需手动操作：
 
@@ -129,10 +133,14 @@ AI 自动调用的工具，无需手动操作：
 **搜索分析**
 - `grep` - 正则搜索文件内容
 - `find` - 按名称查找文件
+- `glob_tool` - Glob 模式文件匹配
 - `analyze_file` - AI 分析文件
+- `web_search` - Web 搜索功能
+- `web_fetch` - 获取网页内容
 
 **命令执行**
 - `run_command` - 执行系统命令
+- `run_powershell` - 执行 PowerShell 命令
 - `lint` - 代码语法检查
 - `run_tests` - 运行测试套件
 
@@ -141,6 +149,8 @@ AI 自动调用的工具，无需手动操作：
 - `join_subagent` - 获取子智能体结果
 - `list_subagents` - 列出子智能体
 - `plan_agent` - 规划智能体
+- `plan_mode` - 进入规划模式
+- `ask_user` - 向用户提问
 
 **技能管理**
 - `list_skills` / `show_available_skills` - 查看技能
@@ -149,6 +159,12 @@ AI 自动调用的工具，无需手动操作：
 
 **记忆系统**
 - `save_memory` / `load_memory` / `search_memories` - 持久化记忆
+
+**LSP 支持**
+- `lsp_tool` - 语言服务器协议工具
+
+**任务管理**
+- `todo_write` - Todo 任务管理
 
 ### 三、7 个技能
 
@@ -192,7 +208,7 @@ permissions:
 
 ### 五、Bridge 远程控制
 
-通过 REST API + WebSocket 实现多会话远程控制：
+通过 REST API + WebSocket 实现多会话远程控制，支持权限审批和实时事件推送：
 
 ```bash
 # 启动 Bridge 服务器
@@ -203,6 +219,14 @@ python cli.py --bridge --bridge-port 8765 --bridge-token my-secret
 /bridge status
 /bridge stop
 ```
+
+**核心功能**:
+- **多会话管理**: 支持同时运行多个独立会话
+- **权限审批**: 远程审批文件写入和命令执行请求
+- **事件推送**: WebSocket 实时推送会话事件
+- **线程安全**: 每个会话在独立线程中运行
+- **输出捕获**: 自动捕获并推送 stdout 输出
+- **Token 认证**: 支持 Bearer Token 认证
 
 **API 端点**:
 
@@ -279,7 +303,31 @@ mcp:
 
 **相关工具**: `save_memory` / `load_memory` / `search_memories`
 
-### 九、插件系统
+### 九、官方网站
+
+内置网站模块，提供产品展示和详细文档：
+
+```bash
+# 启动本地服务器
+python -m http.server 8000
+
+# 访问
+http://localhost:8000/website/
+```
+
+**网站功能**:
+- **首页**: 产品介绍、功能展示、统计数字
+- **文档**: 快速开始、配置指南、API 文档
+- **响应式**: 支持桌面、平板、手机
+- **深色主题**: 现代化 UI 设计
+- **交互演示**: 终端模拟、功能展示
+
+**部署**:
+- GitHub Pages
+- Vercel
+- Netlify
+
+### 十、插件系统
 
 动态加载插件扩展功能：
 
@@ -297,7 +345,7 @@ class AutoFormatPlugin(ToolPlugin):
 
 查看已加载插件: `/plugins`
 
-### 十、钩子系统
+### 十一、钩子系统
 
 在工具执行的不同阶段插入自定义逻辑：
 
@@ -380,22 +428,33 @@ opencode/
 │   ├── subagent.py         #   Subagent 管理
 │   ├── memory.py           #   记忆系统
 │   └── message.py          #   消息处理
-├── tools/builtin/          # 22+ 内置工具
+├── tools/builtin/          # 24+ 内置工具
 │   ├── read_file.py        #   读文件
 │   ├── write_file.py       #   写文件
+│   ├── list_directory.py   #   列目录
 │   ├── run_command.py      #   执行命令
+│   ├── run_powershell.py   #   PowerShell 命令
 │   ├── grep.py             #   正则搜索
 │   ├── find.py             #   文件查找
+│   ├── glob_tool.py        #   Glob 匹配
 │   ├── replace_in_file.py  #   内容替换
+│   ├── undo_edit.py        #   撤销编辑
 │   ├── analyze_file.py     #   AI 分析
 │   ├── lint.py             #   代码检查
 │   ├── run_tests.py        #   运行测试
 │   ├── subagent.py         #   子智能体
 │   ├── plan_agent.py       #   规划智能体
+│   ├── plan_mode.py        #   规划模式
+│   ├── ask_user.py         #   用户交互
+│   ├── lsp_tool.py         #   LSP 支持
+│   ├── web_search.py       #   Web 搜索
+│   ├── web_fetch.py        #   网页获取
 │   ├── skill_tools.py      #   技能工具
 │   ├── memory_tools.py     #   记忆工具
-│   └── undo_edit.py        #   撤销编辑
-├── commands/builtin/       # 18+ 命令
+│   └── todo_write.py       #   任务管理
+├── commands/builtin/       # 16 命令
+│   ├── help_command.py     #   帮助
+│   ├── status_command.py   #   状态
 │   ├── commit_command.py   #   AI Git 提交
 │   ├── compact_command.py  #   压缩对话历史
 │   ├── plan_command.py     #   任务规划
@@ -404,19 +463,27 @@ opencode/
 │   ├── init_command.py     #   生成项目文档
 │   ├── bridge_command.py   #   远程控制
 │   ├── skill_commands.py   #   simplify/verify/debug/batch
-│   └── subagents_command.py#   子智能体管理
+│   ├── subagents_command.py#   子智能体管理
+│   ├── skills_command.py   #   技能管理
+│   ├── plugins_command.py  #   插件管理
+│   ├── analyze_command.py  #   分析命令
+│   ├── test_command.py     #   测试命令
+│   └── lint_command.py     #   代码检查
 ├── bridge/                 # 远程控制模块
 │   ├── server.py           #   FastAPI 服务器
 │   ├── session.py          #   Bridge 会话
 │   ├── manager.py          #   多会话管理
 │   ├── types.py            #   类型定义
+│   ├── auth.py             #   认证模块
+│   ├── config.py           #   配置模块
 │   └── test_bridge.html    #   测试页面
 ├── mcp/                    # MCP 协议集成
 │   ├── client/             #   MCP 客户端
 │   ├── transport/          #   传输层
 │   ├── tools/              #   工具适配
 │   ├── auth/               #   OAuth 认证
-│   └── config/             #   配置管理
+│   ├── config/             #   配置管理
+│   └── plugins/            #   MCP 插件
 ├── skills/                 # 7 个技能
 │   ├── python-standards/   #   Python 编码规范
 │   ├── git-workflow/       #   Git 工作流
@@ -425,9 +492,15 @@ opencode/
 │   ├── debug/              #   调试诊断
 │   ├── batch/              #   批量变更
 │   └── update-config/      #   配置管理
+├── website/                # 官方网站
+│   ├── index.html          #   首页
+│   ├── css/                #   样式文件
+│   ├── js/                 #   脚本文件
+│   └── docs/               #   文档页面
 ├── permissions/            # 权限管理
 ├── plugins/                # 插件系统
 ├── hooks/                  # 钩子系统
+├── memory/                 # 记忆存储
 └── tests/                  # 测试套件
 ```
 
@@ -477,6 +550,17 @@ export OPENAI_API_KEY="sk-your-key"
 - [x] Phase 8: 高级技能 (simplify/verify/debug/batch/update-config)
 - [x] Phase 9: Bridge 多会话远程控制
 - [x] Phase 10: MCP 协议集成
+- [x] Phase 11: Web 搜索和获取功能
+- [x] Phase 12: LSP 语言服务器协议支持
+- [x] Phase 13: Todo 任务管理系统
+- [x] Phase 14: 官方网站模块
+- [x] Phase 15: Bridge 权限审批系统完善
+
+## 相关文档
+
+- [网站 README](website/README.md) - 官方网站文档
+- [技能分析](SKILLS_ANALYSIS.md) - 技能系统详细说明
+- [配置示例](config.example.yaml) - 配置文件示例
 
 ## 许可证
 
