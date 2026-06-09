@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenCode - AI 编程助手</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-code"></i>
+                <span>OpenCode</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="#home">首页</a></li>
+                <li><a href="#features">功能</a></li>
+                <li><a href="#docs">文档</a></li>
+                <li><a href="#quickstart">快速开始</a></li>
+                <li><a href="https://github.com" target="_blank" class="nav-btn">
+                    <i class="fab fa-github"></i> GitHub
+                </a></li>
+            </ul>
+            <div class="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 首页 Hero 区域 -->
+    <section id="home" class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1 class="hero-title">
+                    <span class="gradient-text">OpenCode</span>
+                    <br>AI 编程助手
+                </h1>
+                <p class="hero-subtitle">
+                    基于 Claude Code 架构设计的生产级 AI 编程助手
+                    <br>支持多轮对话、命令执行、远程控制、多智能体协作
+                </p>
+                <div class="hero-buttons">
+                    <a href="#quickstart" class="btn btn-primary">
+                        <i class="fas fa-rocket"></i> 快速开始
+                    </a>
+                    <a href="#features" class="btn btn-secondary">
+                        <i class="fas fa-play-circle"></i> 了解更多
+                    </a>
+                </div>
+                <div class="hero-stats">
+                    <div class="stat-item">
+                        <div class="stat-number">22+</div>
+                        <div class="stat-label">内置工具</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">18+</div>
+                        <div class="stat-label">命令</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">7</div>
+                        <div class="stat-label">技能</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">4</div>
+                        <div class="stat-label">权限级别</div>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="terminal">
+                    <div class="terminal-header">
+                        <div class="terminal-buttons">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                        <div class="terminal-title">OpenCode CLI</div>
+                    </div>
+                    <div class="terminal-body">
+                        <div class="terminal-line">
+                            <span class="prompt">$</span>
+                            <span class="command">python cli.py "帮我分析这个项目"</span>
+                        </div>
+                        <div class="terminal-line output">
+                            <span class="success">✓</span> 正在分析项目结构...
+                        </div>
+                        <div class="terminal-line output">
+                            <span class="success">✓</span> 发现 15 个 Python 文件
+                        </div>
+                        <div class="terminal-line output">
+                            <span class="success">✓</span> 识别出 3 个主要模块
+                        </div>
+                        <div class="terminal-line">
+                            <span class="prompt">$</span>
+                            <span class="command">/commit</span>
+                        </div>
+                        <div class="terminal-line output">
+                            <span class="success">✓</span> 已生成提交信息
+                        </div>
+                        <div class="terminal-line output">
+                            <span class="info">feat: 添加用户认证模块</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 特性区域 -->
+    <section id="features" class="features">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title">核心功能</h2>
+                <p class="section-subtitle">强大的功能，让编程更高效</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-brain"></i>
+                    </div>
+                    <h3>TAOR 智能循环</h3>
+                    <p>Think-Act-Observe-Repeat 智能体循环，自动理解任务、执行操作、观察结果、持续优化</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-tools"></i>
+                    </div>
+                    <h3>22+ 内置工具</h3>
+                    <p>文件操作、代码搜索、智能分析、命令执行等全方位工具支持</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-terminal"></i>
+                    </div>
+                    <h3>18+ 命令</h3>
+                    <p>Git 提交、代码审查、任务规划、调试诊断等便捷命令</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-magic"></i>
+                    </div>
+                    <h3>7 个技能</h3>
+                    <p>Python 规范、Git 工作流、代码简化、变更验证等专业技能</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-network-wired"></i>
+                    </div>
+                    <h3>Bridge 远程控制</h3>
+                    <p>REST API + WebSocket 多会话远程控制，支持团队协作</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-plug"></i>
+                    </div>
+                    <h3>MCP 协议集成</h3>
+                    <p>Model Context Protocol 集成，支持外部工具服务扩展</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <h3>权限管理</h3>
+                    <p>4 级权限控制，确保操作安全可控</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-puzzle-piece"></i>
+                    </div>
+                    <h3>插件系统</h3>
+                    <p>动态加载插件，轻松扩展功能</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <h3>Subagent 并行</h3>
+                    <p>多智能体并行执行任务，大幅提升效率</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 文档区域 -->
+    <section id="docs" class="docs">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title">文档</h2>
+                <p class="section-subtitle">详细的文档，助你快速上手</p>
+            </div>
+            <div class="docs-grid">
+                <div class="doc-card">
+                    <div class="doc-icon">
+                        <i class="fas fa-book"></i>
+                    </div>
+                    <h3>快速开始</h3>
+                    <p>5 分钟快速安装和配置 OpenCode</p>
+                    <a href="docs/quickstart.html" class="doc-link">查看文档 →</a>
+                </div>
+                <div class="doc-card">
+                    <div class="doc-icon">
+                        <i class="fas fa-cogs"></i>
+                    </div>
+                    <h3>功能详解</h3>
+                    <p>深入了解所有功能和特性</p>
+                    <a href="docs/features.html" class="doc-link">查看文档 →</a>
+                </div>
+                <div class="doc-card">
+                    <div class="doc-icon">
+                        <i class="fas fa-terminal"></i>
+                    </div>
+                    <h3>命令参考</h3>
+                    <p>所有命令的详细说明和示例</p>
+                    <a href="docs/commands.html" class="doc-link">查看文档 →</a>
+                </div>
+                <div class="doc-card">
+                    <div class="doc-icon">
+                        <i class="fas fa-server"></i>
+                    </div>
+                    <h3>Bridge API</h3>
+                    <p>远程控制 API 文档</p>
+                    <a href="docs/bridge.html" class="doc-link">查看文档 →</a>
+                </div>
+                <div class="doc-card">
+                    <div class="doc-icon">
+                        <i class="fas fa-code-branch"></i>
+                    </div>
+                    <h3>插件开发</h3>
+                    <p>如何开发自定义插件</p>
+                    <a href="docs/plugins.html" class="doc-link">查看文档 →</a>
+                </div>
+                <div class="doc-card">
+                    <div class="doc-icon">
+                        <i class="fas fa-question-circle"></i>
+                    </div>
+                    <h3>常见问题</h3>
+                    <p>常见问题解答和故障排除</p>
+                    <a href="docs/faq.html" class="doc-link">查看文档 →</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 快速开始区域 -->
+    <section id="quickstart" class="quickstart">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title">快速开始</h2>
+                <p class="section-subtitle">三步即可开始使用 OpenCode</p>
+            </div>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h3>安装依赖</h3>
+                        <div class="code-block">
+                            <pre><code>pip install -r requirements.txt</code></pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h3>配置 API 密钥</h3>
+                        <div class="code-block">
+                            <pre><code>export OPENAI_API_KEY="your-api-key"
+export OPENAI_BASE_URL="https://open.bigmodel.cn/api/paas/v4"</code></pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h3>启动 OpenCode</h3>
+                        <div class="code-block">
+                            <pre><code>python cli.py</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="quickstart-cta">
+                <a href="docs/quickstart.html" class="btn btn-primary">
+                    <i class="fas fa-book-open"></i> 查看完整文档
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- 支持的 LLM -->
+    <section class="llm-support">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title">支持的 LLM</h2>
+                <p class="section-subtitle">兼容多种大语言模型</p>
+            </div>
+            <div class="llm-grid">
+                <div class="llm-card featured">
+                    <div class="llm-badge">推荐</div>
+                    <div class="llm-icon">
+                        <i class="fas fa-star"></i>
+                    </div>
+                    <h3>智谱 GLM</h3>
+                    <p>glm-4-plus / glm-4.7 / glm-4-air / glm-4-flash</p>
+                </div>
+                <div class="llm-card">
+                    <div class="llm-icon">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <h3>OpenAI GPT</h3>
+                    <p>gpt-4o / gpt-4-turbo / gpt-3.5-turbo</p>
+                </div>
+                <div class="llm-card">
+                    <div class="llm-icon">
+                        <i class="fas fa-plug"></i>
+                    </div>
+                    <h3>OpenAI 兼容接口</h3>
+                    <p>任何兼容 OpenAI API 的服务</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <div class="nav-brand">
+                        <i class="fas fa-code"></i>
+                        <span>OpenCode</span>
+                    </div>
+                    <p>基于 Claude Code 架构设计的生产级 AI 编程助手</p>
+                </div>
+                <div class="footer-links">
+                    <div class="footer-column">
+                        <h4>产品</h4>
+                        <ul>
+                            <li><a href="#features">功能</a></li>
+                            <li><a href="#docs">文档</a></li>
+                            <li><a href="#quickstart">快速开始</a></li>
+                        </ul>
+                    </div>
+                    <div class="footer-column">
+                        <h4>资源</h4>
+                        <ul>
+                            <li><a href="docs/quickstart.html">快速开始</a></li>
+                            <li><a href="docs/commands.html">命令参考</a></li>
+                            <li><a href="docs/bridge.html">Bridge API</a></li>
+                        </ul>
+                    </div>
+                    <div class="footer-column">
+                        <h4>社区</h4>
+                        <ul>
+                            <li><a href="https://github.com" target="_blank">GitHub</a></li>
+                            <li><a href="https://github.com/issues" target="_blank">Issues</a></li>
+                            <li><a href="https://github.com/discussions" target="_blank">Discussions</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 OpenCode. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/main.js"></script>
+</body>
+</html>

@@ -333,7 +333,19 @@ class BridgeSession:
 
             from core.agent_loop import AgentLoop
 
+            # api_key / base_url 优先用会话配置，其次从环境变量读取
+            api_key = self.config.api_key or os.environ.get("OPENAI_API_KEY")
+            base_url = self.config.base_url or os.environ.get("OPENAI_BASE_URL")
+
+            logger.info(
+                f"Init AgentLoop: model={self.config.model}, "
+                f"api_key={'set(' + api_key[:8] + '...)' if api_key else 'MISSING'}, "
+                f"base_url={base_url or 'default'}"
+            )
+
             config = {
+                "api_key": api_key,
+                "base_url": base_url,
                 "model": self.config.model,
                 "max_iterations": self.config.max_iterations,
                 "permission_mode": self.config.permission_mode,

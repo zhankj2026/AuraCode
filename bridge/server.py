@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Set
 
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from bridge.auth import SimpleTokenAuth
@@ -184,6 +185,15 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
         lifespan=lifespan,
     )
 
+    # CORS 中间件：允许浏览器跨域访问（测试页面需要）
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     # ── REST API 端点 ────────────────────────────────────────────────
 
     @app.get("/api/status", response_model=StatusResponse)
@@ -205,6 +215,14 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
     ):
         """创建新会话"""
         try:
+            # 调试日志：打印收到的参数
+            print(f"\n[CREATE SESSION] 收到请求参数:")
+            print(f"  work_dir: {req.work_dir}")
+            print(f"  model: {req.model or _server_config.default_model}")
+            print(f"  permission_mode: {req.permission_mode or _server_config.default_permission_mode}")
+            print(f"  api_key: {'✅ 已提供 (' + req.api_key[:8] + '...)' if req.api_key else '❌ 未提供 (将读环境变量)'}")
+            print(f"  base_url: {req.base_url or '❌ 未提供 (将读环境变量)'}")
+
             cfg = SessionConfig(
                 work_dir=req.work_dir,
                 model=req.model or _server_config.default_model,
@@ -423,6 +441,9 @@ def start_bridge_server(
     print(f"  Status:     http://{config.host}:{config.port}/api/status")
     print(f"  Docs:       http://{config.host}:{config.port}/docs")
     print(f"{'=' * 60}\n")
+
+    # 确保 bridge 模块的 INFO 日志可见
+    logging.getLogger("bridge").setLevel(logging.INFO)
 
     uvicorn.run(app, host=config.host, port=config.port, log_level="info")
 

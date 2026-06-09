@@ -24,7 +24,8 @@
       "Bash(python cli.py --command subagents types)",
       "Bash(dir \"F:\\\\aigen\\\\claudecode\\\\claude-code-sourcemap-main\\\\restored-src\\\\opencode\\\\skills\" /b)",
       "Bash(dir \"F:\\\\aigen\\\\claudecode\\\\claude-code-sourcemap-main\\\\restored-src\\\\src\\\\skills\" /b)",
-      "Bash(grep -E \"\\\\.ts$|\\\\.tsx$\")"
+      "Bash(grep -E \"\\\\.ts$|\\\\.tsx$\")",
+      "Bash(git add *)"
     ]
   }
 }

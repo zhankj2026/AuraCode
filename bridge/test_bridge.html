@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenCode Bridge - Remote Control Test</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0d1117; --surface: #161b22; --border: #30363d;
+  --text: #e6edf3; --text2: #8b949e; --accent: #58a6ff;
+  --green: #3fb950; --red: #f85149; --yellow: #d29922; --purple: #bc8cff;
+}
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── Top Bar ── */
+.topbar { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.topbar h1 { font-size: 16px; font-weight: 600; white-space: nowrap; }
+.topbar input { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 5px 10px; border-radius: 6px; font-size: 13px; }
+.topbar input.url { width: 200px; }
+.topbar input.token { width: 260px; }
+.topbar label { font-size: 12px; color: var(--text2); }
+.btn { padding: 5px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; font-size: 13px; transition: all .15s; }
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.primary { background: #238636; border-color: #238636; color: #fff; }
+.btn.primary:hover { background: #2ea043; }
+.btn.danger { border-color: var(--red); color: var(--red); }
+.btn.danger:hover { background: rgba(248,81,73,.15); }
+.btn.small { padding: 3px 8px; font-size: 11px; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+.status-dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.status-dot.off { background: var(--red); }
+
+/* ── Main Layout ── */
+.main { display: flex; flex: 1; overflow: hidden; }
+
+/* ── Left Panel: Sessions ── */
+.panel-left { width: 280px; min-width: 280px; border-right: 1px solid var(--border); display: flex; flex-direction: column; background: var(--surface); overflow: hidden; }
+.panel-left .header { padding: 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+.panel-left .header h2 { font-size: 14px; }
+.session-list { flex: 1; overflow-y: auto; padding: 8px; min-height: 0; }
+.session-card { padding: 10px; margin-bottom: 6px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; transition: all .15s; }
+.session-card:hover { border-color: var(--accent); }
+.session-card.active { border-color: var(--accent); background: rgba(88,166,255,.08); }
+.session-card .sid { font-size: 11px; color: var(--text2); font-family: monospace; }
+.session-card .title { font-size: 13px; margin: 4px 0 2px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-card .meta { font-size: 11px; color: var(--text2); display: flex; gap: 8px; }
+.badge { display: inline-block; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+.badge.idle { background: rgba(139,148,158,.2); color: var(--text2); }
+.badge.running { background: rgba(63,185,80,.2); color: var(--green); }
+.badge.requires_action { background: rgba(210,153,34,.2); color: var(--yellow); }
+.badge.completed { background: rgba(88,166,255,.2); color: var(--accent); }
+.badge.failed { background: rgba(248,81,73,.2); color: var(--red); }
+
+/* ── Create Session Form ── */
+.create-form { padding: 12px; border-top: 1px solid var(--border); flex-shrink: 0; overflow: hidden; }
+.create-form .row { display: flex; gap: 6px; margin-bottom: 6px; }
+.create-form input, .create-form select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 5px 8px; border-radius: 4px; font-size: 12px; flex: 1; min-width: 0; }
+
+/* ── Right Panel ── */
+.panel-right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── Tabs ── */
+.tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+.tab { padding: 10px 20px; font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--text2); transition: all .15s; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab .count { background: var(--border); padding: 0 5px; border-radius: 8px; font-size: 10px; margin-left: 4px; }
+
+/* ── Tab Content ── */
+.tab-content { flex: 1; overflow: hidden; position: relative; }
+.tab-pane { display: none; position: absolute; inset: 0; flex-direction: column; }
+.tab-pane.active { display: flex; }
+
+/* ── Chat Tab ── */
+.chat-messages { flex: 1; overflow-y: auto; padding: 16px; }
+.msg { margin-bottom: 12px; max-width: 85%; }
+.msg.user { margin-left: auto; }
+.msg .bubble { padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5; word-break: break-word; white-space: pre-wrap; }
+.msg.user .bubble { background: #1f6feb; border-bottom-right-radius: 4px; }
+.msg.assistant .bubble { background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+.msg.system .bubble { background: rgba(210,153,34,.1); border: 1px solid rgba(210,153,34,.3); font-size: 12px; }
+.msg .label { font-size: 11px; color: var(--text2); margin-bottom: 3px; }
+.msg.user .label { text-align: right; }
+.msg .ts { font-size: 10px; color: var(--text2); margin-top: 2px; }
+
+.chat-input { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border); background: var(--surface); }
+.chat-input textarea { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 8px; font-size: 13px; resize: none; min-height: 42px; max-height: 120px; font-family: inherit; }
+.chat-input textarea:focus { outline: none; border-color: var(--accent); }
+
+/* ── Events Tab ── */
+.events-container { flex: 1; overflow-y: auto; padding: 12px; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 12px; }
+.event-item { padding: 6px 10px; margin-bottom: 2px; border-radius: 4px; border-left: 3px solid var(--border); display: flex; gap: 10px; align-items: flex-start; }
+.event-item .etime { color: var(--text2); min-width: 70px; flex-shrink: 0; }
+.event-item .etype { min-width: 160px; flex-shrink: 0; font-weight: 600; }
+.event-item .edata { color: var(--text2); word-break: break-all; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.event-item.session_created { border-left-color: var(--accent); }
+.event-item.session_started { border-left-color: var(--green); }
+.event-item.session_stopped, .event-item.session_error { border-left-color: var(--red); }
+.event-item.user_message { border-left-color: var(--purple); }
+.event-item.assistant_message { border-left-color: var(--green); }
+.event-item.tool_call { border-left-color: var(--yellow); }
+.event-item.tool_result { border-left-color: var(--text2); }
+.event-item.permission_request { border-left-color: var(--red); background: rgba(248,81,73,.05); }
+.event-item.result { border-left-color: var(--accent); }
+
+/* ── Permission Dialog ── */
+.perm-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100; justify-content: center; align-items: center; }
+.perm-overlay.show { display: flex; }
+.perm-dialog { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; width: 480px; max-width: 90vw; }
+.perm-dialog h3 { font-size: 15px; margin-bottom: 12px; color: var(--yellow); }
+.perm-dialog .info { background: var(--bg); padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; }
+.perm-dialog .info .row { display: flex; gap: 8px; margin-bottom: 4px; }
+.perm-dialog .info .k { color: var(--text2); min-width: 60px; }
+.perm-dialog .actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+/* ── No session placeholder ── */
+.placeholder { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text2); font-size: 14px; flex-direction: column; gap: 8px; }
+
+/* ── Status bar ── */
+.statusbar { display: flex; align-items: center; gap: 16px; padding: 6px 16px; background: var(--surface); border-top: 1px solid var(--border); font-size: 11px; color: var(--text2); flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<!-- ── Top Bar ── -->
+<div class="topbar">
+  <h1>🔌 OpenCode Bridge</h1>
+  <label>URL</label>
+  <input id="serverUrl" class="url" value="http://127.0.0.1:8765" placeholder="http://host:port">
+  <label>Token</label>
+  <input id="authToken" class="token" value="" placeholder="Bearer Token">
+  <button class="btn primary" onclick="connect()">连接</button>
+  <button class="btn" onclick="disconnect()">断开</button>
+  <span id="wsStatus"><span class="status-dot off"></span>未连接</span>
+</div>
+
+<!-- ── Main ── -->
+<div class="main">
+
+  <!-- Left Panel: Sessions -->
+  <div class="panel-left">
+    <div class="header">
+      <h2>📋 会话列表</h2>
+      <button class="btn small" onclick="refreshSessions()">刷新</button>
+    </div>
+    <div class="session-list" id="sessionList">
+      <div class="placeholder" style="height:100%">未连接服务器</div>
+    </div>
+    <div class="create-form">
+      <div class="row">
+        <input id="newWorkDir" placeholder="工作目录 (.)" />
+        <input id="newModel" placeholder="模型 (glm-4-plus)" />
+      </div>
+      <div class="row">
+        <input id="newApiKey" placeholder="API Key (可选,默认读环境变量)" type="password" />
+        <input id="newBaseUrl" placeholder="Base URL (可选,默认读环境变量)" />
+      </div>
+      <div class="row">
+        <select id="newPermMode">
+          <option value="auto">auto 模式</option>
+          <option value="normal">normal 模式</option>
+          <option value="bypass">bypass 模式</option>
+          <option value="plan">plan 模式</option>
+        </select>
+        <button class="btn primary" onclick="createSession()">+ 新建会话</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="panel-right">
+    <div class="tabs">
+      <div class="tab active" data-tab="chat" onclick="switchTab('chat')">💬 对话<span class="count" id="chatCount">0</span></div>
+      <div class="tab" data-tab="events" onclick="switchTab('events')">📡 事件流<span class="count" id="eventCount">0</span></div>
+      <div class="tab" data-tab="tools" onclick="switchTab('tools')">🛠️ 工具</div>
+    </div>
+    <div class="tab-content">
+
+      <!-- Chat Tab -->
+      <div class="tab-pane active" id="pane-chat">
+        <div class="chat-messages" id="chatMessages">
+          <div class="placeholder">选择或创建一个会话开始对话</div>
+        </div>
+        <div class="chat-input">
+          <textarea id="chatInput" placeholder="输入消息... (Enter 发送, Shift+Enter 换行)" rows="1" onkeydown="handleChatKey(event)"></textarea>
+          <button class="btn primary" onclick="sendMessage()">发送</button>
+          <button class="btn danger" onclick="stopSession()">⏹ 停止</button>
+        </div>
+      </div>
+
+      <!-- Events Tab -->
+      <div class="tab-pane" id="pane-events">
+        <div style="padding: 8px 12px; display: flex; gap: 8px; border-bottom: 1px solid var(--border); background: var(--surface);">
+          <button class="btn small" onclick="clearEvents()">清空</button>
+          <label style="font-size: 12px; display: flex; align-items: center; gap: 4px; color: var(--text2);">
+            <input type="checkbox" id="autoScroll" checked> 自动滚动
+          </label>
+          <select id="eventFilter" onchange="filterEvents()" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px;font-size:11px;">
+            <option value="all">所有事件</option>
+            <option value="user_message">用户消息</option>
+            <option value="assistant_message">助手消息</option>
+            <option value="tool_call">工具调用</option>
+            <option value="tool_result">工具结果</option>
+            <option value="permission_request">权限请求</option>
+            <option value="result">结果</option>
+            <option value="output">输出</option>
+          </select>
+        </div>
+        <div class="events-container" id="eventsContainer">
+          <div class="placeholder">等待事件...</div>
+        </div>
+      </div>
+
+      <!-- Tools Tab -->
+      <div class="tab-pane" id="pane-tools">
+        <div style="padding: 16px;">
+          <h3 style="font-size: 14px; margin-bottom: 16px;">API 工具</h3>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="display:flex; gap:8px; align-items:center;">
+              <button class="btn" onclick="apiGetStatus()">GET /api/status</button>
+              <span id="statusResult" style="font-size:12px;color:var(--text2)"></span>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <button class="btn" onclick="apiGetSessions()">GET /api/sessions</button>
+              <span id="sessionsResult" style="font-size:12px;color:var(--text2)"></span>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <button class="btn" onclick="apiGetEvents()">GET /api/sessions/{id}/events</button>
+              <span id="eventsResult" style="font-size:12px;color:var(--text2)"></span>
+            </div>
+            <hr style="border-color: var(--border);">
+            <div style="font-size:12px; color:var(--text2);">
+              <p>REST API 文档: <a href="#" id="docsLink" style="color:var(--accent)">http://127.0.0.1:8765/docs</a></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Permission Dialog ── -->
+<div class="perm-overlay" id="permOverlay">
+  <div class="perm-dialog">
+    <h3>🔐 权限审批请求</h3>
+    <div class="info" id="permInfo"></div>
+    <div class="actions">
+      <button class="btn danger" onclick="respondPermission('deny')">❌ 拒绝</button>
+      <button class="btn primary" onclick="respondPermission('allow')">✅ 允许</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Status Bar ── -->
+<div class="statusbar">
+  <span id="sbConnection">未连接</span>
+  <span id="sbSessions"></span>
+  <span id="sbEvents">事件: 0</span>
+  <span style="margin-left:auto" id="sbTime"></span>
+</div>
+
+<script>
+// ── State ──
+let ws = null;
+let sessions = {};
+let activeSessionId = null;
+let allEvents = [];
+let chatMsgCount = 0;
+let pendingPermRequest = null;
+
+// ── Helpers ──
+function getUrl() { return document.getElementById('serverUrl').value.replace(/\/$/, ''); }
+function getToken() { return document.getElementById('authToken').value; }
+function headers() { return { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' }; }
+function $(id) { return document.getElementById(id); }
+function now() { return new Date().toLocaleTimeString('zh-CN', {hour12:false}); }
+function shortId(id) { return id.substring(0, 8); }
+
+// ── API Calls ──
+async function api(method, path, body) {
+  const opts = { method, headers: headers() };
+  if (body) opts.body = JSON.stringify(body);
+  const resp = await fetch(getUrl() + path, opts);
+  if (!resp.ok) {
+    const err = await resp.text();
+    throw new Error(`${resp.status}: ${err}`);
+  }
+  return resp.json();
+}
+
+// ── Connect WebSocket ──
+function connect() {
+  disconnect();
+  const url = getUrl();
+  const wsUrl = url.replace(/^http/, 'ws') + `/ws/events?token=${getToken()}`;
+
+  ws = new WebSocket(wsUrl);
+  ws.onopen = () => {
+    $('wsStatus').innerHTML = '<span class="status-dot on"></span>已连接';
+    $('sbConnection').textContent = '✅ WebSocket 已连接';
+    addSystemEvent('ws_connected', { url: wsUrl });
+    refreshSessions();
+  };
+  ws.onclose = (e) => {
+    $('wsStatus').innerHTML = '<span class="status-dot off"></span>已断开';
+    $('sbConnection').textContent = '❌ WebSocket 已断开';
+    addSystemEvent('ws_disconnected', { code: e.code, reason: e.reason });
+  };
+  ws.onerror = () => {
+    $('wsStatus').innerHTML = '<span class="status-dot off"></span>错误';
+    $('sbConnection').textContent = '❌ WebSocket 错误';
+  };
+  ws.onmessage = (e) => {
+    try {
+      const evt = JSON.parse(e.data);
+      handleEvent(evt);
+    } catch (err) { console.error('Parse error:', err); }
+  };
+
+  // Update docs link
+  $('docsLink').textContent = url + '/docs';
+  $('docsLink').href = url + '/docs';
+}
+
+function disconnect() {
+  if (ws) { ws.close(); ws = null; }
+}
+
+// ── Sessions ──
+async function refreshSessions() {
+  try {
+    const list = await api('GET', '/api/sessions');
+    sessions = {};
+    list.forEach(s => sessions[s.session_id] = s);
+    renderSessions();
+    $('sbSessions').textContent = `会话: ${list.length}`;
+  } catch (e) { console.error('refreshSessions error:', e); }
+}
+
+function renderSessions() {
+  const el = $('sessionList');
+  const ids = Object.keys(sessions);
+  if (!ids.length) {
+    el.innerHTML = '<div class="placeholder" style="height:100%">暂无会话<br>点击下方创建</div>';
+    return;
+  }
+  el.innerHTML = ids.map(id => {
+    const s = sessions[id];
+    const isActive = id === activeSessionId;
+    return `<div class="session-card ${isActive ? 'active' : ''}" onclick="selectSession('${id}')">
+      <div class="sid">${shortId(id)}</div>
+      <div class="title">${escHtml(s.title || '(新会话)')}</div>
+      <div class="meta">
+        <span class="badge ${s.state}">${s.state}</span>
+        <span>📦 ${s.model || '-'}</span>
+        <span>📊 ${s.event_count}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function selectSession(id) {
+  activeSessionId = id;
+  renderSessions();
+
+  // Clear chat and load events for this session
+  $('chatMessages').innerHTML = '';
+  chatMsgCount = 0;
+  $('chatCount').textContent = '0';
+
+  // Load event history
+  api('GET', `/api/sessions/${id}/events`).then(events => {
+    events.forEach(evt => {
+      if (evt.type === 'user_message') {
+        appendChat('user', evt.data.content || '', evt.timestamp);
+      } else if (evt.type === 'assistant_message') {
+        appendChat('assistant', evt.data.content || '', evt.timestamp);
+      } else if (evt.type === 'result') {
+        appendChat('system', `执行${evt.data.success ? '成功' : '失败'}${evt.data.error ? ': ' + evt.data.error : ''}`, evt.timestamp);
+      } else if (evt.type === 'output' && evt.data.text) {
+        appendChat('system', evt.data.text, evt.timestamp);
+      }
+    });
+  }).catch(e => console.error(e));
+}
+
+async function createSession() {
+  try {
+    const apiKey = $('newApiKey').value.trim();
+    const baseUrl = $('newBaseUrl').value.trim();
+
+    // 验证必填项
+    if (!apiKey) {
+      if (!confirm('API Key 未填写，AgentLoop 将无法调用 LLM。\n\n点击“确定”继续（需服务端已设置环境变量），或“取消”后填写。')) return;
+    }
+    if (!baseUrl) {
+      if (!confirm('Base URL 未填写，将使用默认值。\n\n智谱 GLM 请填写: https://open.bigmodel.cn/api/paas/v4\n\n点击“确定”继续，或“取消”后填写。')) return;
+    }
+
+    const body = {
+      work_dir: $('newWorkDir').value.trim() || '.',
+      model: $('newModel').value.trim() || 'glm-4-plus',
+      permission_mode: $('newPermMode').value,
+      api_key: apiKey || '',
+      base_url: baseUrl || '',
+    };
+
+    // 调试：显示实际发送的参数
+    console.log('[createSession] 发送参数:', JSON.stringify({...body, api_key: body.api_key ? body.api_key.substring(0,8)+'...' : '(空)'}, null, 2));
+
+    const result = await api('POST', '/api/sessions', body);
+    addSystemEvent('session_created', result);
+    await refreshSessions();
+    selectSession(result.session_id);
+  } catch (e) { alert('创建失败: ' + e.message); }
+}
+
+async function stopSession() {
+  if (!activeSessionId) return;
+  try {
+    await api('POST', `/api/sessions/${activeSessionId}/stop`);
+    addSystemEvent('session_stop_sent', { session_id: activeSessionId });
+    await refreshSessions();
+  } catch (e) { alert('停止失败: ' + e.message); }
+}
+
+// ── Chat ──
+function handleChatKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+async function sendMessage() {
+  if (!activeSessionId) { alert('请先选择一个会话'); return; }
+  const input = $('chatInput');
+  const content = input.value.trim();
+  if (!content) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  appendChat('user', content);
+
+  try {
+    await api('POST', `/api/sessions/${activeSessionId}/message`, { content });
+  } catch (e) {
+    appendChat('system', `发送失败: ${e.message}`);
+  }
+}
+
+function appendChat(role, text, timestamp) {
+  const el = $('chatMessages');
+  // Remove placeholder
+  const ph = el.querySelector('.placeholder');
+  if (ph) ph.remove();
+
+  const ts = timestamp ? new Date(timestamp * 1000).toLocaleTimeString('zh-CN', {hour12:false}) : now();
+  const labels = { user: '👤 你', assistant: '🤖 AI', system: 'ℹ️ 系统' };
+
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.innerHTML = `<div class="label">${labels[role] || role}</div><div class="bubble">${escHtml(text)}</div><div class="ts">${ts}</div>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+
+  chatMsgCount++;
+  $('chatCount').textContent = chatMsgCount;
+}
+
+// ── Events ──
+function handleEvent(evt) {
+  allEvents.push(evt);
+  $('eventCount').textContent = allEvents.length;
+  $('sbEvents').textContent = `事件: ${allEvents.length}`;
+
+  // Add to events pane
+  renderEventItem(evt);
+
+  // Update session state if applicable
+  if (evt.session_id && sessions[evt.session_id]) {
+    // Refresh session info periodically
+    if (['session_created', 'session_started', 'session_stopped', 'session_error', 'result'].includes(evt.type)) {
+      refreshSessions();
+    }
+  }
+
+  // Chat messages
+  if (evt.session_id === activeSessionId) {
+    switch (evt.type) {
+      case 'assistant_message':
+        appendChat('assistant', evt.data.content || '');
+        break;
+      case 'result':
+        appendChat('system', `✅ 执行${evt.data.success ? '成功' : '失败'}${evt.data.result ? '\n' + evt.data.result.substring(0, 500) : ''}${evt.data.error ? '\n错误: ' + evt.data.error : ''}`);
+        break;
+      case 'output':
+        if (evt.data.text) appendChat('system', evt.data.text);
+        break;
+      case 'tool_call':
+        appendChat('system', `🔧 调用工具: ${evt.data.tool_name}\n${formatJson(evt.data.arguments)}`);
+        break;
+      case 'tool_result':
+        appendChat('system', `📋 工具结果:\n${(evt.data.content || '').substring(0, 500)}`);
+        break;
+    }
+  }
+
+  // Permission request → show dialog
+  if (evt.type === 'permission_request') {
+    showPermissionDialog(evt);
+  }
+
+  // Auto-switch to events tab for important events
+  if (['session_error', 'permission_request'].includes(evt.type)) {
+    switchTab('events');
+  }
+}
+
+function renderEventItem(evt) {
+  const el = $('eventsContainer');
+  const ph = el.querySelector('.placeholder');
+  if (ph) ph.remove();
+
+  const filter = $('eventFilter').value;
+  if (filter !== 'all' && evt.type !== filter) return;
+
+  const ts = new Date((evt.timestamp || Date.now()/1000) * 1000).toLocaleTimeString('zh-CN', {hour12:false});
+  const dataStr = typeof evt.data === 'object' ? JSON.stringify(evt.data).substring(0, 200) : String(evt.data || '');
+
+  const div = document.createElement('div');
+  div.className = `event-item ${evt.type}`;
+  div.dataset.type = evt.type;
+  div.innerHTML = `<span class="etime">${ts}</span><span class="etype">${evt.type}</span><span class="edata">${escHtml(dataStr)}</span>`;
+  el.appendChild(div);
+
+  if ($('autoScroll').checked) el.scrollTop = el.scrollHeight;
+}
+
+function addSystemEvent(type, data) {
+  handleEvent({
+    event_id: 'sys-' + Date.now(),
+    type: type,
+    session_id: activeSessionId || '',
+    data: data,
+    timestamp: Date.now() / 1000,
+  });
+}
+
+function clearEvents() {
+  allEvents = [];
+  $('eventsContainer').innerHTML = '<div class="placeholder">等待事件...</div>';
+  $('eventCount').textContent = '0';
+}
+
+function filterEvents() {
+  const filter = $('eventFilter').value;
+  const el = $('eventsContainer');
+  el.innerHTML = '';
+  allEvents.forEach(evt => {
+    if (filter === 'all' || evt.type === filter) renderEventItem(evt);
+  });
+}
+
+// ── Permission Dialog ──
+function showPermissionDialog(evt) {
+  pendingPermRequest = { session_id: evt.session_id, request_id: evt.data.request_id };
+  const info = $('permInfo');
+  info.innerHTML = `
+    <div class="row"><span class="k">会话:</span><span>${shortId(evt.session_id)}</span></div>
+    <div class="row"><span class="k">工具:</span><span>${escHtml(evt.data.tool_name)}</span></div>
+    <div class="row"><span class="k">描述:</span><span>${escHtml(evt.data.description)}</span></div>
+    <div class="row"><span class="k">参数:</span></div>
+    <pre style="background:var(--bg);padding:8px;border-radius:4px;font-size:11px;overflow-x:auto;margin-top:4px">${escHtml(JSON.stringify(evt.data.tool_input, null, 2))}</pre>
+  `;
+  $('permOverlay').classList.add('show');
+}
+
+async function respondPermission(behavior) {
+  if (!pendingPermRequest) return;
+  try {
+    await api('POST', `/api/sessions/${pendingPermRequest.session_id}/permission`, {
+      request_id: pendingPermRequest.request_id,
+      behavior: behavior,
+    });
+    addSystemEvent('permission_responded', { request_id: pendingPermRequest.request_id, behavior });
+  } catch (e) { alert('响应失败: ' + e.message); }
+  $('permOverlay').classList.remove('show');
+  pendingPermRequest = null;
+}
+
+// ── Tabs ──
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === `pane-${name}`));
+}
+
+// ── API Tools ──
+async function apiGetStatus() {
+  try {
+    const data = await api('GET', '/api/status');
+    $('statusResult').textContent = `运行 ${(data.uptime/60).toFixed(1)}分钟 | ${data.active_sessions}/${data.max_sessions} 会话`;
+  } catch (e) { $('statusResult').textContent = '❌ ' + e.message; }
+}
+
+async function apiGetSessions() {
+  try {
+    const data = await api('GET', '/api/sessions');
+    $('sessionsResult').textContent = `${data.length} 个会话`;
+    await refreshSessions();
+  } catch (e) { $('sessionsResult').textContent = '❌ ' + e.message; }
+}
+
+async function apiGetEvents() {
+  if (!activeSessionId) { $('eventsResult').textContent = '请先选择会话'; return; }
+  try {
+    const data = await api('GET', `/api/sessions/${activeSessionId}/events`);
+    $('eventsResult').textContent = `${data.length} 个事件`;
+    switchTab('events');
+  } catch (e) { $('eventsResult').textContent = '❌ ' + e.message; }
+}
+
+// ── Utils ──
+function escHtml(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function formatJson(s) { try { return JSON.stringify(JSON.parse(s), null, 2); } catch { return String(s || ''); } }
+
+// ── Auto-resize textarea ──
+$('chatInput').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+// ── Clock ──
+setInterval(() => { $('sbTime').textContent = now(); }, 1000);
+$('sbTime').textContent = now();
+</script>
+</body>
+</html>
