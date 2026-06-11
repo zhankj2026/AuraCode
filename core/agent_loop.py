@@ -9,6 +9,7 @@ import os
 import json
 import logging
 import asyncio
+import threading
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
 
@@ -16,6 +17,7 @@ from tools.registry import TOOL_REGISTRY, get_tool_schemas, register_tool
 from permissions.manager import PermissionManager
 from core.context import load_project_context
 from core.memory import get_memory_manager
+from core.session_state import SessionState, QueryResult, TokenUsage
 
 # 集成扩展系统
 from plugins.loader import PluginLoader
@@ -64,9 +66,14 @@ class AgentLoop:
         self.model = config.get("model", "glm-4-plus")
         self.max_iterations = config.get("max_iterations", 20)
         self.max_tokens = config.get("max_tokens", 8192)
+        self.max_output_recovery_limit = config.get("max_output_recovery_limit", 3)
+        self.context_compact_threshold = config.get("context_compact_threshold", 40)
 
-        # 3. 消息历史(扁平存储)
-        self.messages: List[Dict[str, Any]] = []
+        # 3. 会话状态管理（集中式）
+        self.state = SessionState(
+            max_budget_usd=config.get("max_budget_usd"),
+            fallback_model=config.get("fallback_model"),
+        )
 
         # 4. 扩展系统集成
         self._init_extensions(config)
@@ -93,8 +100,24 @@ class AgentLoop:
                 logger.warning(f"Memory system initialization failed: {e}")
                 self.memory_enabled = False
 
+        # 8. 事件回调（供 Bridge 等外部系统订阅）
+        self.event_callback = None
+
         logger.info(f"AgentLoop initialized with model={self.model}, "
-                   f"max_iterations={self.max_iterations}")
+                   f"max_iterations={self.max_iterations}, "
+                   f"fallback_model={self.state.fallback_model}, "
+                   f"max_budget_usd={self.state.max_budget_usd}")
+
+    # ========== 消息历史兼容属性 ==========
+
+    @property
+    def messages(self) -> List[Dict[str, Any]]:
+        """向后兼容：直接访问 self.state.messages"""
+        return self.state.messages
+
+    @messages.setter
+    def messages(self, value: List[Dict[str, Any]]):
+        self.state.messages = value
 
     def _init_extensions(self, config: Dict[str, Any]):
         """
@@ -184,40 +207,69 @@ class AgentLoop:
                 logger.warning(f"技能系统初始化失败: {e}")
                 self.skill_manager = None
     
-    def run(self, user_input: str) -> str:
+    def run(self, user_input: str) -> QueryResult:
         """
-        主入口:处理用户输入并执行 Agent Loop
-        
+        主入口：处理用户输入并执行 Agent Loop
+
+        参考 Claude Code 的 QueryEngine.submitMessage + query.ts 循环。
+        返回结构化 QueryResult（含状态/token/成本/耗时）。
+
         Args:
             user_input: 用户的自然语言指令
-            
+
         Returns:
-            最终响应文本
+            QueryResult 结构化结果
         """
         logger.info(f"Starting agent loop with input: {user_input[:50]}...")
-        
-        # 1. 初始化消息(系统提示词 + 用户输入)
+        self.state.start_query()
+
+        # 1. 初始化消息（系统提示词 + 用户输入）
         self._init_messages(user_input)
-        
-        # 2. Agent Loop - 核心循环
-        iteration = 0
-        while iteration < self.max_iterations:
-            iteration += 1
-            logger.info(f"Iteration {iteration}/{self.max_iterations}")
-            
+
+        # 2. Agent Loop — 核心循环
+        last_assistant_text = ""
+
+        while self.state.turn_count < self.max_iterations:
+            self.state.increment_turn()
+            logger.info(f"Turn {self.state.turn_count}/{self.max_iterations}")
+
+            # 中断检查
+            if self.state.is_aborted():
+                logger.info("Aborted by user")
+                return self.state.to_result(
+                    status="aborted",
+                    text=last_assistant_text,
+                    stop_reason="aborted",
+                )
+
+            # 预算检查
+            if self.state.is_budget_exceeded():
+                logger.warning(f"Budget exceeded: ${self.state.total_cost_usd:.4f}")
+                return self.state.to_result(
+                    status="error_max_budget",
+                    text=last_assistant_text,
+                    error=f"超出预算上限 ${self.state.max_budget_usd:.4f}",
+                )
+
             try:
+                # P2: 上下文压缩（消息过多时自动触发）
+                if len(self.state.messages) > self.context_compact_threshold:
+                    self._compact_messages()
+
                 # Step 1: 调用 LLM
                 response = self._call_llm()
-                
+
                 # Step 2: 解析响应
                 message = response.choices[0].message
                 assistant_content = message.content or ""
-                
-                # 追加助手消息到历史 — 必须保留 tool_calls 字段
-                # 参考 OpenAI API 规范: assistant 消息须带 tool_calls,否则后续 tool 消息会报错
+
+                # 追踪 token 用量
+                self.state.record_usage(response.usage)
+
+                # 构建助手消息
                 assistant_msg: Dict[str, Any] = {
                     "role": "assistant",
-                    "content": assistant_content
+                    "content": assistant_content,
                 }
                 if message.tool_calls:
                     assistant_msg["tool_calls"] = [
@@ -226,50 +278,107 @@ class AgentLoop:
                             "type": "function",
                             "function": {
                                 "name": tc.function.name,
-                                "arguments": tc.function.arguments
-                            }
+                                "arguments": tc.function.arguments,
+                            },
                         }
                         for tc in message.tool_calls
                     ]
-                self.messages.append(assistant_msg)
-                
+                self.state.messages.append(assistant_msg)
+
                 # 打印助手回复
                 if assistant_content:
                     print(f"\n🤖 Assistant: {assistant_content}\n")
-                
+                    last_assistant_text = assistant_content
+
+                # 中断检查（流式后）
+                if self.state.is_aborted():
+                    return self.state.to_result(
+                        status="aborted",
+                        text=last_assistant_text,
+                        stop_reason="aborted",
+                    )
+
                 # Step 3: 检查是否有工具调用
                 if not message.tool_calls:
-                    # 无工具调用 → 任务完成
+                    # 无工具调用 → 检查输出是否被截断（max_output_tokens 恢复）
+                    finish_reason = getattr(message, "finish_reason", None) or (
+                        response.choices[0].finish_reason if response.choices else None
+                    )
+                    if finish_reason == "length" and self.state.output_truncation_count < self.max_output_recovery_limit:
+                        self.state.output_truncation_count += 1
+                        logger.info(
+                            f"Output truncated, recovery attempt "
+                            f"{self.state.output_truncation_count}/{self.max_output_recovery_limit}"
+                        )
+                        recovery_msg = (
+                            "Output token limit hit. Resume directly — no apology, "
+                            "no recap. Pick up mid-thought if that is where the cut happened. "
+                            "Break remaining work into smaller pieces."
+                        )
+                        self.state.messages.append({
+                            "role": "user",
+                            "content": recovery_msg,
+                        })
+                        continue  # 重试
+
+                    # 任务完成
                     logger.info("No tool calls, task completed")
-                    return assistant_content
-                
+                    return self.state.to_result(
+                        status="success",
+                        text=last_assistant_text,
+                        stop_reason="end_turn",
+                    )
+
+                # 重置截断计数器（有工具调用说明输出正常结束）
+                self.state.output_truncation_count = 0
+
                 # Step 4: 执行所有工具调用
                 for tool_call in message.tool_calls:
+                    if self.state.is_aborted():
+                        break
+
                     tool_result = self._execute_tool(tool_call)
-                    
-                    # Step 5: 工具结果以 role=tool 返回(OpenAI 规范)
-                    # 必须包含 tool_call_id 与 assistant 消息对应
-                    result_content = tool_result.get("result") if tool_result.get("success") else f"Error: {tool_result.get('error')}"
-                    self.messages.append({
+
+                    # Step 5: 工具结果以 role=tool 返回（OpenAI 规范）
+                    result_content = (
+                        tool_result.get("result")
+                        if tool_result.get("success")
+                        else f"Error: {tool_result.get('error')}"
+                    )
+                    self.state.messages.append({
                         "role": "tool",
                         "tool_call_id": tool_call.id,
-                        "content": str(result_content)
+                        "content": str(result_content),
                     })
-                    
+
                     # 打印工具执行结果
-                    status = "✅" if tool_result.get("success") else "❌"
-                    print(f"{status} [{tool_call.function.name}] {str(result_content)[:200]}")
-                
+                    status_icon = "✅" if tool_result.get("success") else "❌"
+                    print(f"{status_icon} [{tool_call.function.name}] {str(result_content)[:200]}")
+
                 # Step 6: 继续循环
-                
+
             except Exception as e:
-                logger.error(f"Iteration {iteration} failed: {e}", exc_info=True)
-                return f"❌ 错误: {str(e)}"
-        
+                logger.error(f"Turn {self.state.turn_count} failed: {e}", exc_info=True)
+                # P1: Fallback 模型 — API 错误时尝试切换
+                if self.state.fallback_model and not self.state._active_model_override:
+                    activated = self.state.activate_fallback()
+                    if activated:
+                        print(f"\n⚠️ 主模型不可用，已切换到备用模型: {activated}")
+                        continue  # 用备用模型重试
+                return self.state.to_result(
+                    status="error",
+                    text=last_assistant_text,
+                    error=str(e),
+                )
+
         # 达到最大迭代次数
         logger.warning("Reached max iterations")
-        return "⚠️ 达到最大迭代次数,任务未完成。请尝试简化任务或增加 max_iterations。"
-    
+        return self.state.to_result(
+            status="error_max_turns",
+            text=last_assistant_text,
+            error=f"达到最大轮次 {self.max_iterations}，任务未完成",
+        )
+
     def _init_messages(self, user_input: str):
         """初始化消息历史"""
         system_prompt = self._build_system_prompt()
@@ -537,36 +646,33 @@ class AgentLoop:
 5. 保护用户隐私,不要泄露敏感信息"""
     
     def _call_llm(self):
-        """调用 LLM"""
-        logger.debug(f"Calling LLM with {len(self.messages)} messages")
-        
-        # 打印调用信息(使用 print 确保可见)
-        # print(f"\n🤔 request= {self.messages} ")
+        """调用 LLM（支持 fallback 模型切换）"""
+        active_model = self.state.get_active_model(self.model)
+        logger.debug(f"Calling LLM ({active_model}) with {len(self.messages)} messages")
 
-        print(f"\n🤔 思考中... (使用 {len(self.messages)} 条消息历史)")
-        
+        print(f"\n🤔 思考中... (模型={active_model}, {len(self.messages)} 条消息)")
+
         try:
             response = self.client.chat.completions.create(
-                model=self.model,
+                model=active_model,
                 messages=self.messages,
                 tools=self.tools,
                 tool_choice="auto",
                 temperature=0.2,
                 max_tokens=self.max_tokens
             )
-            
+
             # 记录 token 使用情况
             usage = response.usage
             if usage:
                 logger.info(f"Token usage: prompt={usage.prompt_tokens}, "
                            f"completion={usage.completion_tokens}, "
                            f"total={usage.total_tokens}")
-                print(f"💰 Token 使用: 输入={usage.prompt_tokens}, 输出={usage.completion_tokens}, 总计={usage.total_tokens}")
-                # print(f"response = {response}")
+                print(f"💰 Token: 输入={usage.prompt_tokens}, 输出={usage.completion_tokens}, 总计={usage.total_tokens}")
             return response
-            
+
         except Exception as e:
-            logger.error(f"LLM API 调用失败: {e}")
+            logger.error(f"LLM API 调用失败 ({active_model}): {e}")
             raise
 
     def _try_fix_json(self, raw: str) -> Optional[Dict]:
@@ -698,6 +804,9 @@ class AgentLoop:
             error_msg = f"权限拒绝: {tool_name} 操作被安全策略拦截"
             logger.warning(error_msg)
 
+            # P2: 记录权限拒绝
+            self.state.record_permission_denial(tool_name, arguments, error_msg)
+
             # 触发 PostToolUseFailure 钩子
             if self.hooks_enabled:
                 self._trigger_failure_hook(tool_name, arguments, error_msg)
@@ -789,6 +898,66 @@ class AgentLoop:
             loop.close()
         except Exception as e:
             logger.warning(f"PostToolUseFailure 钩子执行失败: {e}")
+
+    # ========== P2: 上下文压缩 ==========
+
+    def _compact_messages(self):
+        """
+        简单上下文压缩：保留系统提示词 + 最近 N 条消息，
+        将旧消息压缩为一条摘要。
+
+        参考 Claude Code query.ts 的 auto-compact 机制（简化版）。
+        """
+        msgs = self.state.messages
+        if len(msgs) <= 4:
+            return  # 消息太少不需要压缩
+
+        # 保留系统提示词（第 0 条）和最近的消息
+        keep_count = max(6, len(msgs) // 3)
+        system_msg = msgs[0] if msgs[0].get("role") == "system" else None
+        old_msgs = msgs[1:-keep_count]  # 排除 system 和最近 keep_count 条
+        recent_msgs = msgs[-keep_count:]
+
+        if not old_msgs:
+            return
+
+        # 构建旧消息摘要
+        summary_parts = []
+        for m in old_msgs:
+            role = m.get("role", "?")
+            content = m.get("content", "")
+            if content:
+                truncated = content[:300] + "..." if len(content) > 300 else content
+                summary_parts.append(f"[{role}]: {truncated}")
+
+        summary_text = (
+            "[Auto-Compact Summary]\n"
+            "以下是之前对话的压缩摘要:\n" +
+            "\n".join(summary_parts)
+        )
+
+        # 重建消息列表
+        new_msgs = []
+        if system_msg:
+            new_msgs.append(system_msg)
+        new_msgs.append({"role": "user", "content": summary_text})
+        new_msgs.append({"role": "assistant", "content": "好的，我已了解之前的对话内容，继续当前任务。"})
+        new_msgs.extend(recent_msgs)
+
+        old_count = len(msgs)
+        self.state.messages = new_msgs
+        logger.info(f"Context compacted: {old_count} -> {len(new_msgs)} messages")
+        print(f"📦 上下文压缩: {old_count} -> {len(new_msgs)} 条消息")
+
+    # ========== 中断控制 ==========
+
+    def abort(self):
+        """便捷方法：中断当前执行"""
+        self.state.abort()
+
+    def is_aborted(self) -> bool:
+        """检查是否已中断"""
+        return self.state.is_aborted()
 
     # ========== 扩展系统控制方法 ==========
 

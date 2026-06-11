@@ -110,7 +110,6 @@ class ChatMode:
         self.config = config
         self.executor = executor
         self.round = 0
-        self.total_tokens = 0
         self.start_time = datetime.now()
 
     def show_welcome(self):
@@ -131,18 +130,25 @@ class ChatMode:
         print("=" * 60)
 
     def show_stats(self):
-        """显示会话统计"""
+        """显示会话统计（基于 SessionState 集中数据）"""
         duration = (datetime.now() - self.start_time).total_seconds()
+        state = self.loop.state
 
         print()
         print("=" * 60)
         print("📊 会话统计")
         print("=" * 60)
         print(f"   对话轮次: {self.round}")
-        print(f"   总 Token: {self.total_tokens}")
+        print(f"   总 Token: {state.total_usage.total_tokens}"
+              f" (输入={state.total_usage.prompt_tokens},"
+              f" 输出={state.total_usage.completion_tokens})")
+        if state.total_cost_usd > 0:
+            print(f"   总费用: ${state.total_cost_usd:.6f}")
         print(f"   会话时长: {duration:.1f} 秒")
-        if self.round > 0:
-            print(f"   平均 Token/轮: {self.total_tokens // self.round}")
+        if state.permission_denials:
+            print(f"   权限拒绝: {len(state.permission_denials)} 次")
+        if self.round > 0 and state.total_usage.total_tokens > 0:
+            print(f"   平均 Token/轮: {state.total_usage.total_tokens // self.round}")
         print("=" * 60)
 
     def handle_input(self, user_input: str) -> bool:
@@ -230,7 +236,7 @@ class ChatMode:
 
     def process_round(self, user_input: str) -> bool:
         """
-        处理一轮对话
+        处理一轮对话（基于 QueryResult 结构化结果）
 
         Args:
             user_input: 用户输入
@@ -245,22 +251,13 @@ class ChatMode:
         print("-" * 60)
 
         try:
-            # 执行对话
+            # 执行对话，返回 QueryResult
             result = self.loop.run(user_input)
 
-            # 统计 token 使用
-            if self.loop.messages:
-                for msg in reversed(self.loop.messages):
-                    if msg.get('role') == 'assistant' and 'usage' in msg:
-                        usage = msg['usage']
-                        if usage:
-                            tokens = usage.get('total_tokens', 0)
-                            self.total_tokens += tokens
-                            print(f"\n💰 本轮 Token: {tokens}")
-                            break
-
+            # 展示结构化结果摘要
             if result:
-                print(f"\n✅ 完成")
+                print()
+                print(result.format_summary())
             else:
                 print(f"\n⚠️  未获得响应")
 
