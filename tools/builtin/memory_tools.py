@@ -6,7 +6,7 @@ import json
 import logging
 from typing import Dict, Any, Optional
 
-from core.memory import get_memory_manager, MEMORY_TYPES
+from core.memory import get_memory_manager, MEMORY_TYPES, memory_freshness_text
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +116,10 @@ def load_memory_tool(
                 "content": memory.content,
                 "metadata": memory.metadata,
                 "created_at": memory.created_at,
-                "updated_at": memory.updated_at
+                "updated_at": memory.updated_at,
+                "freshness_warning": memory_freshness_text(
+                    memory.updated_at or memory.created_at
+                ) or None,
             }
         }
 
@@ -264,7 +267,9 @@ def get_relevant_memories_tool(
     """
     获取相关记忆
 
-    根据当前上下文智能获取相关的记忆。可用于在处理任务前回忆相关信息。
+    根据当前上下文智能获取相关的记忆。
+    优先使用 LLM 语义选择，降级为关键词匹配。
+    返回结果包含新鲜度警告(对陈旧记忆)。
 
     Args:
         context: 当前上下文描述
@@ -275,20 +280,38 @@ def get_relevant_memories_tool(
     """
     try:
         manager = get_memory_manager()
-        relevant = manager.get_relevant_memories(context, max_results)
+
+        # 获取 LLM 客户端(如果 MemoryManager 有)
+        client = getattr(manager, 'llm_client', None)
+        model = getattr(manager, 'llm_model', None)
+
+        # 使用 LLM 驱动的记忆召回
+        relevant = manager.get_relevant_memories_with_llm(
+            query=context,
+            client=client,
+            model=model,
+            max_results=max_results,
+        )
+
+        memories_result = []
+        for m in relevant:
+            entry = {
+                "type": m.memory_type,
+                "title": m.title,
+                "content": m.content,
+                "created_at": m.created_at,
+            }
+            # 添加新鲜度警告
+            freshness = memory_freshness_text(m.updated_at or m.created_at)
+            if freshness:
+                entry["freshness_warning"] = freshness
+            memories_result.append(entry)
 
         return {
             "success": True,
-            "count": len(relevant),
-            "memories": [
-                {
-                    "type": m.memory_type,
-                    "title": m.title,
-                    "content": m.content,
-                    "created_at": m.created_at
-                }
-                for m in relevant
-            ]
+            "count": len(memories_result),
+            "memories": memories_result,
+            "selection_method": "llm" if client and model else "keyword",
         }
 
     except Exception as e:
@@ -420,7 +443,7 @@ def register_memory_tools():
         },
         {
             "name": "get_relevant_memories",
-            "description": "根据当前上下文智能获取相关的记忆",
+            "description": "根据当前上下文智能获取相关的记忆。优先使用 LLM 语义选择，降级为关键词匹配。陈旧记忆会附带新鲜度警告。",
             "parameters": {
                 "type": "object",
                 "properties": {

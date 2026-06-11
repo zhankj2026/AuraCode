@@ -9,9 +9,11 @@
 """
 
 import os
+import re
 import json
+import time
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 from pathlib import Path
 
@@ -57,6 +59,15 @@ MEMORY_TYPES = {
         ]
     }
 }
+
+
+# 记忆索引文件限制
+MAX_ENTRYPOINT_LINES = 200
+MAX_ENTRYPOINT_BYTES = 25_000
+
+# 扫描记忆文件时的前缀最大行数(只读 frontmatter)
+FRONTMATTER_MAX_LINES = 30
+MAX_MEMORY_FILES = 200
 
 
 class Memory:
@@ -125,6 +136,10 @@ class MemoryManager:
 
         # MEMORY.md 是索引文件
         self.memory_index_path = self.memory_dir / "MEMORY.md"
+
+        # LLM 客户端和模型(由 AgentLoop 注入，供 LLM 驱动记忆召回使用)
+        self.llm_client = None
+        self.llm_model = None
 
         logger.info(f"MemoryManager initialized with dir: {self.memory_dir}")
 
@@ -558,6 +573,494 @@ class MemoryManager:
         except Exception as e:
             logger.error(f"Failed to export memories: {e}")
             return False
+
+    def get_relevant_memories_with_llm(
+        self,
+        query: str,
+        client=None,
+        model: str = None,
+        max_results: int = 5
+    ) -> List[Memory]:
+        """
+        LLM 驱动的智能记忆召回。
+        扫描记忆目录 → 生成清单 → 用 LLM 语义选择最相关的记忆。
+        如果没有 LLM 客户端，降级为关键词匹配。
+
+        Args:
+            query: 用户查询或上下文
+            client: OpenAI 客户端(可选，不传则降级为关键词匹配)
+            model: 模型名称(可选)
+            max_results: 最大返回数量
+
+        Returns:
+            相关记忆列表
+        """
+        # 1. 扫描记忆文件
+        headers = scan_memory_files(self.memory_dir)
+        if not headers:
+            return []
+
+        # 2. 格式化清单
+        manifest = format_memory_manifest(headers)
+
+        # 3. 如果有 LLM 客户端，用 LLM 选择
+        if client and model:
+            selected = select_relevant_memories_with_llm(
+                query, manifest, headers, client, model
+            )
+            if selected is not None:
+                # LLM 选择成功，加载完整记忆
+                memories = []
+                for header in selected[:max_results]:
+                    mem = self.load_memory_by_path(Path(header["filePath"]))
+                    if mem:
+                        memories.append(mem)
+                return memories
+
+        # 4. 降级为关键词匹配
+        return self._keyword_relevant_memories(query, max_results)
+
+    def load_memory_by_path(self, file_path: Path) -> Optional[Memory]:
+        """通过文件路径加载记忆"""
+        if not file_path.exists():
+            return None
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            # 解析 frontmatter
+            meta, body = _parse_frontmatter(content)
+            return Memory(
+                memory_type=meta.get("type", "user"),
+                title=meta.get("name", file_path.stem),
+                content=body,
+                metadata=meta.get("metadata"),
+                created_at=meta.get("created_at"),
+                updated_at=meta.get("updated_at"),
+            )
+        except Exception as e:
+            logger.warning(f"Failed to load memory from {file_path}: {e}")
+            return None
+
+    def _keyword_relevant_memories(
+        self, context: str, max_results: int = 5
+    ) -> List[Memory]:
+        """关键词匹配方式获取相关记忆(原 get_relevant_memories 逻辑)"""
+        context_lower = context.lower()
+        english_words = set(re.findall(r'[a-z0-9]{2,}', context_lower))
+        chinese_chars = set(re.findall(r'[\u4e00-\u9fff]+', context))
+        context_words = english_words | chinese_chars
+
+        scored_memories = []
+        for memory_info in self.list_memories():
+            mem = self.load_memory(memory_info["type"], memory_info["title"])
+            if not mem:
+                continue
+
+            score = 0
+            title_lower = mem.title.lower()
+            title_english = set(re.findall(r'[a-z0-9]{2,}', title_lower))
+            title_chinese = set(re.findall(r'[\u4e00-\u9fff]+', title_lower))
+            title_words = title_english | title_chinese
+            score += len(context_words & title_words) * 5
+
+            content_lower = mem.content.lower()
+            content_english = set(re.findall(r'[a-z0-9]{2,}', content_lower))
+            content_chinese = set(re.findall(r'[\u4e00-\u9fff]+', content_lower))
+            content_words = content_english | content_chinese
+            score += len(context_words & content_words)
+
+            if score > 0:
+                scored_memories.append((score, mem))
+
+        scored_memories.sort(key=lambda x: x[0], reverse=True)
+        return [mem for score, mem in scored_memories[:max_results]]
+
+
+# ========== 记忆系统增强函数 ==========
+
+def _parse_frontmatter(content: str) -> Tuple[Dict[str, str], str]:
+    """
+    解析 Markdown frontmatter。
+    返回 (metadata_dict, body_text)。
+    """
+    meta: Dict[str, str] = {}
+    lines = content.split("\n")
+    body_start = 0
+    in_frontmatter = False
+
+    for i, line in enumerate(lines):
+        if line.strip() == "---":
+            if not in_frontmatter:
+                in_frontmatter = True
+            else:
+                body_start = i + 1
+                break
+        elif in_frontmatter and ":" in line:
+            key, value = line.split(":", 1)
+            meta[key.strip()] = value.strip()
+
+    body = "\n".join(lines[body_start:]).strip()
+    return meta, body
+
+
+def memory_age_days(updated_at: str) -> int:
+    """计算记忆距今天数。负值(时钟偏差)截断为 0。"""
+    try:
+        dt = datetime.fromisoformat(updated_at)
+        delta = datetime.now() - dt
+        return max(0, delta.days)
+    except (ValueError, TypeError):
+        return 0
+
+
+def memory_freshness_text(updated_at: str) -> str:
+    """
+    记忆新鲜度警告文本。
+    超过 1 天的记忆返回陈旧警告；今天/昨天返回空字符串。
+    """
+    days = memory_age_days(updated_at)
+    if days <= 1:
+        return ""
+    return (
+        f"This memory is {days} days old. "
+        "Memories are point-in-time observations, not live state — "
+        "claims about code behavior or file:line citations may be outdated. "
+        "Verify against current code before asserting as fact."
+    )
+
+
+def memory_age_text(updated_at: str) -> str:
+    """人类可读的记忆年龄。"""
+    days = memory_age_days(updated_at)
+    if days == 0:
+        return "today"
+    if days == 1:
+        return "yesterday"
+    return f"{days} days ago"
+
+
+def scan_memory_files(memory_dir: Path) -> List[Dict[str, Any]]:
+    """
+    扫描记忆目录中的 .md 文件，读取 frontmatter，按 mtime 降序排序。
+    排除 MEMORY.md（已在系统提示词中加载）。最多返回 MAX_MEMORY_FILES 个。
+    """
+    headers = []
+    if not memory_dir.exists():
+        return headers
+
+    try:
+        md_files = list(memory_dir.rglob("*.md"))
+        md_files = [f for f in md_files if f.name != "MEMORY.md"]
+
+        for fpath in md_files[:MAX_MEMORY_FILES]:
+            try:
+                content = fpath.read_text(encoding="utf-8")
+                # 只读前 FRONTMATTER_MAX_LINES 行
+                head_lines = content.split("\n")[:FRONTMATTER_MAX_LINES]
+                head_text = "\n".join(head_lines)
+                meta, _ = _parse_frontmatter(head_text)
+
+                stat = fpath.stat()
+                headers.append({
+                    "filename": fpath.name,
+                    "filePath": str(fpath),
+                    "mtimeMs": stat.st_mtime,
+                    "name": meta.get("name", fpath.stem),
+                    "description": meta.get("description", None),
+                    "type": meta.get("type", None),
+                })
+            except Exception as e:
+                logger.debug(f"Failed to read memory file {fpath}: {e}")
+                continue
+
+        # 按 mtime 降序排序(最新优先)
+        headers.sort(key=lambda h: h["mtimeMs"], reverse=True)
+
+    except Exception as e:
+        logger.warning(f"Failed to scan memory directory {memory_dir}: {e}")
+
+    return headers
+
+
+def format_memory_manifest(headers: List[Dict[str, Any]]) -> str:
+    """
+    将记忆头部格式化为文本清单: 每行一个文件。
+    格式: - [type] filename (ISO时间): description
+    供 LLM 选择相关记忆使用。
+    """
+    lines = []
+    for h in headers:
+        tag = f"[{h['type']}] " if h.get("type") else ""
+        ts = datetime.fromtimestamp(h["mtimeMs"]).isoformat()
+        desc = f": {h['description']}" if h.get("description") else ""
+        lines.append(f"- {tag}{h['filename']} ({ts}){desc}")
+    return "\n".join(lines)
+
+
+def load_memory_index(memory_dir: Path) -> str:
+    """
+    加载 MEMORY.md 索引文件内容。
+    超过行数或字节限制时截断并附加警告。
+    """
+    index_path = memory_dir / "MEMORY.md"
+    if not index_path.exists():
+        return ""
+
+    try:
+        raw = index_path.read_text(encoding="utf-8").strip()
+    except Exception as e:
+        logger.warning(f"Failed to read MEMORY.md: {e}")
+        return ""
+
+    if not raw:
+        return ""
+
+    lines = raw.split("\n")
+    line_count = len(lines)
+    byte_count = len(raw)
+
+    was_line_truncated = line_count > MAX_ENTRYPOINT_LINES
+    was_byte_truncated = byte_count > MAX_ENTRYPOINT_BYTES
+
+    if not was_line_truncated and not was_byte_truncated:
+        return raw
+
+    # 先行截断
+    if was_line_truncated:
+        raw = "\n".join(lines[:MAX_ENTRYPOINT_LINES])
+
+    # 再字节截断
+    if len(raw) > MAX_ENTRYPOINT_BYTES:
+        cut_at = raw.rfind("\n", 0, MAX_ENTRYPOINT_BYTES)
+        raw = raw[:cut_at] if cut_at > 0 else raw[:MAX_ENTRYPOINT_BYTES]
+
+    # 构造警告
+    if was_byte_truncated and not was_line_truncated:
+        reason = f"{byte_count} bytes (limit: {MAX_ENTRYPOINT_BYTES}) — entries are too long"
+    elif was_line_truncated and not was_byte_truncated:
+        reason = f"{line_count} lines (limit: {MAX_ENTRYPOINT_LINES})"
+    else:
+        reason = f"{line_count} lines and {byte_count} bytes"
+
+    return raw + (
+        f"\n\n> WARNING: MEMORY.md is {reason}. "
+        "Only part of it was loaded. Keep index entries concise."
+    )
+
+
+def build_memory_prompt_section(memory_dir: Path) -> str:
+    """
+    构建记忆系统行为指导提示词。
+    包含: 类型定义、保存时机、不应保存的内容、MEMORY.md 索引。
+    用于注入系统提示词，让模型主动管理记忆。
+    迁移自 Claude Code memdir.ts 的 buildMemoryLines()。
+    """
+    mem_dir_str = str(memory_dir)
+    lines = [
+        "## Memory System",
+        "",
+        f"You have a persistent, file-based memory system at `{mem_dir_str}`. "
+        "This directory already exists — write to it directly (do not run mkdir or check for its existence).",
+        "",
+        "You should build up this memory system over time so that future conversations "
+        "have a complete picture of who the user is, how they'd like to collaborate, "
+        "what behaviors to avoid or repeat, and the context behind the work.",
+        "",
+        "If the user explicitly asks you to remember something, save it immediately. "
+        "If they ask you to forget something, find and remove the relevant entry.",
+        "",
+        "### Types of memory",
+        "",
+        "<types>",
+        "<type>",
+        "    <name>user</name>",
+        '    <description>Information about the user\'s role, goals, responsibilities, and knowledge. '
+        "Tailor future behavior to the user's preferences and perspective.</description>",
+        '    <when_to_save>When you learn details about the user\'s role, preferences, or knowledge</when_to_save>',
+        "</type>",
+        "<type>",
+        "    <name>feedback</name>",
+        '    <description>Guidance the user has given about how to approach work — '
+        "both what to avoid and what to keep doing. Record from failure AND success.</description>",
+        '    <when_to_save>When the user corrects your approach OR confirms a non-obvious approach worked. '
+        "Include *why* so you can judge edge cases later.</when_to_save>",
+        "</type>",
+        "<type>",
+        "    <name>project</name>",
+        '    <description>Information about ongoing work, goals, initiatives, or incidents '
+        "NOT derivable from the code or git history.</description>",
+        '    <when_to_save>When you learn who is doing what, why, or by when. '
+        "Convert relative dates to absolute dates.</when_to_save>",
+        "</type>",
+        "<type>",
+        "    <name>reference</name>",
+        '    <description>Pointers to where information can be found in external systems '
+        "(bug trackers, dashboards, documentation).</description>",
+        '    <when_to_save>When you learn about external resources and their purpose</when_to_save>',
+        "</type>",
+        "</types>",
+        "",
+        "### What NOT to save",
+        "",
+        "- Code patterns, conventions, architecture, file paths — derivable from the project.",
+        "- Git history, recent changes — `git log` / `git blame` are authoritative.",
+        "- Debugging solutions — the fix is in the code; the commit message has context.",
+        "- Anything already documented in project config files.",
+        "- Ephemeral task details: in-progress work, current conversation context.",
+        "",
+        "### How to save memories",
+        "",
+        "Saving a memory is a two-step process:",
+        "",
+        "**Step 1** — Write the memory to its own file (e.g., `user_role.md`, `feedback_testing.md`) "
+        "using this frontmatter format:",
+        "",
+        "```markdown",
+        "---",
+        "name: {{memory name}}",
+        "description: {{one-line description — be specific}}",
+        "type: {{user, feedback, project, reference}}",
+        "---",
+        "",
+        "{{memory content — for feedback/project: rule/fact, then **Why:** and **How to apply:**}}",
+        "```",
+        "",
+        f"**Step 2** — Add a pointer to `MEMORY.md`. Each entry should be one line, "
+        "under ~150 characters: `- [Title](file.md) — one-line hook`.",
+        "",
+        f"- `MEMORY.md` is always loaded into context — lines after {MAX_ENTRYPOINT_LINES} "
+        "will be truncated, so keep it concise.",
+        "- Organize memories semantically by topic, not chronologically.",
+        "- Update or remove memories that are wrong or outdated.",
+        "- Do not write duplicates. Check for existing memories first.",
+        "",
+        "### When to access memories",
+        "",
+        "- When memories seem relevant, or the user references prior-conversation work.",
+        "- You MUST access memory when the user explicitly asks you to check, recall, or remember.",
+        "- If the user says to *ignore* memory: proceed as if MEMORY.md were empty.",
+        "- Memory records can become stale. Verify against current state before acting on them.",
+        "",
+        "### Before recommending from memory",
+        "",
+        "A memory naming a specific function, file, or flag is a claim from when it was written. "
+        "It may have been renamed, removed, or never merged. Before recommending:",
+        "",
+        "- If the memory names a file path: check the file exists.",
+        "- If the memory names a function or flag: grep for it.",
+        "- If the user is about to act on your recommendation, verify first.",
+        "",
+        "### Memory vs other persistence",
+        "",
+        "Memory is for cross-conversation context. For current-conversation state:",
+        "- Use Plans for implementation approach alignment.",
+        "- Use Tasks for breaking work into steps.",
+        "",
+    ]
+
+    # 加载 MEMORY.md 索引内容
+    index_content = load_memory_index(memory_dir)
+    if index_content:
+        lines.extend(["## MEMORY.md (Index)", "", index_content])
+    else:
+        lines.extend([
+            "## MEMORY.md (Index)",
+            "",
+            "Your MEMORY.md is currently empty. When you save new memories, "
+            "they will appear here.",
+        ])
+
+    return "\n".join(lines)
+
+
+# LLM 记忆选择系统提示词
+_SELECT_MEMORIES_SYSTEM_PROMPT = """You are selecting memories that will be useful as the assistant processes a user's query. \
+You will be given the user's query and a list of available memory files with their filenames and descriptions.
+
+Return a list of filenames for the memories that will clearly be useful (up to 5). \
+Only include memories you are certain will be helpful based on their name and description.
+- If unsure whether a memory will be useful, do NOT include it. Be selective.
+- If no memories would be useful, return an empty list.
+- If a list of recently-used tools is provided, do not select memories that are \
+usage reference or API docs for those tools. DO select memories containing \
+warnings, gotchas, or known issues about those tools.
+"""
+
+
+def select_relevant_memories_with_llm(
+    query: str,
+    manifest: str,
+    headers: List[Dict[str, Any]],
+    client,
+    model: str,
+) -> Optional[List[Dict[str, Any]]]:
+    """
+    用 LLM 从记忆清单中选择最相关的记忆(最多 5 条)。
+    使用 JSON Schema 约束输出格式。
+
+    Args:
+        query: 用户查询
+        manifest: 格式化的记忆清单文本
+        headers: 记忆头部信息列表
+        client: OpenAI 客户端
+        model: 模型名称
+
+    Returns:
+        选中的记忆头部列表，或 None(如果 LLM 调用失败)
+    """
+    valid_filenames = {h["filename"] for h in headers}
+
+    try:
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": _SELECT_MEMORIES_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": f"Query: {query}\n\nAvailable memories:\n{manifest}",
+                },
+            ],
+            max_tokens=256,
+            temperature=0.0,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "selected_memories",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "selected_memories": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            }
+                        },
+                        "required": ["selected_memories"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+        )
+
+        text = resp.choices[0].message.content
+        if not text:
+            return []
+
+        parsed = json.loads(text)
+        selected_names = parsed.get("selected_memories", [])
+
+        # 映射回 headers
+        by_filename = {h["filename"]: h for h in headers}
+        selected = [
+            by_filename[name]
+            for name in selected_names
+            if name in by_filename
+        ]
+        return selected
+
+    except Exception as e:
+        logger.warning(f"LLM memory selection failed, falling back: {e}")
+        return None
 
 
 # 全局记忆管理器实例

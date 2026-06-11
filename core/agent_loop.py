@@ -85,6 +85,9 @@ class AgentLoop:
         if self.memory_enabled:
             try:
                 self.memory_manager = get_memory_manager(config.get("project_root", "."))
+                # 将 LLM 客户端和模型传递给 MemoryManager，供 LLM 驱动记忆召回使用
+                self.memory_manager.llm_client = self.client
+                self.memory_manager.llm_model = self.model
                 logger.info("Memory system enabled")
             except Exception as e:
                 logger.warning(f"Memory system initialization failed: {e}")
@@ -346,62 +349,62 @@ class AgentLoop:
         return "\n\n".join(parts)
     
     def _build_memory_context(self) -> str:
-        """构建记忆上下文(从持久化记忆中提取相关信息)"""
+        """
+        构建记忆上下文。
+        注入记忆行为指导 + MEMORY.md 索引内容。
+        迁移自 Claude Code memdir.ts 的 loadMemoryPrompt()。
+        """
         try:
-            # 获取所有记忆摘要
-            all_memories = self.memory_manager.list_memories()
+            from core.memory import build_memory_prompt_section
+            return build_memory_prompt_section(self.memory_manager.memory_dir)
+        except ImportError:
+            logger.debug("build_memory_prompt_section not available, using legacy")
+            return self._build_memory_context_legacy()
+        except Exception as e:
+            logger.warning(f"Failed to build memory prompt section: {e}")
+            return ""
 
+    def _build_memory_context_legacy(self) -> str:
+        """Legacy 记忆上下文(简单摘要模式，作为降级方案)"""
+        try:
+            all_memories = self.memory_manager.list_memories()
             if not all_memories:
                 return ""
 
-            parts = ["## 记忆系统\n\n"]
+            parts = ["## Memory System\n\n"]
             parts.append("以下是从之前的会话中保存的重要信息:\n\n")
 
-            # 按类型分组
             from collections import defaultdict
             by_type = defaultdict(list)
             for mem in all_memories:
                 by_type[mem["type"]].append(mem)
 
-            # 只包含 user 和 feedback 类型到系统提示词
-            # project 和 reference 类型按需加载
             priority_types = ["user", "feedback"]
-
             for mem_type in priority_types:
                 if mem_type not in by_type:
                     continue
-
                 type_memories = by_type[mem_type]
                 if not type_memories:
                     continue
 
-                # 类型描述
                 type_descriptions = {
                     "user": "用户画像",
                     "feedback": "工作方式偏好"
                 }
-
                 parts.append(f"### {type_descriptions.get(mem_type, mem_type)}\n\n")
-
-                # 添加每个记忆的摘要
-                for mem in type_memories[:5]:  # 每种类型最多显示 5 个
-                    # 加载完整内容以获取更多信息
+                for mem in type_memories[:5]:
                     full_mem = self.memory_manager.load_memory(mem["type"], mem["title"])
                     if full_mem:
-                        # 提取关键信息(前 200 字)
                         content_preview = full_mem.content[:200]
                         if len(full_mem.content) > 200:
                             content_preview += "..."
                         parts.append(f"- **{full_mem.title}**: {content_preview}\n")
-
                 parts.append("\n")
 
-            result = "".join(parts)
-            logger.debug(f"Memory context included: {len(result)} chars")
-            return result
+            return "".join(parts)
 
         except Exception as e:
-            logger.warning(f"Failed to build memory context: {e}")
+            logger.warning(f"Failed to build legacy memory context: {e}")
             return ""
 
     def _base_role(self) -> str:
