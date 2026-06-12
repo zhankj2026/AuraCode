@@ -38,6 +38,15 @@ class BridgeEventType(str, Enum):
     PERMISSION_RESPONSE = "permission_response"
     # 输出
     OUTPUT = "output"
+    # AgentLoop 实时事件（由 event_callback 推送）
+    TURN_START = "turn_start"
+    TURN_COMPLETE = "turn_complete"
+    TOOL_EXECUTE = "tool_execute"
+    TOOL_COMPLETE = "tool_complete"
+    CONTEXT_COMPACTED = "context_compacted"
+    FALLBACK_ACTIVATED = "fallback_activated"
+    PROMPT_TOO_LONG_RECOVERY = "prompt_too_long_recovery"
+    ABORTED = "aborted"
 
 
 @dataclass

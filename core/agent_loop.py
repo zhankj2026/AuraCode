@@ -733,55 +733,68 @@ class AgentLoop:
             usage = None
             first_chunk = True
 
-            for chunk in response:
-                # 中断检查（每个 chunk 都检查）
-                if self.state.is_aborted():
-                    logger.info("Stream aborted by user")
-                    break
+            try:
+                for chunk in response:
+                    # 中断检查（每个 chunk 都检查）
+                    if self.state.is_aborted():
+                        logger.info("Stream aborted by user")
+                        finish_reason = "aborted"
+                        break
 
-                if not chunk.choices:
-                    # 最后一个 chunk 可能携带 usage（无 choices）
+                    if not chunk.choices:
+                        # 最后一个 chunk 可能携带 usage（无 choices）
+                        if hasattr(chunk, 'usage') and chunk.usage:
+                            usage = chunk.usage
+                        continue
+
+                    choice = chunk.choices[0]
+                    delta = choice.delta
+
+                    # finish_reason 在最后一个 chunk
+                    if choice.finish_reason:
+                        finish_reason = choice.finish_reason
+
+                    # 文本增量 — 实时输出
+                    if delta and delta.content:
+                        if first_chunk:
+                            print("\n🤖 Assistant: ", end="", flush=True)
+                            first_chunk = False
+                        print(delta.content, end="", flush=True)
+                        full_content += delta.content
+
+                    # 工具调用增量累积
+                    if delta and hasattr(delta, 'tool_calls') and delta.tool_calls:
+                        for tc_chunk in delta.tool_calls:
+                            idx = tc_chunk.index
+                            if idx not in tool_calls_map:
+                                tool_calls_map[idx] = {
+                                    "id": tc_chunk.id or "",
+                                    "type": "function",
+                                    "name": "",
+                                    "arguments": "",
+                                }
+                            if tc_chunk.id:
+                                tool_calls_map[idx]["id"] = tc_chunk.id
+                            if tc_chunk.function:
+                                if tc_chunk.function.name:
+                                    tool_calls_map[idx]["name"] += tc_chunk.function.name
+                                if tc_chunk.function.arguments:
+                                    tool_calls_map[idx]["arguments"] += tc_chunk.function.arguments
+
+                    # usage 可能在最后一个 chunk（部分 API）
                     if hasattr(chunk, 'usage') and chunk.usage:
                         usage = chunk.usage
-                    continue
 
-                choice = chunk.choices[0]
-                delta = choice.delta
-
-                # finish_reason 在最后一个 chunk
-                if choice.finish_reason:
-                    finish_reason = choice.finish_reason
-
-                # 文本增量 — 实时输出
-                if delta and delta.content:
-                    if first_chunk:
-                        print("\n🤖 Assistant: ", end="", flush=True)
-                        first_chunk = False
-                    print(delta.content, end="", flush=True)
-                    full_content += delta.content
-
-                # 工具调用增量累积
-                if delta and hasattr(delta, 'tool_calls') and delta.tool_calls:
-                    for tc_chunk in delta.tool_calls:
-                        idx = tc_chunk.index
-                        if idx not in tool_calls_map:
-                            tool_calls_map[idx] = {
-                                "id": tc_chunk.id or "",
-                                "type": "function",
-                                "name": "",
-                                "arguments": "",
-                            }
-                        if tc_chunk.id:
-                            tool_calls_map[idx]["id"] = tc_chunk.id
-                        if tc_chunk.function:
-                            if tc_chunk.function.name:
-                                tool_calls_map[idx]["name"] += tc_chunk.function.name
-                            if tc_chunk.function.arguments:
-                                tool_calls_map[idx]["arguments"] += tc_chunk.function.arguments
-
-                # usage 可能在最后一个 chunk（部分 API）
-                if hasattr(chunk, 'usage') and chunk.usage:
-                    usage = chunk.usage
+            finally:
+                # 显式关闭流式连接，确保 HTTP 资源释放
+                # 特别是 abort 时丢弃剩余 chunk，避免服务端继续生成
+                try:
+                    if hasattr(response, 'close'):
+                        response.close()
+                    elif hasattr(response, '_response') and hasattr(response._response, 'close'):
+                        response._response.close()
+                except Exception:
+                    pass
 
             # 流式结束
             if not first_chunk:

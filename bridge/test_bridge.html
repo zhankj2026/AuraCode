@@ -103,6 +103,15 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); co
 .event-item.tool_result { border-left-color: var(--text2); }
 .event-item.permission_request { border-left-color: var(--red); background: rgba(248,81,73,.05); }
 .event-item.result { border-left-color: var(--accent); }
+/* AgentLoop 实时事件 */
+.event-item.turn_start { border-left-color: #00d4ff; }
+.event-item.turn_complete { border-left-color: #00d4ff; background: rgba(0,212,255,.04); }
+.event-item.tool_execute { border-left-color: var(--yellow); }
+.event-item.tool_complete { border-left-color: var(--yellow); background: rgba(210,153,34,.04); }
+.event-item.context_compacted { border-left-color: #ff8c42; background: rgba(255,140,66,.06); }
+.event-item.fallback_activated { border-left-color: var(--red); background: rgba(248,81,73,.08); }
+.event-item.prompt_too_long_recovery { border-left-color: var(--red); background: rgba(248,81,73,.06); }
+.event-item.aborted { border-left-color: var(--red); background: rgba(248,81,73,.1); }
 
 /* ── Permission Dialog ── */
 .perm-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100; justify-content: center; align-items: center; }
@@ -205,6 +214,15 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); co
             <option value="permission_request">权限请求</option>
             <option value="result">结果</option>
             <option value="output">输出</option>
+            <optgroup label="AgentLoop 实时">
+              <option value="turn_start">轮次开始</option>
+              <option value="turn_complete">轮次完成</option>
+              <option value="tool_execute">工具执行</option>
+              <option value="tool_complete">工具完成</option>
+              <option value="context_compacted">上下文压缩</option>
+              <option value="fallback_activated">备用模型</option>
+              <option value="aborted">已中断</option>
+            </optgroup>
           </select>
         </div>
         <div class="events-container" id="eventsContainer">
@@ -380,6 +398,9 @@ function selectSession(id) {
         appendChat('system', `执行${evt.data.success ? '成功' : '失败'}${evt.data.error ? ': ' + evt.data.error : ''}`, evt.timestamp);
       } else if (evt.type === 'output' && evt.data.text) {
         appendChat('system', evt.data.text, evt.timestamp);
+      } else if (['turn_start','turn_complete','tool_execute','tool_complete','context_compacted','fallback_activated','prompt_too_long_recovery','aborted'].includes(evt.type)) {
+        // AgentLoop 实时事件 — 重新触发挥发逻辑
+        handleEvent(evt);
       }
     });
   }).catch(e => console.error(e));
@@ -481,7 +502,7 @@ function handleEvent(evt) {
   // Update session state if applicable
   if (evt.session_id && sessions[evt.session_id]) {
     // Refresh session info periodically
-    if (['session_created', 'session_started', 'session_stopped', 'session_error', 'result'].includes(evt.type)) {
+    if (['session_created', 'session_started', 'session_stopped', 'session_error', 'result', 'turn_complete', 'aborted'].includes(evt.type)) {
       refreshSessions();
     }
   }
@@ -503,6 +524,31 @@ function handleEvent(evt) {
         break;
       case 'tool_result':
         appendChat('system', `📋 工具结果:\n${(evt.data.content || '').substring(0, 500)}`);
+        break;
+      // AgentLoop 实时事件
+      case 'turn_start':
+        appendChat('system', `🔄 第 ${evt.data.turn || '?'} 轮开始`);
+        break;
+      case 'turn_complete':
+        appendChat('system', `✅ 第 ${evt.data.turn || '?'} 轮完成${evt.data.tool_calls ? ' (工具调用: ' + evt.data.tool_calls + ')' : ''}${evt.data.content_preview ? '\n' + evt.data.content_preview.substring(0, 200) : ''}`);
+        break;
+      case 'tool_execute':
+        appendChat('system', `⚙️ 执行工具: ${evt.data.tool_name}`);
+        break;
+      case 'tool_complete':
+        appendChat('system', `${evt.data.success ? '✅' : '❌'} 工具完成: ${evt.data.tool_name}`);
+        break;
+      case 'context_compacted':
+        appendChat('system', `🗜️ 上下文压缩: ${evt.data.messages_before} → ${evt.data.messages_after} 条消息`);
+        break;
+      case 'fallback_activated':
+        appendChat('system', `⚠️ 备用模型激活: ${evt.data.model}`);
+        break;
+      case 'prompt_too_long_recovery':
+        appendChat('system', `⚠️ Prompt 过长，正在压缩重试 (原始 ${evt.data.messages_before} 条)`);
+        break;
+      case 'aborted':
+        appendChat('system', '🛑 执行已中断');
         break;
     }
   }

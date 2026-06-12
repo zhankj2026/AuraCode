@@ -357,6 +357,9 @@ class BridgeSession:
 
             self._agent_loop = AgentLoop(config)
 
+            # 注册 AgentLoop 事件回调 → 实时推送到 Bridge WebSocket
+            self._agent_loop.event_callback = self._on_agent_event
+
             # 替换权限管理器为 Bridge 专用版
             self._perm_manager = BridgePermissionManager(
                 session_id=self.session_id,
@@ -473,8 +476,42 @@ class BridgeSession:
                 data={"result": "", "success": False, "error": str(e)},
             ))
 
+    def _on_agent_event(self, event: Dict[str, Any]):
+        """
+        AgentLoop 事件回调处理器。
+
+        将 AgentLoop._emit_event() 发出的事件转换为 BridgeEvent 并推送到 WebSocket。
+        事件在 run() 执行过程中实时触发，无需等待整轮完成。
+        """
+        event_type = event.get("type", "")
+        event_data = event.get("data", {})
+
+        # 映射 AgentLoop 事件类型到 BridgeEventType
+        type_map = {
+            "turn_start": BridgeEventType.TURN_START,
+            "turn_complete": BridgeEventType.TURN_COMPLETE,
+            "tool_execute": BridgeEventType.TOOL_EXECUTE,
+            "tool_complete": BridgeEventType.TOOL_COMPLETE,
+            "context_compacted": BridgeEventType.CONTEXT_COMPACTED,
+            "fallback_activated": BridgeEventType.FALLBACK_ACTIVATED,
+            "prompt_too_long_recovery": BridgeEventType.PROMPT_TOO_LONG_RECOVERY,
+            "aborted": BridgeEventType.ABORTED,
+        }
+
+        bridge_type = type_map.get(event_type)
+        if bridge_type:
+            self._emit(BridgeEvent(
+                type=bridge_type.value,
+                session_id=self.session_id,
+                data={
+                    **event_data,
+                    "turn": event.get("turn", 0),
+                },
+            ))
+            logger.debug(f"Agent event → Bridge: {event_type} turn={event.get('turn')}")
+
     def _extract_events(self, messages: List[Dict[str, Any]]):
-        """从 AgentLoop 新增的消息中提取事件"""
+        """从 AgentLoop 新增的消息中提取事件（后置补充，与实时回调互补）"""
         for msg in messages:
             role = msg.get("role", "")
 

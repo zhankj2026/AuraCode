@@ -1,6 +1,6 @@
 # opencode 状态汇总与 Claude Code 差异分析
 
-> 更新日期: 2026-06-09 | 最新提交: bc80de5
+> 更新日期: 2026-06-11 | 最新提交: bev4
 
 ---
 
@@ -73,8 +73,9 @@
 | **Bridge远程控制** | 完整Remote Bridge (JWT+WebSocket+ReplBridge) | 简化版 (FastAPI+WebSocket+多会话管理) | **~70%** |
 | **MCP集成** | 原生TS MCP | Python MCP客户端 (5传输层+插件+技能) | **~65%** |
 | **子代理** | Task.ts Agent (explore/plan/review/impact/diagnose) | subagent.py 同5类 | **~80%** |
-| **流式输出** | 完整 SSE streaming | `_call_llm_streaming()` 逐token实时 + StreamResult | **~80%** |
+| **流式输出** | 完整 SSE streaming | `_call_llm_streaming()` 逐token实时 + StreamResult + 显式stream关闭 | **~95%** |
 | **Hook系统** | 83+ hooks | 10种事件 (Pre/Post/Stop/UserMessage/Session/Notification/Subagent...) | **~55%** |
+| **事件回调** | EventEmitter + WebSocket推送 | `_emit_event()` + BridgeSession实时转发 + Web UI可视化 | **~85%** |
 | **多模型支持** | Anthropic原生 + fallback | OpenAI兼容协议 + fallback | **~75%** |
 
 ---
@@ -82,6 +83,12 @@
 ## 四、关键差距（下一步可改进方向）
 
 ### 已完成（本轮）
+
+- **Bridge 事件集成** (新增): BridgeSession 注册 `event_callback`，8 种 AgentLoop 事件实时转发到 WebSocket
+- **流式中断精确控制** (80% → 95%): abort 时显式 `response.close()` 释放 HTTP 连接，设置 `finish_reason="aborted"`
+- **Web UI 可视化** (新增): test_bridge.html 增加 8 种 AgentLoop 实时事件渲染（Chat面板 + 事件过滤器）
+
+### 已完成（上一轮）
 
 - **流式输出** (20% → 80%): `_call_llm_streaming()` + StreamResult + 逐token实时显示
 - **多级上下文压缩** (30% → 60%): Snip + LLM-driven AutoCompact
@@ -91,21 +98,11 @@
 
 ### 下一步高优先级
 
-1. **Bridge 事件集成** (mon1-mon4)
-   - BridgeSession 注册 event_callback，实时推送 turn/tool 事件到 WebSocket
-   - test_bridge.html 增加执行过程可视化
-
-2. **流式中断精确控制** (~80% → 95%)
-   - 流式中收到 abort 信号时精确关闭 stream 并丢弃未完成 chunk
-   - 当前已有 abort 检查点，但 stream 未显式 close
-
-### 下一步中优先级
-
-3. **Microcompact** (~60% → 75%)
+1. **Microcompact** (~60% → 75%)
    - Claude Code 在工具结果中智能删除非关键部分（如大型 diff 的未修改区域）
    - 改进方向: 在 `_snip_old_tool_results` 基础上加入智能裁剪
 
-4. **工具丰富度** (~55%)
+2. **工具丰富度** (~55%)
    - Claude Code 42+ 工具 vs opencode 24 工具
    - 改进方向: 按需迁移更多高频工具
 
@@ -113,14 +110,13 @@
 
 ## 五、总结
 
-opencode 已覆盖 Claude Code **约 72% 的核心能力**：
+opencode 已覆盖 Claude Code **约 74% 的核心能力**：
 
 | 完成度 | 模块 |
 |--------|------|
-| **~90%** | 查询结果结构化报告 |
-| **~80-85%** | 流式输出、Token追踪、中断控制、记忆系统、子代理 |
+| **~95%** | 流式输出（含精确中断控制）、查询结果结构化报告 |
+| **~85%** | 事件回调（Bridge实时转发+Web可视化）、中断控制、Token追踪、记忆系统、子代理 |
 | **~70-75%** | 核心循环、技能系统、Bridge远程控制、多模型支持 |
 | **~55-65%** | 上下文压缩、错误恢复、Hook系统、工具系统、命令系统、MCP集成 |
-| **~55%** | 事件回调（已实现，Bridge集成待完成） |
 
-整体架构已从 **“健壮”** 阶段进入 **“生产级”** 阶段。本轮新增 356 行核心改进，覆盖流式输出、智能压缩、错误恢复等关键能力。
+整体架构已从 **“生产级”** 阶段进入 **“深度集成”** 阶段。本轮新增 Bridge 事件集成、流式精确控制、Web UI 可视化三项改进，事件回调能力达到 ~85%。
