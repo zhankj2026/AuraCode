@@ -10,6 +10,8 @@ import json
 import logging
 import asyncio
 import threading
+import time
+from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
 
@@ -18,6 +20,32 @@ from permissions.manager import PermissionManager
 from core.context import load_project_context
 from core.memory import get_memory_manager
 from core.session_state import SessionState, QueryResult, TokenUsage
+
+
+@dataclass
+class StreamResult:
+    """流式响应的归一化结果（兼容同步 API 接口）"""
+    content: str = ""
+    tool_calls: List[Any] = field(default_factory=list)
+    finish_reason: Optional[str] = None
+    usage: Any = None
+
+
+class _StreamToolCall:
+    """流式累积的工具调用对象（模拟 OpenAI ToolCall 接口）"""
+
+    class _Function:
+        def __init__(self, name: str, arguments: str):
+            self.name = name
+            self.arguments = arguments
+
+    def __init__(self, data: Dict[str, str]):
+        self.id = data.get("id", "")
+        self.type = "function"
+        self.function = self._Function(
+            data.get("name", ""),
+            data.get("arguments", ""),
+        )
 
 # 集成扩展系统
 from plugins.loader import PluginLoader
@@ -223,6 +251,9 @@ class AgentLoop:
         logger.info(f"Starting agent loop with input: {user_input[:50]}...")
         self.state.start_query()
 
+        # 触发 UserMessage 钩子
+        self._fire_lifecycle_hook("UserMessage", {"user_input": user_input[:500]})
+
         # 1. 初始化消息（系统提示词 + 用户输入）
         self._init_messages(user_input)
 
@@ -232,6 +263,7 @@ class AgentLoop:
         while self.state.turn_count < self.max_iterations:
             self.state.increment_turn()
             logger.info(f"Turn {self.state.turn_count}/{self.max_iterations}")
+            self._emit_event("turn_start", {"turn": self.state.turn_count})
 
             # 中断检查
             if self.state.is_aborted():
@@ -256,22 +288,17 @@ class AgentLoop:
                 if len(self.state.messages) > self.context_compact_threshold:
                     self._compact_messages()
 
-                # Step 1: 调用 LLM
-                response = self._call_llm()
-
-                # Step 2: 解析响应
-                message = response.choices[0].message
-                assistant_content = message.content or ""
-
-                # 追踪 token 用量
-                self.state.record_usage(response.usage)
+                # Step 1: 调用 LLM（流式输出）
+                stream_result = self._call_llm_streaming()
+                assistant_content = stream_result.content
+                self.state.record_usage(stream_result.usage)
 
                 # 构建助手消息
                 assistant_msg: Dict[str, Any] = {
                     "role": "assistant",
                     "content": assistant_content,
                 }
-                if message.tool_calls:
+                if stream_result.tool_calls:
                     assistant_msg["tool_calls"] = [
                         {
                             "id": tc.id,
@@ -281,14 +308,16 @@ class AgentLoop:
                                 "arguments": tc.function.arguments,
                             },
                         }
-                        for tc in message.tool_calls
+                        for tc in stream_result.tool_calls
                     ]
                 self.state.messages.append(assistant_msg)
+                last_assistant_text = assistant_content or last_assistant_text
 
-                # 打印助手回复
-                if assistant_content:
-                    print(f"\n🤖 Assistant: {assistant_content}\n")
-                    last_assistant_text = assistant_content
+                self._emit_event("turn_complete", {
+                    "turn": self.state.turn_count,
+                    "content_preview": assistant_content[:200] if assistant_content else "",
+                    "tool_calls": len(stream_result.tool_calls),
+                })
 
                 # 中断检查（流式后）
                 if self.state.is_aborted():
@@ -299,11 +328,9 @@ class AgentLoop:
                     )
 
                 # Step 3: 检查是否有工具调用
-                if not message.tool_calls:
+                if not stream_result.tool_calls:
                     # 无工具调用 → 检查输出是否被截断（max_output_tokens 恢复）
-                    finish_reason = getattr(message, "finish_reason", None) or (
-                        response.choices[0].finish_reason if response.choices else None
-                    )
+                    finish_reason = stream_result.finish_reason
                     if finish_reason == "length" and self.state.output_truncation_count < self.max_output_recovery_limit:
                         self.state.output_truncation_count += 1
                         logger.info(
@@ -333,11 +360,18 @@ class AgentLoop:
                 self.state.output_truncation_count = 0
 
                 # Step 4: 执行所有工具调用
-                for tool_call in message.tool_calls:
+                for tool_call in stream_result.tool_calls:
                     if self.state.is_aborted():
                         break
 
+                    self._emit_event("tool_execute", {
+                        "tool_name": tool_call.function.name,
+                    })
                     tool_result = self._execute_tool(tool_call)
+                    self._emit_event("tool_complete", {
+                        "tool_name": tool_call.function.name,
+                        "success": tool_result.get("success", False),
+                    })
 
                     # Step 5: 工具结果以 role=tool 返回（OpenAI 规范）
                     result_content = (
@@ -358,13 +392,36 @@ class AgentLoop:
                 # Step 6: 继续循环
 
             except Exception as e:
+                error_str = str(e).lower()
                 logger.error(f"Turn {self.state.turn_count} failed: {e}", exc_info=True)
-                # P1: Fallback 模型 — API 错误时尝试切换
+
+                # Prompt-too-long 恢复: 压缩上下文后重试一次
+                if "context_length" in error_str or "too_long" in error_str or "too long" in error_str:
+                    if not getattr(self, '_prompt_retried', False):
+                        self._prompt_retried = True
+                        print("\n⚠️ 上下文过长，正在压缩后重试...")
+                        self._snip_old_tool_results()
+                        self._compact_messages()
+                        self._emit_event("prompt_too_long_recovery", {
+                            "messages_before": len(self.state.messages),
+                        })
+                        continue
+                    else:
+                        self._prompt_retried = False
+                        return self.state.to_result(
+                            status="error",
+                            text=last_assistant_text,
+                            error=f"上下文过长，压缩后仍无法处理: {e}",
+                        )
+                self._prompt_retried = False
+
+                # Fallback 模型 — API 错误时尝试切换
                 if self.state.fallback_model and not self.state._active_model_override:
                     activated = self.state.activate_fallback()
                     if activated:
                         print(f"\n⚠️ 主模型不可用，已切换到备用模型: {activated}")
-                        continue  # 用备用模型重试
+                        self._emit_event("fallback_activated", {"model": activated})
+                        continue
                 return self.state.to_result(
                     status="error",
                     text=last_assistant_text,
@@ -373,11 +430,13 @@ class AgentLoop:
 
         # 达到最大迭代次数
         logger.warning("Reached max iterations")
-        return self.state.to_result(
+        result = self.state.to_result(
             status="error_max_turns",
             text=last_assistant_text,
             error=f"达到最大轮次 {self.max_iterations}，任务未完成",
         )
+        self._fire_lifecycle_hook("Stop", {"status": result.status})
+        return result
 
     def _init_messages(self, user_input: str):
         """初始化消息历史"""
@@ -645,11 +704,119 @@ class AgentLoop:
 4. 遇到不确定的操作,先询问用户
 5. 保护用户隐私,不要泄露敏感信息"""
     
+    def _call_llm_streaming(self) -> StreamResult:
+        """
+        流式调用 LLM — 逐 token 实时输出，同时累积工具调用。
+
+        参考 Claude Code claude.ts:1822 的 { stream: true } 实现。
+        返回 StreamResult（归一化接口，兼容原同步 API）。
+        """
+        active_model = self.state.get_active_model(self.model)
+        logger.debug(f"Streaming LLM ({active_model}) with {len(self.messages)} messages")
+        print(f"\n🤔 思考中... (模型={active_model}, {len(self.messages)} 条消息)")
+
+        try:
+            response = self.client.chat.completions.create(
+                model=active_model,
+                messages=self.messages,
+                tools=self.tools,
+                tool_choice="auto",
+                temperature=0.2,
+                max_tokens=self.max_tokens,
+                stream=True,
+            )
+
+            # 流式处理
+            full_content = ""
+            tool_calls_map: Dict[int, Dict] = {}  # index -> accumulated data
+            finish_reason = None
+            usage = None
+            first_chunk = True
+
+            for chunk in response:
+                # 中断检查（每个 chunk 都检查）
+                if self.state.is_aborted():
+                    logger.info("Stream aborted by user")
+                    break
+
+                if not chunk.choices:
+                    # 最后一个 chunk 可能携带 usage（无 choices）
+                    if hasattr(chunk, 'usage') and chunk.usage:
+                        usage = chunk.usage
+                    continue
+
+                choice = chunk.choices[0]
+                delta = choice.delta
+
+                # finish_reason 在最后一个 chunk
+                if choice.finish_reason:
+                    finish_reason = choice.finish_reason
+
+                # 文本增量 — 实时输出
+                if delta and delta.content:
+                    if first_chunk:
+                        print("\n🤖 Assistant: ", end="", flush=True)
+                        first_chunk = False
+                    print(delta.content, end="", flush=True)
+                    full_content += delta.content
+
+                # 工具调用增量累积
+                if delta and hasattr(delta, 'tool_calls') and delta.tool_calls:
+                    for tc_chunk in delta.tool_calls:
+                        idx = tc_chunk.index
+                        if idx not in tool_calls_map:
+                            tool_calls_map[idx] = {
+                                "id": tc_chunk.id or "",
+                                "type": "function",
+                                "name": "",
+                                "arguments": "",
+                            }
+                        if tc_chunk.id:
+                            tool_calls_map[idx]["id"] = tc_chunk.id
+                        if tc_chunk.function:
+                            if tc_chunk.function.name:
+                                tool_calls_map[idx]["name"] += tc_chunk.function.name
+                            if tc_chunk.function.arguments:
+                                tool_calls_map[idx]["arguments"] += tc_chunk.function.arguments
+
+                # usage 可能在最后一个 chunk（部分 API）
+                if hasattr(chunk, 'usage') and chunk.usage:
+                    usage = chunk.usage
+
+            # 流式结束
+            if not first_chunk:
+                print()  # 换行
+
+            # 构建工具调用对象列表（模拟 OpenAI ToolCall）
+            tool_calls_list = []
+            for idx in sorted(tool_calls_map.keys()):
+                tc_data = tool_calls_map[idx]
+                tool_calls_list.append(_StreamToolCall(tc_data))
+
+            # Token 统计
+            if usage:
+                logger.info(f"Token: prompt={getattr(usage, 'prompt_tokens', '?')}, "
+                           f"completion={getattr(usage, 'completion_tokens', '?')}, "
+                           f"total={getattr(usage, 'total_tokens', '?')}")
+                print(f"💰 Token: 输入={getattr(usage, 'prompt_tokens', '?')}, "
+                      f"输出={getattr(usage, 'completion_tokens', '?')}, "
+                      f"总计={getattr(usage, 'total_tokens', '?')}")
+
+            return StreamResult(
+                content=full_content,
+                tool_calls=tool_calls_list,
+                finish_reason=finish_reason,
+                usage=usage,
+            )
+
+        except Exception as e:
+            logger.error(f"LLM streaming 调用失败 ({active_model}): {e}")
+            raise
+
     def _call_llm(self):
-        """调用 LLM（支持 fallback 模型切换）"""
+        """同步调用 LLM（流式不可用时的降级方案）"""
         active_model = self.state.get_active_model(self.model)
         logger.debug(f"Calling LLM ({active_model}) with {len(self.messages)} messages")
-
         print(f"\n🤔 思考中... (模型={active_model}, {len(self.messages)} 条消息)")
 
         try:
@@ -661,16 +828,10 @@ class AgentLoop:
                 temperature=0.2,
                 max_tokens=self.max_tokens
             )
-
-            # 记录 token 使用情况
             usage = response.usage
             if usage:
-                logger.info(f"Token usage: prompt={usage.prompt_tokens}, "
-                           f"completion={usage.completion_tokens}, "
-                           f"total={usage.total_tokens}")
                 print(f"💰 Token: 输入={usage.prompt_tokens}, 输出={usage.completion_tokens}, 总计={usage.total_tokens}")
             return response
-
         except Exception as e:
             logger.error(f"LLM API 调用失败 ({active_model}): {e}")
             raise
@@ -899,41 +1060,126 @@ class AgentLoop:
         except Exception as e:
             logger.warning(f"PostToolUseFailure 钩子执行失败: {e}")
 
-    # ========== P2: 上下文压缩 ==========
+    # ========== 上下文压缩（多级） ==========
+
+    def _snip_old_tool_results(self):
+        """
+        Level 0 - Snip: 激进裁剪旧的工具输出。
+
+        保留最近 8 条消息完整内容，更早的 tool/assistant 消息
+        只保留前 100 字符摘要。参考 Claude Code query.ts 的 Snip 机制。
+        """
+        msgs = self.state.messages
+        if len(msgs) <= 8:
+            return
+
+        snip_start = 1  # 跳过 system prompt
+        snip_end = len(msgs) - 8
+        snipped = 0
+
+        for i in range(snip_start, snip_end):
+            msg = msgs[i]
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+
+            if role == "system":
+                continue  # 永不裁剪 system
+
+            if role == "tool" and len(content) > 100:
+                msgs[i] = {
+                    "role": "tool",
+                    "tool_call_id": msg.get("tool_call_id", ""),
+                    "content": content[:100] + f"\n... [snipped {len(content)-100} chars]",
+                }
+                snipped += 1
+            elif role == "assistant" and len(content) > 500:
+                msgs[i] = {"role": "assistant", "content": content[:500] + "\n... [snipped]"}
+                snipped += 1
+
+        if snipped:
+            logger.info(f"Snip: trimmed {snipped} old messages")
+
+    def _compact_messages_llm(self, old_msgs: List[Dict]) -> str:
+        """
+        Level 2 - LLM-driven summary: 用 LLM 生成旧消息的高质量摘要。
+
+        参考 Claude Code query.ts 的 microcompact 机制。
+        """
+        try:
+            # 构建摘要请求
+            content_parts = []
+            for m in old_msgs:
+                role = m.get("role", "?")
+                content = m.get("content", "")
+                if content and role != "system":
+                    truncated = content[:800] + "..." if len(content) > 800 else content
+                    content_parts.append(f"[{role}]: {truncated}")
+
+            if not content_parts:
+                return ""
+
+            summary_prompt = (
+                "Summarize the following conversation history in Chinese. "
+                "Focus on: key decisions made, files modified, errors encountered, "
+                "and the current task state. Be concise but preserve critical details.\n\n"
+                + "\n".join(content_parts)
+            )
+
+            active_model = self.state.get_active_model(self.model)
+            resp = self.client.chat.completions.create(
+                model=active_model,
+                messages=[{"role": "user", "content": summary_prompt}],
+                temperature=0.1,
+                max_tokens=1000,
+            )
+            summary = resp.choices[0].message.content or ""
+            if resp.usage:
+                self.state.record_usage(resp.usage)
+            return summary
+
+        except Exception as e:
+            logger.warning(f"LLM summary failed, falling back to simple: {e}")
+            # 降级为简单摘要
+            parts = []
+            for m in old_msgs:
+                role = m.get("role", "?")
+                content = m.get("content", "")
+                if content:
+                    parts.append(f"[{role}]: {content[:300]}..." if len(content) > 300 else f"[{role}]: {content}")
+            return "\n".join(parts)
 
     def _compact_messages(self):
         """
-        简单上下文压缩：保留系统提示词 + 最近 N 条消息，
-        将旧消息压缩为一条摘要。
+        多级上下文压缩：Snip → LLM-driven AutoCompact。
 
-        参考 Claude Code query.ts 的 auto-compact 机制（简化版）。
+        参考 Claude Code query.ts 的 4 级压缩机制（简化为 2 级）：
+        - Level 0: Snip — 裁剪旧工具输出
+        - Level 1: AutoCompact — LLM 或简单摘要替换旧消息
         """
         msgs = self.state.messages
         if len(msgs) <= 4:
-            return  # 消息太少不需要压缩
+            return
 
-        # 保留系统提示词（第 0 条）和最近的消息
+        # 先执行 Snip
+        self._snip_old_tool_results()
+
+        # 保留系统提示词和最近消息
         keep_count = max(6, len(msgs) // 3)
         system_msg = msgs[0] if msgs[0].get("role") == "system" else None
-        old_msgs = msgs[1:-keep_count]  # 排除 system 和最近 keep_count 条
+        old_msgs = msgs[1:-keep_count]
         recent_msgs = msgs[-keep_count:]
 
         if not old_msgs:
             return
 
-        # 构建旧消息摘要
-        summary_parts = []
-        for m in old_msgs:
-            role = m.get("role", "?")
-            content = m.get("content", "")
-            if content:
-                truncated = content[:300] + "..." if len(content) > 300 else content
-                summary_parts.append(f"[{role}]: {truncated}")
+        # LLM 驱动摘要（优先）或简单摘要（降级）
+        summary = self._compact_messages_llm(old_msgs)
+        if not summary:
+            return
 
         summary_text = (
             "[Auto-Compact Summary]\n"
-            "以下是之前对话的压缩摘要:\n" +
-            "\n".join(summary_parts)
+            "以下是之前对话的压缩摘要（由 LLM 生成）:\n" + summary
         )
 
         # 重建消息列表
@@ -948,12 +1194,61 @@ class AgentLoop:
         self.state.messages = new_msgs
         logger.info(f"Context compacted: {old_count} -> {len(new_msgs)} messages")
         print(f"📦 上下文压缩: {old_count} -> {len(new_msgs)} 条消息")
+        self._emit_event("context_compacted", {
+            "messages_before": old_count,
+            "messages_after": len(new_msgs),
+        })
+
+    # ========== 事件回调 ==========
+
+    def _emit_event(self, event_type: str, data: Dict[str, Any] = None):
+        """
+        发射事件回调（供 Bridge、日志等外部系统订阅）。
+
+        参考 Claude Code QueryEngine 的 AsyncGenerator yield 机制。
+
+        Args:
+            event_type: 事件类型 (turn_start/turn_complete/tool_execute/
+                        tool_complete/error/aborted/context_compacted/...)
+            data: 事件数据
+        """
+        if self.event_callback is None:
+            return
+        try:
+            event = {
+                "type": event_type,
+                "data": data or {},
+                "timestamp": time.time(),
+                "turn": self.state.turn_count,
+            }
+            self.event_callback(event)
+        except Exception as e:
+            logger.warning(f"Event callback failed for {event_type}: {e}")
+
+    def _fire_lifecycle_hook(self, event: str, kwargs: Dict[str, Any] = None):
+        """
+        触发生命周期钩子（同步封装）。
+
+        用于 Stop/SessionEnd/UserMessage/Notification 等非工具类钩子。
+        """
+        if not self.hooks_enabled or not self.hook_manager:
+            return
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(
+                self.hook_manager.execute_hooks(event, **(kwargs or {}))
+            )
+            loop.close()
+        except Exception as e:
+            logger.warning(f"Lifecycle hook {event} failed: {e}")
 
     # ========== 中断控制 ==========
 
     def abort(self):
         """便捷方法：中断当前执行"""
         self.state.abort()
+        self._emit_event("aborted", {})
 
     def is_aborted(self) -> bool:
         """检查是否已中断"""

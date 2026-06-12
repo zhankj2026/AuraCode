@@ -32,10 +32,16 @@ class HookResult:
 
 # 定义钩子事件类型
 HOOK_EVENTS = [
-    "PreToolUse",       # 工具执行前
-    "PostToolUse",      # 工具执行后
-    "SessionStart",     # 会话开始时
-    "PostToolUseFailure" # 工具失败时
+    "PreToolUse",          # 工具执行前
+    "PostToolUse",         # 工具执行后（成功）
+    "PostToolUseFailure",  # 工具执行失败时
+    "SessionStart",        # 会话开始时
+    "SessionEnd",          # 会话结束时
+    "Stop",                # Agent Loop 停止时（正常/异常/中断）
+    "UserMessage",         # 用户消息提交时
+    "Notification",        # 系统通知（预算警告、压缩事件等）
+    "SubagentStart",       # 子代理启动时
+    "SubagentStop",        # 子代理结束时
 ]
 
 
@@ -65,7 +71,9 @@ class HookManager:
         注册钩子
         
         Args:
-            event: 钩子事件类型(PreToolUse/PostToolUse/SessionStart/PostToolUseFailure)
+            event: 钩子事件类型(PreToolUse/PostToolUse/PostToolUseFailure/
+                   SessionStart/SessionEnd/Stop/UserMessage/Notification/
+                   SubagentStart/SubagentStop)
             handler: 钩子处理函数,签名为 async def handler(**kwargs) -> HookResult
             matcher: 可选,只匹配特定工具名称(如 "run_command")
             priority: 优先级,数字越大越先执行
