@@ -287,6 +287,9 @@ class AgentLoop:
                 # P2: 上下文压缩（消息过多时自动触发）
                 if len(self.state.messages) > self.context_compact_threshold:
                     self._compact_messages()
+                else:
+                    # Microcompact: 轻量级预清理（在触发全量压缩之前运行）
+                    self._microcompact()
 
                 # Step 1: 调用 LLM（流式输出）
                 stream_result = self._call_llm_streaming()
@@ -1161,12 +1164,146 @@ class AgentLoop:
                     parts.append(f"[{role}]: {content[:300]}..." if len(content) > 300 else f"[{role}]: {content}")
             return "\n".join(parts)
 
+    # ========== Microcompact 常量 ==========
+
+    # 可清除结果的工具（读类型 — 结果大但可丢弃）
+    MICROCOMPACT_CLEARABLE_TOOLS = {
+        "run_command", "run_powershell", "grep", "glob", "find",
+        "read_file", "list_directory", "web_fetch", "web_search",
+        "analyze_file", "lint", "run_tests", "lsp_tool",
+    }
+
+    # 可清除输入的工具（写类型 — 保留结果，清除旧输入）
+    MICROCOMPACT_CLEARABLE_INPUTS = {
+        "write_file", "replace_in_file",
+    }
+
+    MICROCOMPACT_CLEARED_MSG = "[result cleared to save context]"
+    MICROCOMPACT_TRIGGER_MSGS = 12   # 消息数超过此值时触发
+    MICROCOMPACT_KEEP_RECENT = 6     # 保留最近 N 个可清除工具的结果
+
+    def _microcompact(self) -> int:
+        """
+        Level 0.5 - Microcompact: 清除旧工具结果内容，保留消息结构。
+
+        参考 Claude Code apiMicrocompact.ts 的 TOOLS_CLEARABLE_RESULTS 机制：
+        - 识别可清除的工具（读类型：shell/grep/glob/read/web...）
+        - 保留最近 keep_recent 个结果
+        - 更早的结果替换为占位符文本
+        - 不删除消息（不影响 tool_call_id 关联），只替换 content
+
+        Returns:
+            被清除的工具结果数量（0 表示无操作）
+        """
+        msgs = self.state.messages
+        if len(msgs) < self.MICROCOMPACT_TRIGGER_MSGS:
+            return 0
+
+        # 收集所有可清除的 tool 消息索引（按出现顺序）
+        clearable_indices = []
+        for i, msg in enumerate(msgs):
+            if msg.get("role") != "tool":
+                continue
+            tool_call_id = msg.get("tool_call_id", "")
+            # 查找对应的 assistant 消息以获取工具名
+            tool_name = self._find_tool_name_for_result(tool_call_id)
+            if tool_name in self.MICROCOMPACT_CLEARABLE_TOOLS:
+                clearable_indices.append(i)
+
+        if not clearable_indices:
+            return 0
+
+        # 保留最近 keep_recent 个，清除更早的
+        keep_from = max(0, len(clearable_indices) - self.MICROCOMPACT_KEEP_RECENT)
+        to_clear = clearable_indices[:keep_from]
+
+        if not to_clear:
+            return 0
+
+        cleared = 0
+        total_chars_saved = 0
+        for idx in to_clear:
+            msg = msgs[idx]
+            content = msg.get("content", "")
+            if content == self.MICROCOMPACT_CLEARED_MSG:
+                continue  # 已清除
+            total_chars_saved += len(content)
+            msgs[idx] = {
+                "role": "tool",
+                "tool_call_id": msg.get("tool_call_id", ""),
+                "content": self.MICROCOMPACT_CLEARED_MSG,
+            }
+            cleared += 1
+
+        # 同时清除旧 write/replace 工具调用的 arguments（保留工具名和 ID）
+        inputs_cleared = self._microcompact_old_tool_inputs(to_clear)
+
+        if cleared > 0:
+            logger.info(
+                f"Microcompact: cleared {cleared} tool results "
+                f"(~{total_chars_saved} chars saved) + {inputs_cleared} tool inputs"
+            )
+
+        return cleared
+
+    def _microcompact_old_tool_inputs(self, cleared_result_indices: List[int]) -> int:
+        """
+        清除旧 write/replace 工具调用的 arguments（大文件内容）。
+
+        保留 tool_call_id 和工具名，将 arguments 替换为摘要。
+        """
+        msgs = self.state.messages
+        cleared = 0
+        max_result_idx = max(cleared_result_indices) if cleared_result_indices else 0
+
+        # 扫描 assistant 消息中的工具调用
+        for i, msg in enumerate(msgs):
+            if msg.get("role") != "assistant":
+                continue
+            if i >= max_result_idx:
+                break  # 只处理被清除结果之前的消息
+
+            tool_calls = msg.get("tool_calls", [])
+            if not tool_calls:
+                continue
+
+            for tc in tool_calls:
+                func = tc.get("function", {})
+                name = func.get("name", "")
+                if name in self.MICROCOMPACT_CLEARABLE_INPUTS:
+                    args = func.get("arguments", "")
+                    if len(args) > 200:
+                        # 保留文件路径，清除文件内容
+                        try:
+                            import json
+                            args_dict = json.loads(args)
+                            path = args_dict.get("file_path", args_dict.get("path", "?"))
+                            func["arguments"] = json.dumps({
+                                "file_path": path,
+                                "_note": "[input cleared to save context]",
+                            })
+                            cleared += 1
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+        return cleared
+
+    def _find_tool_name_for_result(self, tool_call_id: str) -> str:
+        """根据 tool_call_id 查找对应 assistant 消息中的工具名"""
+        for msg in self.state.messages:
+            if msg.get("role") != "assistant":
+                continue
+            for tc in msg.get("tool_calls", []):
+                if tc.get("id") == tool_call_id:
+                    return tc.get("function", {}).get("name", "")
+        return ""
+
     def _compact_messages(self):
         """
-        多级上下文压缩：Snip → LLM-driven AutoCompact。
+        多级上下文压缩：Snip → Microcompact → LLM-driven AutoCompact。
 
-        参考 Claude Code query.ts 的 4 级压缩机制（简化为 2 级）：
+        参考 Claude Code query.ts 的 4 级压缩机制（简化为 3 级）：
         - Level 0: Snip — 裁剪旧工具输出
+        - Level 0.5: Microcompact — 清除旧可丢弃工具结果
         - Level 1: AutoCompact — LLM 或简单摘要替换旧消息
         """
         msgs = self.state.messages
@@ -1175,6 +1312,11 @@ class AgentLoop:
 
         # 先执行 Snip
         self._snip_old_tool_results()
+
+        # 再执行 Microcompact（在 AutoCompact 之前）
+        mc_cleared = self._microcompact()
+        if mc_cleared:
+            logger.info(f"Microcompact cleared {mc_cleared} results before AutoCompact")
 
         # 保留系统提示词和最近消息
         keep_count = max(6, len(msgs) // 3)

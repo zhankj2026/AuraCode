@@ -55,3 +55,17 @@ from . import plan_mode
 # 8. LSP - 代码智能（Language Server Protocol）
 from . import lsp_tool
 
+# ── 高优先级工具（上下文管理增强）──
+
+# 9. ToolSearch - 工具发现与搜索
+from . import tool_search
+
+# 10. Sleep - 等待/延迟
+from . import sleep_tool
+
+# 11. Config - 环境配置读写
+from . import config_tool
+
+# 12. NotebookEdit - Jupyter Notebook 编辑
+from . import notebook_edit
+

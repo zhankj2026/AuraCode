@@ -9,7 +9,7 @@
 | 模块 | 文件数 | 核心能力 |
 |------|--------|----------|
 | **core/** | 6 | AgentLoop + SessionState + Memory + Context + Subagent + Message |
-| **tools/builtin/** | 24 | read/write/replace/grep/find/glob/lsp/web/todo/ask/powershell/plan_mode/subagent... |
+| **tools/builtin/** | 28 | read/write/replace/grep/find/glob/lsp/web/todo/ask/powershell/plan_mode/subagent/tool_search/sleep/config/notebook_edit... |
 | **commands/builtin/** | 16 | commit/compact/diff/context/plan/init/bridge/skills/status/subagents... |
 | **bridge/** | 7 | REST+WebSocket 远程控制, 多会话管理, JWT认证, Web UI |
 | **skills/** | 5域 | simplify/verify/debug/batch/update-config |
@@ -62,11 +62,11 @@
 | **状态管理** | AppStateStore.ts ~100字段 + Store发布订阅 | SessionState 精简版，集中管理 token/cost/abort | **~60%** |
 | **查询结果** | QueryEngine yield result (含duration/cost/usage/denials) | QueryResult dataclass (相同字段) | **~90%** |
 | **错误恢复(6层)** | Fallback→Prompt-too-long→MaxOutput→StopHook→Budget→ImageStrip | Fallback + MaxOutput + Budget + Prompt-too-long (4层) | **~65%** |
-| **上下文压缩** | Snip→Microcompact→ContextCollapse→AutoCompact | Snip + LLM-driven AutoCompact (2级) | **~60%** |
+| **上下文压缩** | Snip→Microcompact→ContextCollapse→AutoCompact | Snip + Microcompact + LLM-driven AutoCompact (3级) | **~70%** |
 | **Token追踪** | 精确到每轮，cost-tracker模块 | TokenUsage累计 + 粗略成本估算 | **~80%** |
 | **中断控制** | AbortController (Web标准) | threading.Event (Python等价) | **~85%** |
 | **权限系统** | 复杂权限上下文 + Bridge远程审批 | PermissionManager 4级模式 + Bridge远程审批 | **~75%** |
-| **工具系统** | 42+ 工具目录 | 24 个内置工具 | **~55%** |
+| **工具系统** | 42+ 工具目录 | 28 文件 43 工具 (+tool_search/sleep/config/notebook_edit) | **~65%** |
 | **技能系统** | 3 个内置 + 用户自定义 | 5 域技能（simplify/verify/debug/batch/update-config） | **~70%** |
 | **命令系统** | 15+ 命令 + 82子目录 | 16 个命令 | **~60%** |
 | **记忆系统** | memdir 8文件 + MEMORY.md索引 | memory.py + memdir迁移 + LLM语义召回 + 新鲜度 | **~80%** |
@@ -84,9 +84,8 @@
 
 ### 已完成（本轮）
 
-- **Bridge 事件集成** (新增): BridgeSession 注册 `event_callback`，8 种 AgentLoop 事件实时转发到 WebSocket
-- **流式中断精确控制** (80% → 95%): abort 时显式 `response.close()` 释放 HTTP 连接，设置 `finish_reason="aborted"`
-- **Web UI 可视化** (新增): test_bridge.html 增加 8 种 AgentLoop 实时事件渲染（Chat面板 + 事件过滤器）
+- **Microcompact** (60% → 70%): 13 种可清除工具 + 2 种可清除输入 + 保留最近 6 个结果 + run() 预检查
+- **工具丰富度** (55% → 65%): 新增 4 个工具 (tool_search/sleep/config/notebook_edit)，总计 43 个
 
 ### 已完成（上一轮）
 
@@ -98,25 +97,24 @@
 
 ### 下一步高优先级
 
-1. **Microcompact** (~60% → 75%)
-   - Claude Code 在工具结果中智能删除非关键部分（如大型 diff 的未修改区域）
-   - 改进方向: 在 `_snip_old_tool_results` 基础上加入智能裁剪
+1. **ContextCollapse** (~70% → 80%)
+   - Claude Code 在文件读取结果中按区域折叠（如只保留被修改的代码段附近上下文）
+   - 改进方向: 在 read_file 工具结果中智能保留修改区域 ±N 行
 
-2. **工具丰富度** (~55%)
-   - Claude Code 42+ 工具 vs opencode 24 工具
-   - 改进方向: 按需迁移更多高频工具
+2. **工具丰富度继续提升** (~65% → 75%)
+   - 按需迁移: REPLTool (交互式REPL)、TaskCreate/Get/List (完整任务管理)、BriefTool (简洁模式)
 
 ---
 
 ## 五、总结
 
-opencode 已覆盖 Claude Code **约 74% 的核心能力**：
+opencode 已覆盖 Claude Code **约 76% 的核心能力**：
 
 | 完成度 | 模块 |
 |--------|------|
 | **~95%** | 流式输出（含精确中断控制）、查询结果结构化报告 |
 | **~85%** | 事件回调（Bridge实时转发+Web可视化）、中断控制、Token追踪、记忆系统、子代理 |
-| **~70-75%** | 核心循环、技能系统、Bridge远程控制、多模型支持 |
-| **~55-65%** | 上下文压缩、错误恢复、Hook系统、工具系统、命令系统、MCP集成 |
+| **~70-75%** | 上下文压缩(Snip+Microcompact+AutoCompact)、核心循环、技能系统、Bridge远程控制、多模型支持 |
+| **~60-65%** | 工具系统(43工具)、错误恢复、Hook系统、命令系统、MCP集成 |
 
-整体架构已从 **“生产级”** 阶段进入 **“深度集成”** 阶段。本轮新增 Bridge 事件集成、流式精确控制、Web UI 可视化三项改进，事件回调能力达到 ~85%。
+整体架构已进入 **"深度集成"** 阶段。本轮新增 Microcompact 智能裁剪 + 4 个高价值工具，工具数量从 24→43，上下文压缩从 2 级升至 3 级。
