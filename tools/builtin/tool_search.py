@@ -19,11 +19,14 @@ TOOL_CATEGORIES = {
     "grep": "code", "analyze_file": "code", "lint": "code", "lsp_tool": "code",
     # 执行
     "run_command": "execute", "run_powershell": "execute", "run_tests": "execute",
+    "repl": "execute",
     # 网络
     "web_fetch": "web", "web_search": "web",
     # 辅助
     "todo_write": "aux", "ask_user": "aux", "tool_search": "aux",
-    "sleep": "aux", "config": "aux",
+    "sleep": "aux", "config": "aux", "brief": "aux",
+    # 任务管理
+    "task_create": "task", "task_update": "task", "task_list": "task",
     # 规划
     "plan_mode": "plan", "plan_agent": "plan", "subagent": "plan",
     # 记忆
@@ -114,7 +117,7 @@ register_tool("tool_search", {
             },
             "category": {
                 "type": "string",
-                "description": "按类别过滤: file/code/execute/web/aux/plan/memory/skill",
+                "description": "按类别过滤: file/code/execute/web/aux/task/plan/memory/skill",
                 "default": "",
             },
             "limit": {

@@ -290,6 +290,8 @@ class AgentLoop:
                 else:
                     # Microcompact: 轻量级预清理（在触发全量压缩之前运行）
                     self._microcompact()
+                    # ContextCollapse: 折叠过时文件读取
+                    self._context_collapse()
 
                 # Step 1: 调用 LLM（流式输出）
                 stream_result = self._call_llm_streaming()
@@ -511,6 +513,15 @@ class AgentLoop:
                 if reason:
                     plan_msg += f"\n规划原因: {reason}\n"
                 parts.append(plan_msg)
+        except ImportError:
+            pass
+
+        # 第 5.6 层: 输出模式（BriefTool）
+        try:
+            from tools.builtin.brief_tool import build_brief_system_hint
+            brief_hint = build_brief_system_hint()
+            if brief_hint:
+                parts.append(brief_hint)
         except ImportError:
             pass
 
@@ -1021,6 +1032,9 @@ class AgentLoop:
 
             logger.info(f"Tool {tool_name} executed successfully")
 
+            # 4.5 ContextCollapse: 追踪文件操作
+            self._track_file_operation(tool_name, arguments)
+
             # 6. PostToolUse 钩子
             if self.hooks_enabled and self.hook_manager:
                 try:
@@ -1297,14 +1311,122 @@ class AgentLoop:
                     return tc.get("function", {}).get("name", "")
         return ""
 
+    # ========== ContextCollapse（上下文折叠）==========
+
+    # 读类工具
+    _CC_READ_TOOLS = {"read_file", "grep", "find", "glob", "analyze_file"}
+    # 写类工具
+    _CC_WRITE_TOOLS = {"write_file", "replace_in_file"}
+
+    def _track_file_operation(self, tool_name: str, arguments: Dict[str, Any]):
+        """追踪文件读写操作，为 ContextCollapse 建立依赖图。"""
+        if not hasattr(self, '_cc_file_ops'):
+            self._cc_file_ops = []  # [(msg_index, op_type, file_path)]
+
+        path = arguments.get("path") or arguments.get("file_path", "")
+        if not path:
+            return
+
+        abs_path = os.path.abspath(path)
+        msg_idx = len(self.state.messages)  # 即将添加的 tool 消息索引
+
+        if tool_name in self._CC_READ_TOOLS:
+            self._cc_file_ops.append((msg_idx, "read", abs_path))
+        elif tool_name in self._CC_WRITE_TOOLS:
+            self._cc_file_ops.append((msg_idx, "write", abs_path))
+
+    def _context_collapse(self) -> int:
+        """
+        Level 1 - ContextCollapse: 折叠过时文件读取结果。
+
+        当文件先被 read_file 读取、后被 write_file/replace_in_file 修改时，
+        旧的读取结果已不再有意义，将其折叠为简短摘要。
+
+        参考 Claude Code services/contextCollapse 的 projectView() 机制：
+        - 读时投影：在发送给 LLM 前替换旧消息
+        - 保留文件元信息（路径、行数），清除完整文件内容
+
+        Returns:
+            折叠的消息数
+        """
+        if not hasattr(self, '_cc_file_ops') or not self._cc_file_ops:
+            return 0
+
+        msgs = self.state.messages
+        if len(msgs) < 8:
+            return 0
+
+        # 构建「哪些文件被后续写入」的集合
+        # 以及每个文件最后一次写入的消息索引
+        written_files: Dict[str, List[int]] = {}  # {abs_path: [write_msg_indices]}
+        read_entries: List[tuple] = []  # [(msg_idx, abs_path)]
+
+        for op_idx, op_type, op_path in self._cc_file_ops:
+            if op_type == "write":
+                written_files.setdefault(op_path, []).append(op_idx)
+            elif op_type == "read":
+                read_entries.append((op_idx, op_path))
+
+        if not written_files or not read_entries:
+            return 0
+
+        collapsed = 0
+        for read_idx, read_path in read_entries:
+            # 只处理 read_file 的 tool 消息
+            if read_idx >= len(msgs):
+                continue
+            msg = msgs[read_idx]
+            if msg.get("role") != "tool":
+                continue
+
+            # 检查此文件是否在读取之后被写入
+            write_indices = written_files.get(read_path, [])
+            subsequent_writes = [w for w in write_indices if w > read_idx]
+            if not subsequent_writes:
+                continue  # 文件未被后续修改，保留原始内容
+
+            # 检查是否已被折叠
+            content = msg.get("content", "")
+            if content.startswith("[collapsed:"):
+                continue
+
+            # 计算折叠摘要
+            lines_info = ""
+            if "总行数:" in content:
+                # 从元信息头提取行数
+                try:
+                    lines_part = content.split("总行数:")[1].split("|")[0].split("]")[0]
+                    lines_info = f", {lines_part.strip()} 行"
+                except (IndexError, ValueError):
+                    pass
+
+            n_writes = len(subsequent_writes)
+            filename = os.path.basename(read_path)
+            collapse_msg = (
+                f"[collapsed: {filename}{lines_info}, "
+                f"subsequently modified {n_writes} time(s)]"
+            )
+
+            msgs[read_idx] = {
+                "role": "tool",
+                "tool_call_id": msg.get("tool_call_id", ""),
+                "content": collapse_msg,
+            }
+            collapsed += 1
+
+        if collapsed > 0:
+            logger.info(f"ContextCollapse: folded {collapsed} stale file read(s)")
+        return collapsed
+
     def _compact_messages(self):
         """
-        多级上下文压缩：Snip → Microcompact → LLM-driven AutoCompact。
+        多级上下文压缩：Snip → Microcompact → ContextCollapse → LLM-driven AutoCompact。
 
-        参考 Claude Code query.ts 的 4 级压缩机制（简化为 3 级）：
+        参考 Claude Code query.ts 的 4 级压缩机制：
         - Level 0: Snip — 裁剪旧工具输出
         - Level 0.5: Microcompact — 清除旧可丢弃工具结果
-        - Level 1: AutoCompact — LLM 或简单摘要替换旧消息
+        - Level 1: ContextCollapse — 折叠过时文件读取
+        - Level 2: AutoCompact — LLM 或简单摘要替换旧消息
         """
         msgs = self.state.messages
         if len(msgs) <= 4:
@@ -1317,6 +1439,11 @@ class AgentLoop:
         mc_cleared = self._microcompact()
         if mc_cleared:
             logger.info(f"Microcompact cleared {mc_cleared} results before AutoCompact")
+
+        # ContextCollapse: 折叠过时文件读取（在 AutoCompact 之前）
+        cc_folded = self._context_collapse()
+        if cc_folded:
+            logger.info(f"ContextCollapse folded {cc_folded} stale reads before AutoCompact")
 
         # 保留系统提示词和最近消息
         keep_count = max(6, len(msgs) // 3)

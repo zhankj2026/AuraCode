@@ -69,3 +69,14 @@ from . import config_tool
 # 12. NotebookEdit - Jupyter Notebook 编辑
 from . import notebook_edit
 
+# ── ContextCollapse + 工具丰富度提升 ──
+
+# 13. REPL - 交互式 Python REPL
+from . import repl_tool
+
+# 14. TaskManager - 结构化任务管理（create/update/list）
+from . import task_manager
+
+# 15. Brief - 简洁模式切换
+from . import brief_tool
+
