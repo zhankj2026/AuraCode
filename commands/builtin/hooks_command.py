@@ -33,7 +33,7 @@ def get_config_loader():
 
 
 def init_config_loader(hook_manager, project_root="."):
-    """初始化全局配置加载器"""
+    """初始化全局配置加载器并启动文件监听"""
     global _config_loader
     from hooks.config_loader import HookConfigLoader
     _config_loader = HookConfigLoader(
@@ -43,6 +43,13 @@ def init_config_loader(hook_manager, project_root="."):
     loaded = _config_loader.load()
     if loaded > 0:
         logger.info(f"Hook config loader initialized: {loaded} hooks loaded")
+
+    # 启动热重载: 注册重载回调 + 启动文件监听
+    config_path = _config_loader._config_path or _config_loader.find_config()
+    if config_path and hasattr(hook_manager, 'start_file_watcher'):
+        hook_manager.set_reload_callback(_config_loader.reload)
+        hook_manager.start_file_watcher(config_path)
+
     return _config_loader
 
 

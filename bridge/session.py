@@ -230,9 +230,10 @@ class BridgeSession:
         # 消息队列（线程安全）
         self._message_queue: queue.Queue[str] = queue.Queue()
 
-        # 事件历史
+        # 事件历史（含序列号支持重放）
         self._events: List[BridgeEvent] = []
         self._events_lock = threading.Lock()
+        self._event_seq = 0  # 事件序列号（单调递增）
 
         # 权限管理器（在 _init_agent_loop 中创建）
         self._perm_manager: Optional[BridgePermissionManager] = None
@@ -297,9 +298,26 @@ class BridgeSession:
         )
 
     def get_events(self, since: int = 0) -> List[Dict[str, Any]]:
-        """获取事件历史"""
+        """获取事件历史（支持从指定序列号重放）"""
         with self._events_lock:
             return [e.to_dict() for e in self._events[since:]]
+
+    def get_event_count(self) -> int:
+        """获取当前事件总数"""
+        with self._events_lock:
+            return len(self._events)
+
+    def replay_events(self, from_seq: int) -> List[Dict[str, Any]]:
+        """重放从指定序列号开始的所有事件（断线重连用）"""
+        with self._events_lock:
+            if from_seq >= len(self._events):
+                return []
+            events = [e.to_dict() for e in self._events[from_seq:]]
+            logger.info(
+                f"Event replay: seq {from_seq} → {len(self._events)} "
+                f"({len(events)} events)"
+            )
+            return events
 
     @property
     def is_alive(self) -> bool:
@@ -308,8 +326,10 @@ class BridgeSession:
     # ── 内部方法 ─────────────────────────────────────────────────────
 
     def _emit(self, event: BridgeEvent):
-        """记录事件并回调"""
+        """记录事件并回调（含序列号）"""
         with self._events_lock:
+            self._event_seq += 1
+            event.data['_seq'] = self._event_seq
             self._events.append(event)
         self.last_activity = time.time()
         try:

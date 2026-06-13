@@ -1,6 +1,6 @@
 # opencode 状态汇总与 Claude Code 差异分析
 
-> 更新日期: 2026-06-15 | 最新提交: ctx+tool+model
+> 更新日期: 2026-06-16 | 最新提交: perm+hook+bridge
 
 ---
 
@@ -14,8 +14,8 @@
 | **bridge/** | 7 | REST+WebSocket 远程控制, 多会话管理, JWT认证, Web UI |
 | **skills/** | 7域 | simplify/verify/debug/batch/update-config + 用户自定义创建/删除 + 多源自动发现 |
 | **plugins/** | 3 | 插件加载器 + 示例插件 |
-| **hooks/** | 3 | 14种事件 + 配置文件驱动加载 + 执行日志 (Pre/Post/Stop/UserMessage/Session/Notification/Subagent/ToolError/PreCompact/PostCompact/ContextWarning) |
-| **permissions/** | 2 | normal/auto/plan/bypass 四级权限 |
+| **hooks/** | 3 | 14种事件 + 中间件管道 + 热重载 + 错误隔离 + 健康追踪 |
+| **permissions/** | 2 | normal/auto/plan/bypass 四级权限 + 五道防线 + 参数fnmatch规则 + 审批队列 |
 | **mcp/** | 完整 | MCP 协议客户端 + 5传输层 + 技能/工具集成 |
 | **cli.py** | 1 | 对话模式 + 命令模式 + Bridge 模式 |
 
@@ -65,16 +65,16 @@
 | **上下文压缩** | Snip→Microcompact→ContextCollapse→AutoCompact | ImageStrip→Snip→Microcompact→ContextCollapse→AutoCompact (5级) + 动态阈值 + token分布可视化 | **~95%** |
 | **Token追踪** | 精确到每轮，cost-tracker模块 | 每模型独立定价 + 缓存token + 费用明细 | **~85%** |
 | **中断控制** | AbortController (Web标准) | threading.Event (Python等价) | **~85%** |
-| **权限系统** | 复杂权限上下文 + Bridge远程审批 | PermissionManager 4级模式 + Bridge远程审批 | **~75%** |
+| **权限系统** | 复杂权限上下文 + Bridge远程审批 | 五道防线 + fnmatch参数规则 + 审批队列 + Bridge远程审批 | **~85%** |
 | **工具系统** | 42+ 工具目录 | 31 文件 48 工具 + ToolTracker + ToolCache + /tools 命令 | **~80%** |
 | **技能系统** | 3 个内置 + 用户自定义 | 7 域技能 + 用户自定义创建/删除 + 多源自动发现 + 搜索/重载 | **~80%** |
 | **命令系统** | 15+ 命令 + 82子目录 | 34 个命令 (含 tools/model增强) | **~85%** |
 | **记忆系统** | memdir 8文件 + MEMORY.md索引 | memory.py + memdir迁移 + LLM语义召回 + 新鲜度 | **~80%** |
-| **Bridge远程控制** | 完整Remote Bridge (JWT+WebSocket+ReplBridge) | 简化版 (FastAPI+WebSocket+多会话管理) | **~70%** |
+| **Bridge远程控制** | 完整Remote Bridge (JWT+WebSocket+ReplBridge) | 简化版 (FastAPI+WebSocket+多会话+事件重放+会话迁移) | **~80%** |
 | **MCP集成** | 原生TS MCP | Python MCP客户端 (5传输层+插件+技能+热加载+缓存) | **~75%** |
 | **子代理** | Task.ts Agent (explore/plan/review/impact/diagnose) | subagent.py 同5类 | **~80%** |
 | **流式输出** | 完整 SSE streaming | `_call_llm_streaming()` 逐token实时 + StreamResult + 显式stream关闭 | **~95%** |
-| **Hook系统** | 83+ hooks | 14种事件 + short_circuit + 配置驱动 + 执行日志 | **~75%** |
+| **Hook系统** | 83+ hooks | 14种事件 + 中间件管道 + 热重载 + 错误隔离 + 健康追踪 | **~80%** |
 | **事件回调** | EventEmitter + WebSocket推送 | `_emit_event()` + BridgeSession实时转发 + Web UI可视化 | **~85%** |
 | **多模型支持** | Anthropic原生 + fallback | OpenAI兼容协议 + fallback + 历史/回滚 + 多模型并行对比 | **~80%** |
 | **输出模式** | BriefTool (简洁/标准/详细) | BriefTool (brief/normal/verbose) + system prompt注入 | **~80%** |
@@ -83,12 +83,18 @@
 
 ## 四、关键差距（下一步可改进方向）
 
-### 已完成（本轮 — 上下文+工具+多模型）
+### 已完成（本轮 — 权限+Hook+Bridge）
+
+- **权限系统深化** (75% → 85%): 五道防线（黑名单→Deny规则→Allow规则→Plan模式→用户确认）+ fnmatch参数级模式匹配 + 审批队列(request/wait/respond/batch_approve) + 统计数据追踪
+- **Hook系统完善** (65% → 80%): 中间件管道(before/after两阶段数据转换) + 热重载(文件监听线程检测mtime变化) + 错误隔离(失败不阻止执行) + 健康追踪(get_health)
+- **Bridge远程控制增强** (70% → 80%): 事件序列号(_seq) + 断线重连事件重放(replay_events) + 会话迁移(migrate_session) + 管理器重放API
+- **命令系统**: 41 个命令
+
+### 已完成（上一轮 — 上下文+工具+多模型）
 
 - **上下文管理增强** (90% → 95%): /context 增强为 3 子命令 (overview/detail/dist) + token分布柱状图 + Top-10 消息排名 + 动态压缩阈值（根据模型窗口自动计算）+ agent_loop.py 集成动态阈值
 - **工具生态完善** (75% → 80%): ToolTracker 执行链追踪 (start/end_call + 统计报告 + 时间线可视化) + ToolCache 结果缓存 (TTL+白名单/黑名单+LRU) + 集成到 agent_loop._execute_tool + /tools 命令 (7 子命令)
 - **多模型支持深化** (75% → 80%): 模型切换历史记录 (最多50条) + /model rollback 回滚 + /model compare 多模型并行对比 (4模型多线程)
-- **命令系统**: 32 → 34 个命令（新增 /tools，增强 /model）
 
 ### 已完成（上一轮 — Hook生态+命令+恢复）
 
@@ -117,31 +123,30 @@
 
 ### 下一步高优先级
 
-1. **权限系统深化** (75% → 85%)
-   - 工具级权限粒度控制（按参数模式匹配）
-   - 权限审批工作流（Bridge远程审批队列）
+1. **MCP集成深化** (75% → 85%)
+   - MCP 服务器自动发现 + 动态注册
+   - MCP 工具调用链追踪与调试
 
-2. **Hook系统完善** (65% → 80%)
-   - 异步 Hook 中间件管道
-   - Hook 热重载 + 错误隔离
+2. **子代理协同增强** (80% → 88%)
+   - 子代理间消息传递与协作
+   - 子代理执行结果聚合分析
 
-3. **Bridge远程控制增强** (70% → 80%)
-   - 会话迁移 + 断线重连
-   - 远程文件编辑审批流程
+3. **插件生态建设** (新增)
+   - 插件市场/注册机制
+   - 插件间通信与依赖管理
 
 ---
 
 ## 五、总结
 
-opencode 已覆盖 Claude Code **约 91% 的核心能力**：
+opencode 已覆盖 Claude Code **约 93% 的核心能力**：
 
 | 完成度 | 模块 |
 |--------|------|
 | **~95%** | 流式输出（含精确中断控制）、查询结果结构化报告、上下文压缩(5级+动态阈值+可视化) |
 | **~90%** | 事件回调、中断控制 |
-| **~85%** | 记忆系统、子代理、Token追踪(每模型定价)、命令系统(34命令) |
-| **~80%** | 核心循环、状态管理(发布/订阅+快照)、技能系统(多源自动发现)、工具系统(48+追踪+缓存)、多模型支持(历史/回滚/对比)、错误恢复(6层)、输出模式 |
-| **~75%** | Bridge远程控制、MCP集成(热加载+缓存)、Hook系统(配置驱动) |
-| **~65%** | Hook系统(14事件+短路+配置+日志) |
+| **~85%** | 记忆系统、权限系统(五道防线+审批队列)、命令系统(41命令)、Token追踪(每模型定价) |
+| **~80%** | 核心循环、状态管理(发布/订阅+快照)、技能系统(多源自动发现)、工具系统(48+追踪+缓存)、多模型支持(历史/回滚/对比)、错误恢复(6层)、输出模式、Hook系统(中间件+热重载)、Bridge远程控制(事件重放+会话迁移) |
+| **~75%** | MCP集成(热加载+缓存) |
 
-整体架构已进入 **“智能观测+执行追踪+多模型协同”** 阶段。本轮新增 /tools 命令（7子命令）+ 增强 /model 命令（历史/回滚/对比），核心模块新增 ToolTracker + ToolCache 集成到 agent_loop，上下文管理增加动态阈值 + token分布可视化。工具系统从 75% 升至 80%，多模型支持从 75% 升至 80%，上下文压缩从 90% 升至 95%，命令系统从 80% 升至 85%。
+整体架构已进入 **"安全防线+智能观测+执行追踪+多模型协同"** 阶段。本轮权限系统升级为五道防线（含参数fnmatch规则+审批队列），Hook系统新增中间件管道+热重载+错误隔离，Bridge新增事件重放+会话迁移。权限系统从 75% 升至 85%，Hook系统从 65% 升至 80%，Bridge远程控制从 70% 升至 80%。

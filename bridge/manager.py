@@ -132,11 +132,21 @@ class BridgeSessionManager:
     def get_session_events(
         self, session_id: str, since: int = 0
     ) -> Optional[List[Dict]]:
-        """获取会话事件"""
+        """获取会话事件（支持从序列号重放）"""
         with self._lock:
             session = self._sessions.get(session_id)
         if session:
             return session.get_events(since)
+        return None
+
+    def replay_session_events(
+        self, session_id: str, from_seq: int = 0
+    ) -> Optional[List[Dict]]:
+        """断线重连后重放缺失事件"""
+        with self._lock:
+            session = self._sessions.get(session_id)
+        if session:
+            return session.replay_events(from_seq)
         return None
 
     def respond_permission(
@@ -170,3 +180,71 @@ class BridgeSessionManager:
                 1 for s in self._sessions.values()
                 if s.state not in (SessionState.COMPLETED, SessionState.FAILED)
             )
+
+    # ── 会话迁移 ─────────────────────────────────────────────────────
+
+    def migrate_session(
+        self,
+        session_id: str,
+        new_model: str = None,
+        new_work_dir: str = None,
+    ) -> bool:
+        """
+        迁移会话配置（停止旧会话并创建新会话）
+
+        Args:
+            session_id: 源会话 ID
+            new_model: 新模型（None 保持原配置）
+            new_work_dir: 新工作目录
+
+        Returns:
+            True 如果迁移成功
+        """
+        with self._lock:
+            old_session = self._sessions.get(session_id)
+
+        if not old_session:
+            logger.warning(f"Migration failed: session {session_id} not found")
+            return False
+
+        old_info = old_session.get_info()
+        old_events_count = old_session.get_event_count()
+
+        # 停止旧会话
+        if old_session.is_alive:
+            old_session.stop(timeout=3.0)
+
+        # 构建新配置
+        config = SessionConfig(
+            session_id=f"{session_id}-migrated",
+            work_dir=new_work_dir or old_info.work_dir,
+            model=new_model or old_info.model,
+            permission_mode=old_session.config.permission_mode,
+            max_iterations=old_session.config.max_iterations,
+            base_url=old_session.config.base_url,
+            api_key=old_session.config.api_key,
+        )
+
+        try:
+            new_session = self.create_session(config)
+            logger.info(
+                f"Session migrated: {session_id} → {config.session_id} "
+                f"(old events: {old_events_count})"
+            )
+
+            # 发射迁移事件
+            self._event_callback(BridgeEvent(
+                type="session_migrated",
+                session_id=config.session_id,
+                data={
+                    "from_session": session_id,
+                    "old_model": old_info.model,
+                    "new_model": config.model,
+                    "old_events": old_events_count,
+                },
+            ))
+            return True
+
+        except Exception as e:
+            logger.error(f"Session migration failed: {e}")
+            return False

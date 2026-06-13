@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 _permission_manager = None
 # 配置文件路径
 _config_path = None
-# 运行时权限规则（独立于 PermissionManager 的规则追踪）
+# 运行时权限规则（兼容旧接口，实际规则已移入 PermissionManager）
 _runtime_rules: Dict[str, List[str]] = {"allow": [], "deny": []}
 
 
@@ -36,12 +36,11 @@ def set_permission_manager(pm, config_path: str = None):
     global _permission_manager, _config_path
     _permission_manager = pm
     _config_path = config_path
-    # 从 PermissionManager 读取已有规则
     _load_rules_from_config()
 
 
 def _load_rules_from_config():
-    """从 config.yaml 加载权限规则"""
+    """从 config.yaml 加载权限规则并同步到 PermissionManager"""
     global _runtime_rules
     if _config_path and os.path.exists(_config_path):
         try:
@@ -50,6 +49,12 @@ def _load_rules_from_config():
             perms = cfg.get("permissions", {})
             _runtime_rules["allow"] = list(perms.get("allow_rules", []))
             _runtime_rules["deny"] = list(perms.get("deny_rules", []))
+            # 同步规则到 PermissionManager
+            if _permission_manager and hasattr(_permission_manager, 'add_rule'):
+                for rule in _runtime_rules["allow"]:
+                    _permission_manager.add_rule("allow", rule, source="config")
+                for rule in _runtime_rules["deny"]:
+                    _permission_manager.add_rule("deny", rule, source="config")
         except Exception as e:
             logger.warning(f"加载权限配置失败: {e}")
 
@@ -197,13 +202,16 @@ def _cmd_list() -> str:
 def _cmd_allow(rest) -> str:
     """添加 allow 规则"""
     if not rest:
-        return "用法: /permissions allow <tool:pattern>\n示例: /permissions allow run_command:git status"
+        return "用法: /permissions allow <tool:pattern>\n示例: /permissions allow run_command:git status*"
 
     rule = " ".join(rest)
     if rule in _runtime_rules["allow"]:
         return f"⚠️ 规则已存在: {rule}"
 
     _runtime_rules["allow"].append(rule)
+    # 同步到 PermissionManager
+    if _permission_manager and hasattr(_permission_manager, 'add_rule'):
+        _permission_manager.add_rule("allow", rule, source="user")
     saved = _save_rules_to_config()
     suffix = "（已持久化）" if saved else "（仅运行时生效）"
     return f"✅ Allow 规则已添加: {rule} {suffix}"
@@ -212,13 +220,16 @@ def _cmd_allow(rest) -> str:
 def _cmd_deny(rest) -> str:
     """添加 deny 规则"""
     if not rest:
-        return "用法: /permissions deny <tool:pattern>\n示例: /permissions deny run_command:rm -rf"
+        return "用法: /permissions deny <tool:pattern>\n示例: /permissions deny run_command:rm -rf*"
 
     rule = " ".join(rest)
     if rule in _runtime_rules["deny"]:
         return f"⚠️ 规则已存在: {rule}"
 
     _runtime_rules["deny"].append(rule)
+    # 同步到 PermissionManager
+    if _permission_manager and hasattr(_permission_manager, 'add_rule'):
+        _permission_manager.add_rule("deny", rule, source="user")
     saved = _save_rules_to_config()
     suffix = "（已持久化）" if saved else "（仅运行时生效）"
     return f"✅ Deny 规则已添加: {rule} {suffix}"
@@ -240,6 +251,9 @@ def _cmd_remove(rest) -> str:
         return f"❌ 规则不存在: [{key}] {rule}"
 
     _runtime_rules[key].remove(rule)
+    # 同步移除 PermissionManager 规则
+    if _permission_manager and hasattr(_permission_manager, 'remove_rule'):
+        _permission_manager.remove_rule(rule)
     saved = _save_rules_to_config()
     suffix = "（已持久化）" if saved else ""
     return f"🗑️ 规则已移除: [{key}] {rule} {suffix}"
@@ -264,6 +278,13 @@ def _cmd_stats() -> str:
     ]
     if _permission_manager:
         lines.append(f"  交互确认: {'可用' if _permission_manager._interactive_enabled else '不可用'}")
+        # 新增: 详细统计
+        if hasattr(_permission_manager, 'get_stats'):
+            s = _permission_manager.get_stats()
+            lines.append(f"  允许次数: {s.get('allowed', 0)}")
+            lines.append(f"  拒绝次数: {s.get('denied', 0)} (规则: {s.get('rule_denied', 0)}, 黑名单: {s.get('blacklisted', 0)})")
+        if hasattr(_permission_manager, 'get_pending_count'):
+            lines.append(f"  挂起审批: {_permission_manager.get_pending_count()}")
     return "\n".join(lines)
 
 
