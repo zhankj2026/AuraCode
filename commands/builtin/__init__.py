@@ -20,3 +20,10 @@ from . import bridge_command
 from . import review_command
 from . import benchmark_command
 from . import history_command
+
+# New commands (Cost/Doctor/Model/Export/Clear)
+from . import cost_command
+from . import doctor_command
+from . import model_command
+from . import export_command
+from . import clear_command

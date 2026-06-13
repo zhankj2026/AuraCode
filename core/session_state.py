@@ -97,7 +97,105 @@ class QueryResult:
         return "\n".join(lines)
 
 
-# 粗略成本估算（每 1K token 的 USD 价格）
+# ── 模型定价表 (USD per million tokens) ──
+@dataclass
+class ModelPricing:
+    """模型定价信息"""
+    input_per_mtok: float = 3.0       # $3/M tokens
+    output_per_mtok: float = 15.0     # $15/M tokens
+    cache_read_per_mtok: float = 0.3  # $0.3/M tokens
+    cache_write_per_mtok: float = 3.75  # $3.75/M tokens
+
+# 常见模型定价（参考 Claude/Anthropic + OpenAI 公开定价）
+MODEL_PRICING: Dict[str, ModelPricing] = {
+    # Claude 系列
+    "claude-opus-4":     ModelPricing(15.0, 75.0, 1.5, 18.75),
+    "claude-sonnet-4":   ModelPricing(3.0, 15.0, 0.3, 3.75),
+    "claude-3.5-sonnet": ModelPricing(3.0, 15.0, 0.3, 3.75),
+    "claude-3.5-haiku":  ModelPricing(0.8, 4.0, 0.08, 1.0),
+    "claude-3-opus":     ModelPricing(15.0, 75.0, 1.5, 18.75),
+    # GLM 系列（按人民币换算估算）
+    "glm-4-plus":  ModelPricing(2.0, 10.0, 0.2, 2.5),
+    "glm-4":       ModelPricing(1.0, 5.0, 0.1, 1.25),
+    "glm-4.5":     ModelPricing(2.0, 10.0, 0.2, 2.5),
+    "glm-4.7":     ModelPricing(3.0, 15.0, 0.3, 3.75),
+    # GPT 系列
+    "gpt-4o":        ModelPricing(2.5, 10.0, 1.25, 2.5),
+    "gpt-4o-mini":   ModelPricing(0.15, 0.6, 0.075, 0.15),
+    "gpt-4-turbo":   ModelPricing(10.0, 30.0, 0.0, 0.0),
+    "o1":            ModelPricing(15.0, 60.0, 7.5, 15.0),
+    "o3-mini":       ModelPricing(1.1, 4.4, 0.55, 1.1),
+    # DeepSeek
+    "deepseek-chat":   ModelPricing(0.27, 1.1, 0.07, 0.27),
+    "deepseek-reasoner": ModelPricing(0.55, 2.19, 0.14, 0.55),
+    # Qwen
+    "qwen-max":    ModelPricing(1.6, 5.0, 0.4, 1.6),
+    "qwen-plus":   ModelPricing(0.4, 1.2, 0.1, 0.4),
+    "qwen-turbo":  ModelPricing(0.1, 0.3, 0.025, 0.1),
+}
+
+# 默认兜底定价
+DEFAULT_PRICING = ModelPricing(3.0, 15.0, 0.3, 3.75)
+
+
+def get_model_pricing(model: str) -> ModelPricing:
+    """获取模型定价（支持模糊匹配）"""
+    # 精确匹配
+    if model in MODEL_PRICING:
+        return MODEL_PRICING[model]
+    # 子串匹配
+    model_lower = model.lower()
+    for key, pricing in MODEL_PRICING.items():
+        if key in model_lower or model_lower in key:
+            return pricing
+    return DEFAULT_PRICING
+
+
+@dataclass
+class ModelUsageEntry:
+    """单个模型的使用量记录"""
+    model: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    cost_usd: float = 0.0
+    api_calls: int = 0
+
+    def accumulate(self, usage, pricing: ModelPricing) -> float:
+        """累加一次 API 调用，返回本次费用"""
+        inp = 0
+        out = 0
+        cr = 0
+        cw = 0
+        if isinstance(usage, dict):
+            inp = usage.get("prompt_tokens", 0) or 0
+            out = usage.get("completion_tokens", 0) or 0
+            cr = usage.get("cache_read_input_tokens", 0) or usage.get("prompt_cache_hit_tokens", 0) or 0
+            cw = usage.get("cache_creation_input_tokens", 0) or usage.get("prompt_cache_miss_tokens", 0) or 0
+        else:
+            inp = getattr(usage, "prompt_tokens", 0) or 0
+            out = getattr(usage, "completion_tokens", 0) or 0
+            cr = getattr(usage, "cache_read_input_tokens", 0) or getattr(usage, "prompt_cache_hit_tokens", 0) or 0
+            cw = getattr(usage, "cache_creation_input_tokens", 0) or getattr(usage, "prompt_cache_miss_tokens", 0) or 0
+
+        self.input_tokens += inp
+        self.output_tokens += out
+        self.cache_read_tokens += cr
+        self.cache_write_tokens += cw
+        self.api_calls += 1
+
+        cost = (
+            (inp / 1_000_000) * pricing.input_per_mtok
+            + (out / 1_000_000) * pricing.output_per_mtok
+            + (cr / 1_000_000) * pricing.cache_read_per_mtok
+            + (cw / 1_000_000) * pricing.cache_write_per_mtok
+        )
+        self.cost_usd += cost
+        return cost
+
+
+# 粗略成本估算（每 1K token 的 USD 价格）—— 向后兼容
 _DEFAULT_COST_RATES = {
     "prompt_per_1k": 0.003,       # ~$3/M tokens
     "completion_per_1k": 0.015,   # ~$15/M tokens
@@ -147,6 +245,10 @@ class SessionState:
         self.fallback_model: Optional[str] = fallback_model
         self._active_model_override: Optional[str] = None  # fallback 触发后的当前模型
 
+        # === 每模型使用量追踪 ===
+        self.model_usage: Dict[str, ModelUsageEntry] = {}
+        self._current_model: Optional[str] = None  # 当前模型名（用于归类费用）
+
         # === 时间追踪 ===
         self._query_start_time: Optional[float] = None
 
@@ -155,34 +257,51 @@ class SessionState:
 
     # ========== Token 追踪 ==========
 
-    def record_usage(self, usage) -> None:
+    def record_usage(self, usage, model: Optional[str] = None) -> None:
         """记录一次 API 调用的 token 用量
 
         Args:
             usage: OpenAI API usage 对象或 dict
+            model: 模型名称（用于归类每模型费用）
         """
         if usage is None:
             return
         self.total_usage.accumulate(usage)
         self.last_turn_usage.accumulate(usage)
-        self._update_cost(usage)
 
-    def _update_cost(self, usage) -> None:
-        """根据 token 用量估算成本"""
-        if usage is None:
-            return
-        if isinstance(usage, dict):
-            prompt = usage.get("prompt_tokens", 0) or 0
-            completion = usage.get("completion_tokens", 0) or 0
-        else:
-            prompt = getattr(usage, "prompt_tokens", 0) or 0
-            completion = getattr(usage, "completion_tokens", 0) or 0
+        # 每模型使用量追踪
+        model_name = model or self._current_model or "unknown"
+        if model_name not in self.model_usage:
+            self.model_usage[model_name] = ModelUsageEntry(model=model_name)
+        pricing = get_model_pricing(model_name)
+        self.model_usage[model_name].accumulate(usage, pricing)
 
-        cost = (
-            prompt / 1000 * self._cost_rates["prompt_per_1k"]
-            + completion / 1000 * self._cost_rates["completion_per_1k"]
-        )
-        self.total_cost_usd += cost
+        # 总成本（从每模型记录汇总）
+        self.total_cost_usd = sum(e.cost_usd for e in self.model_usage.values())
+
+    def set_current_model(self, model: str) -> None:
+        """设置当前模型名（用于 record_usage 自动归类）"""
+        self._current_model = model
+
+    def get_cost_breakdown(self) -> List[Dict[str, Any]]:
+        """获取每模型费用明细"""
+        result = []
+        for name, entry in sorted(self.model_usage.items(), key=lambda x: x[1].cost_usd, reverse=True):
+            pricing = get_model_pricing(name)
+            result.append({
+                "model": name,
+                "input_tokens": entry.input_tokens,
+                "output_tokens": entry.output_tokens,
+                "cache_read": entry.cache_read_tokens,
+                "cache_write": entry.cache_write_tokens,
+                "api_calls": entry.api_calls,
+                "cost_usd": entry.cost_usd,
+                "pricing": {
+                    "input": pricing.input_per_mtok,
+                    "output": pricing.output_per_mtok,
+                },
+            })
+        return result
 
     # ========== 预算控制 ==========
 
@@ -300,4 +419,6 @@ class SessionState:
         self.abort_event.clear()
         self._query_start_time = None
         self.output_truncation_count = 0
+        self.model_usage = {}
+        self._current_model = None
         self.reset_model_override()

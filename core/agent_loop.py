@@ -307,7 +307,8 @@ class AgentLoop:
                 # Step 1: 调用 LLM（流式输出）
                 stream_result = self._call_llm_streaming()
                 assistant_content = stream_result.content
-                self.state.record_usage(stream_result.usage)
+                active_m = self.state.get_active_model(self.model)
+                self.state.record_usage(stream_result.usage, model=active_m)
 
                 # 构建助手消息
                 assistant_msg: Dict[str, Any] = {
@@ -1265,7 +1266,8 @@ class AgentLoop:
             )
             summary = resp.choices[0].message.content or ""
             if resp.usage:
-                self.state.record_usage(resp.usage)
+                active_m = self.state.get_active_model(self.model)
+                self.state.record_usage(resp.usage, model=active_m)
             return summary
 
         except Exception as e:
