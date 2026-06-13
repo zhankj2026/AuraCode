@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from core.agent_loop import AgentLoop
 from commands.registry import COMMAND_REGISTRY, get_command_list, get_commands_by_category
+from core.session_store import SessionStore, auto_save_session
 
 # 配置日志
 logging.basicConfig(
@@ -111,6 +112,9 @@ class ChatMode:
         self.executor = executor
         self.round = 0
         self.start_time = datetime.now()
+        # 会话持久化
+        self._session_store = SessionStore()
+        self._session_meta = None  # 当前会话元数据（用于增量更新）
 
     def show_welcome(self):
         """显示欢迎信息"""
@@ -234,6 +238,34 @@ class ChatMode:
         print()
         print("=" * 60)
 
+    def _auto_save_on_exit(self):
+        """退出时自动保存会话"""
+        try:
+            state = self.loop.state
+            if not state.messages:
+                return  # 没有消息，无需保存
+
+            status = "completed"
+            if state.is_aborted():
+                status = "aborted"
+
+            meta = auto_save_session(
+                store=self._session_store,
+                messages=state.messages,
+                model=self.config.get("model", ""),
+                turn_count=self.round,
+                total_tokens=state.total_usage.total_tokens,
+                total_cost_usd=state.total_cost_usd,
+                status=status,
+                existing_meta=self._session_meta,
+            )
+            if meta:
+                self._session_meta = meta
+                print(f"\n💾 会话已保存: [{meta.session_id[:8]}] ({meta.message_count} 条消息)")
+                print(f"   使用 /resume {meta.session_id[:8]} 恢复此会话")
+        except Exception as e:
+            logger.warning(f"Auto-save on exit failed: {e}")
+
     def process_round(self, user_input: str) -> bool:
         """
         处理一轮对话（基于 QueryResult 结构化结果）
@@ -290,6 +322,8 @@ class ChatMode:
                 print("\n\n👋 输入结束")
                 break
 
+        # 自动保存会话
+        self._auto_save_on_exit()
         # 显示会话统计
         self.show_stats()
         print("\n✅ 感谢使用！再见！")

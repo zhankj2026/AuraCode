@@ -27,3 +27,8 @@ from . import doctor_command
 from . import model_command
 from . import export_command
 from . import clear_command
+
+# New commands (MCP/Session/Hook ecosystem)
+from . import mcp_command
+from . import resume_command
+from . import hooks_command

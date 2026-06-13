@@ -1,6 +1,6 @@
 # opencode 状态汇总与 Claude Code 差异分析
 
-> 更新日期: 2026-06-13 | 最新提交: nx7
+> 更新日期: 2026-06-14 | 最新提交: sess1+hook1
 
 ---
 
@@ -8,13 +8,13 @@
 
 | 模块 | 文件数 | 核心能力 |
 |------|--------|----------|
-| **core/** | 6 | AgentLoop + SessionState + Memory + Context + Subagent + Message |
+| **core/** | 7 | AgentLoop + SessionState + SessionStore + Memory + Context + Subagent + Message |
 | **tools/builtin/** | 31 | read/write/replace/grep/find/glob/lsp/web/todo/ask/powershell/plan_mode/subagent/tool_search/sleep/config/notebook_edit/repl/task_manager/brief... |
-| **commands/builtin/** | 26 | commit/compact/diff/context/plan/init/bridge/skills/status/subagents/review/benchmark/history/cost/doctor/model/export/clear... |
+| **commands/builtin/** | 29 | commit/compact/diff/context/plan/init/bridge/skills/status/subagents/review/benchmark/history/cost/doctor/model/export/clear/mcp/resume/hooks... |
 | **bridge/** | 7 | REST+WebSocket 远程控制, 多会话管理, JWT认证, Web UI |
 | **skills/** | 5域 | simplify/verify/debug/batch/update-config |
 | **plugins/** | 3 | 插件加载器 + 示例插件 |
-| **hooks/** | 2 | 14种事件 (Pre/Post/Stop/UserMessage/Session/Notification/Subagent/ToolError/PreCompact/PostCompact/ContextWarning) |
+| **hooks/** | 3 | 14种事件 + 配置文件驱动加载 + 执行日志 (Pre/Post/Stop/UserMessage/Session/Notification/Subagent/ToolError/PreCompact/PostCompact/ContextWarning) |
 | **permissions/** | 2 | normal/auto/plan/bypass 四级权限 |
 | **mcp/** | 完整 | MCP 协议客户端 + 5传输层 + 技能/工具集成 |
 | **cli.py** | 1 | 对话模式 + 命令模式 + Bridge 模式 |
@@ -71,10 +71,10 @@
 | **命令系统** | 15+ 命令 + 82子目录 | 26 个命令 (含 cost/doctor/model/export/clear) | **~75%** |
 | **记忆系统** | memdir 8文件 + MEMORY.md索引 | memory.py + memdir迁移 + LLM语义召回 + 新鲜度 | **~80%** |
 | **Bridge远程控制** | 完整Remote Bridge (JWT+WebSocket+ReplBridge) | 简化版 (FastAPI+WebSocket+多会话管理) | **~70%** |
-| **MCP集成** | 原生TS MCP | Python MCP客户端 (5传输层+插件+技能) | **~65%** |
+| **MCP集成** | 原生TS MCP | Python MCP客户端 (5传输层+插件+技能+热加载+缓存) | **~75%** |
 | **子代理** | Task.ts Agent (explore/plan/review/impact/diagnose) | subagent.py 同5类 | **~80%** |
 | **流式输出** | 完整 SSE streaming | `_call_llm_streaming()` 逐token实时 + StreamResult + 显式stream关闭 | **~95%** |
-| **Hook系统** | 83+ hooks | 14种事件 + short_circuit + metadata | **~65%** |
+| **Hook系统** | 83+ hooks | 14种事件 + short_circuit + 配置驱动 + 执行日志 | **~75%** |
 | **事件回调** | EventEmitter + WebSocket推送 | `_emit_event()` + BridgeSession实时转发 + Web UI可视化 | **~85%** |
 | **多模型支持** | Anthropic原生 + fallback | OpenAI兼容协议 + fallback | **~75%** |
 | **输出模式** | BriefTool (简洁/标准/详细) | BriefTool (brief/normal/verbose) + system prompt注入 | **~80%** |
@@ -83,10 +83,12 @@
 
 ## 四、关键差距（下一步可改进方向）
 
-### 已完成（本轮 — 命令生态+成本追踪）
+### 已完成（本轮 — MCP深化+会话持久化+Hook生态）
 
-- **命令系统继续增强** (70% → 75%): 新增 /cost (费用追踪), /doctor (环境诊断), /model (模型切换), /export (对话导出), /clear (清空会话)，命令数 21→26
-- **成本追踪精确化**: ModelPricing 19 模型独立定价 + ModelUsageEntry 每模型使用量 + 缓存 token 计价 + 费用明细
+- **MCP 集成深化** (~65% → 75%): McpManager 热加载/注销/重启 + 工具结果 TTL 缓存 + /mcp 命令（status/add/remove/restart/tools/cache）
+- **会话持久化**: SessionStore JSON 持久化 + 会话列表/搜索/恢复 + /resume 命令 + CLI 退出自动保存
+- **Hook 生态扩展** (~65% → 75%): HookConfigLoader 配置文件驱动 + 执行日志 + /hooks 命令（config/log/reload/add/remove/test/stats）
+- **命令系统**: 26 → 29 个命令（新增 /mcp, /resume, /hooks）
 
 ### 已完成（上一轮 — Hook生态+命令+恢复）
 
@@ -128,7 +130,7 @@
 
 ## 五、总结
 
-opencode 已覆盖 Claude Code **约 85% 的核心能力**：
+opencode 已覆盖 Claude Code **约 87% 的核心能力**：
 
 | 完成度 | 模块 |
 |--------|------|
@@ -136,8 +138,8 @@ opencode 已覆盖 Claude Code **约 85% 的核心能力**：
 | **~90%** | 上下文压缩(5级流水线，含ImageStrip) |
 | **~85%** | 事件回调、中断控制、记忆系统、子代理、Token追踪(每模型定价) |
 | **~80%** | 核心循环、输出模式、错误恢复(6层) |
-| **~75%** | 工具系统(48工具)、命令系统(26命令)、多模型支持、Bridge远程控制 |
-| **~70%** | 状态管理、技能系统、MCP集成 |
-| **~65%** | Hook系统(14事件+短路) |
+| **~75%** | 工具系统(48工具)、命令系统(29命令)、多模型支持、Bridge远程控制、MCP集成(热加载+缓存)、Hook系统(配置驱动) |
+| **~70%** | 状态管理、技能系统 |
+| **~65%** | Hook系统(14事件+短路+配置+日志) |
 
-整体架构已进入 **"命令生态扩展 + 状态管理完善"** 阶段。本轮新增 5 个命令 + 每模型独立定价 + 缓存 token 计价，状态管理从 60% 升至 70%，Token 追踪从 80% 升至 85%，命令系统从 70% 升至 75%。
+整体架构已进入 **"生态完善+持久化+配置驱动"** 阶段。本轮新增 MCP 热加载管理器、会话持久化存储、Hook 配置文件驱动，命令数 26→29，MCP 集成从 65% 升至 75%，Hook 系统从 65% 升至 75%。

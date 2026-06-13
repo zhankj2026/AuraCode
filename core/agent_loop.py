@@ -188,6 +188,7 @@ class AgentLoop:
         # 2. 钩子系统
         self.hook_manager = HookManager()
         self.hooks_enabled = config.get("enable_hooks", True)
+        self._hook_config_loader = None  # Hook 配置加载器
 
         if self.hooks_enabled and self.plugin_loader:
             # 注册插件提供的钩子
@@ -206,6 +207,21 @@ class AgentLoop:
                         logger.warning(f"插件钩子注册失败: {e}")
             except Exception as e:
                 logger.warning(f"插件钩子注册失败: {e}")
+
+        # 2.5 加载配置文件驱动的 Hook
+        if self.hooks_enabled:
+            try:
+                from hooks.config_loader import HookConfigLoader
+                project_root = config.get("project_root", ".")
+                self._hook_config_loader = HookConfigLoader(
+                    hook_manager=self.hook_manager,
+                    project_root=project_root,
+                )
+                loaded = self._hook_config_loader.load()
+                if loaded > 0:
+                    logger.info(f"从配置文件加载了 {loaded} 个 Hook")
+            except Exception as e:
+                logger.warning(f"Hook 配置加载失败: {e}")
 
         # 3. 技能系统
         self.skill_manager = None
