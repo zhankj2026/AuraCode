@@ -1,16 +1,16 @@
 # opencode 状态汇总与 Claude Code 差异分析
 
-> 更新日期: 2026-06-13 | 最新提交: hk6
+> 更新日期: 2026-06-13 | 最新提交: nx7
 
 ---
 
-## 一、opencode 当前模块总览（15 次 Git 提交）
+## 一、opencode 当前模块总览（16 次 Git 提交）
 
 | 模块 | 文件数 | 核心能力 |
 |------|--------|----------|
 | **core/** | 6 | AgentLoop + SessionState + Memory + Context + Subagent + Message |
 | **tools/builtin/** | 31 | read/write/replace/grep/find/glob/lsp/web/todo/ask/powershell/plan_mode/subagent/tool_search/sleep/config/notebook_edit/repl/task_manager/brief... |
-| **commands/builtin/** | 21 | commit/compact/diff/context/plan/init/bridge/skills/status/subagents/review/benchmark/history... |
+| **commands/builtin/** | 26 | commit/compact/diff/context/plan/init/bridge/skills/status/subagents/review/benchmark/history/cost/doctor/model/export/clear... |
 | **bridge/** | 7 | REST+WebSocket 远程控制, 多会话管理, JWT认证, Web UI |
 | **skills/** | 5域 | simplify/verify/debug/batch/update-config |
 | **plugins/** | 3 | 插件加载器 + 示例插件 |
@@ -59,16 +59,16 @@
 | 维度 | Claude Code | opencode | 完成度 |
 |------|------------|----------|--------|
 | **核心循环** | query.ts 1730行 while(true) 状态机 | agent_loop.py ~1250行 TAOR循环 | **~75%** |
-| **状态管理** | AppStateStore.ts ~100字段 + Store发布订阅 | SessionState 精简版，集中管理 token/cost/abort | **~60%** |
+| **状态管理** | AppStateStore.ts ~100字段 + Store发布订阅 | SessionState + ModelPricing + 每模型独立追踪 | **~70%** |
 | **查询结果** | QueryEngine yield result (含duration/cost/usage/denials) | QueryResult dataclass (相同字段) | **~90%** |
 | **错误恢复(6层)** | Fallback→Prompt-too-long→MaxOutput→StopHook→Budget→ImageStrip | 全部 6 层 (含 StopHook recovery_hint + ImageStrip) | **~80%** |
 | **上下文压缩** | Snip→Microcompact→ContextCollapse→AutoCompact | ImageStrip→Snip→Microcompact→ContextCollapse→AutoCompact (5级) | **~90%** |
-| **Token追踪** | 精确到每轮，cost-tracker模块 | TokenUsage累计 + 粗略成本估算 | **~80%** |
+| **Token追踪** | 精确到每轮，cost-tracker模块 | 每模型独立定价 + 缓存token + 费用明细 | **~85%** |
 | **中断控制** | AbortController (Web标准) | threading.Event (Python等价) | **~85%** |
 | **权限系统** | 复杂权限上下文 + Bridge远程审批 | PermissionManager 4级模式 + Bridge远程审批 | **~75%** |
 | **工具系统** | 42+ 工具目录 | 31 文件 48 工具 (+repl/task/brief) | **~75%** |
 | **技能系统** | 3 个内置 + 用户自定义 | 5 域技能（simplify/verify/debug/batch/update-config） | **~70%** |
-| **命令系统** | 15+ 命令 + 82子目录 | 21 个命令 (含 review/benchmark/history) | **~70%** |
+| **命令系统** | 15+ 命令 + 82子目录 | 26 个命令 (含 cost/doctor/model/export/clear) | **~75%** |
 | **记忆系统** | memdir 8文件 + MEMORY.md索引 | memory.py + memdir迁移 + LLM语义召回 + 新鲜度 | **~80%** |
 | **Bridge远程控制** | 完整Remote Bridge (JWT+WebSocket+ReplBridge) | 简化版 (FastAPI+WebSocket+多会话管理) | **~70%** |
 | **MCP集成** | 原生TS MCP | Python MCP客户端 (5传输层+插件+技能) | **~65%** |
@@ -83,7 +83,12 @@
 
 ## 四、关键差距（下一步可改进方向）
 
-### 已完成（本轮 — Hook生态+命令+恢复）
+### 已完成（本轮 — 命令生态+成本追踪）
+
+- **命令系统继续增强** (70% → 75%): 新增 /cost (费用追踪), /doctor (环境诊断), /model (模型切换), /export (对话导出), /clear (清空会话)，命令数 21→26
+- **成本追踪精确化**: ModelPricing 19 模型独立定价 + ModelUsageEntry 每模型使用量 + 缓存 token 计价 + 费用明细
+
+### 已完成（上一轮 — Hook生态+命令+恢复）
 
 - **Hook 生态扩展** (55% → 65%): 新增 ToolError/PreCompact/PostCompact/ContextWarning 事件 (10→14) + HookResult.short_circuit 短路机制 + metadata 字段
 - **命令系统增强** (60% → 70%): 新增 /review (代码审查), /benchmark (性能基准), /history (会话历史管理)，命令数 16→21
@@ -110,28 +115,29 @@
 
 ### 下一步高优先级
 
-1. **命令系统继续增强** (~70% → 80%)
-   - 按需迁移: /cost (费用追踪), /doctor (环境诊断), /model (模型切换), /export (对话导出), /clear (清空会话)
+1. **MCP 集成深化**
+   - MCP 工具热加载、服务端动态注册、工具结果缓存
 
-2. **成本追踪精确化**
-   - 每模型独立定价 (input/output per Mtok)、缓存 token 计价、费用明细展示
+2. **会话持久化**
+   - 会话历史保存/恢复 (/resume)、消息日志 JSON 持久化
 
-3. **会话持久化**
-   - 会话历史保存/恢复、消息日志 JSON 持久化
+3. **Hook 生态继续扩展**
+   - 配置文件驱动的 Hook 规则、Hook 链可视化管理
 
 ---
 
 ## 五、总结
 
-opencode 已覆盖 Claude Code **约 83% 的核心能力**：
+opencode 已覆盖 Claude Code **约 85% 的核心能力**：
 
 | 完成度 | 模块 |
 |--------|------|
 | **~95%** | 流式输出（含精确中断控制）、查询结果结构化报告 |
 | **~90%** | 上下文压缩(5级流水线，含ImageStrip) |
-| **~85%** | 事件回调（Bridge实时转发+Web可视化）、中断控制、记忆系统、子代理 |
-| **~80%** | 核心循环、Token追踪、输出模式、错误恢复(6层) |
-| **~70-75%** | 工具系统(48工具)、技能系统、Bridge远程控制、多模型支持、命令系统(21命令) |
-| **~65%** | Hook系统(14事件+短路)、MCP集成 |
+| **~85%** | 事件回调、中断控制、记忆系统、子代理、Token追踪(每模型定价) |
+| **~80%** | 核心循环、输出模式、错误恢复(6层) |
+| **~75%** | 工具系统(48工具)、命令系统(26命令)、多模型支持、Bridge远程控制 |
+| **~70%** | 状态管理、技能系统、MCP集成 |
+| **~65%** | Hook系统(14事件+短路) |
 
-整体架构已进入 **"深度打磨 + 命令生态扩展"** 阶段。本轮新增 Hook 14 事件 + 短路机制 + 3 个命令 + StopHook 恢复 + ImageStrip，上下文压缩从 4 级升至 5 级，错误恢复从 4 层升至 6 层（与 Claude Code 完全对齐）。
+整体架构已进入 **"命令生态扩展 + 状态管理完善"** 阶段。本轮新增 5 个命令 + 每模型独立定价 + 缓存 token 计价，状态管理从 60% 升至 70%，Token 追踪从 80% 升至 85%，命令系统从 70% 升至 75%。
