@@ -95,7 +95,13 @@ class AgentLoop:
         self.max_iterations = config.get("max_iterations", 20)
         self.max_tokens = config.get("max_tokens", 8192)
         self.max_output_recovery_limit = config.get("max_output_recovery_limit", 3)
-        self.context_compact_threshold = config.get("context_compact_threshold", 40)
+        self.context_compact_threshold = config.get("context_compact_threshold", None)
+        if self.context_compact_threshold is None:
+            # 动态计算压缩阈值：根据模型上下文窗口自动调整
+            from commands.builtin.context_command import _get_context_window, _get_dynamic_threshold
+            cw = _get_context_window(self.model)
+            self.context_compact_threshold = _get_dynamic_threshold(cw)
+            logger.info(f"动态压缩阈值: {self.context_compact_threshold} (模型窗口: {cw:,})")
 
         # 3. 会话状态管理（集中式）
         self.state = SessionState(
@@ -1052,6 +1058,20 @@ class AgentLoop:
         except ImportError:
             pass  # plan_mode 模块未加载，跳过检查
 
+        # 3.8 工具追踪 + 缓存检查
+        from core.tool_tracker import get_tool_tracker, get_tool_cache
+        tracker = get_tool_tracker()
+        cache = get_tool_cache()
+        current_turn = getattr(self, '_current_turn', 0)
+        tracker.start_call(tool_name, arguments, turn=current_turn)
+
+        # 缓存命中 → 直接返回
+        cached_result = cache.get(tool_name, arguments)
+        if cached_result is not None:
+            tracker.end_call(success=True, result_preview="[cached] " + str(cached_result)[:180])
+            logger.info(f"Tool {tool_name} cache hit")
+            return {"success": True, "result": cached_result, "_cached": True}
+
         # 4. 执行工具
         try:
             handler = tool["handler"]
@@ -1068,6 +1088,10 @@ class AgentLoop:
                 result = "\n".join(truncated)
 
             logger.info(f"Tool {tool_name} executed successfully")
+
+            # 追踪 + 缓存写入
+            tracker.end_call(success=True, result_preview=str(result)[:200])
+            cache.put(tool_name, arguments, result)
 
             # 4.5 ContextCollapse: 追踪文件操作
             self._track_file_operation(tool_name, arguments)
@@ -1101,6 +1125,9 @@ class AgentLoop:
         except Exception as e:
             error_msg = f"工具执行失败: {str(e)}"
             logger.error(error_msg, exc_info=True)
+
+            # 追踪失败
+            tracker.end_call(success=False, error=str(e)[:200])
 
             # 触发 ToolError 钩子（区分异常 vs 权限拒绝）
             if self.hooks_enabled:

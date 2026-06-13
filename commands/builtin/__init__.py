@@ -37,3 +37,6 @@ from . import hooks_command
 from . import memory_command
 from . import permissions_command
 from . import config_edit_command
+
+# New commands (Tool tracking + Model enhancement)
+from . import tools_command

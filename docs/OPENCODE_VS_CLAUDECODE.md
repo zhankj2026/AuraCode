@@ -1,6 +1,6 @@
 # opencode 状态汇总与 Claude Code 差异分析
 
-> 更新日期: 2026-06-14 | 最新提交: cmd2+state1+skill1
+> 更新日期: 2026-06-15 | 最新提交: ctx+tool+model
 
 ---
 
@@ -10,7 +10,7 @@
 |------|--------|----------|
 | **core/** | 7 | AgentLoop + SessionState + SessionStore + Memory + Context + Subagent + Message |
 | **tools/builtin/** | 31 | read/write/replace/grep/find/glob/lsp/web/todo/ask/powershell/plan_mode/subagent/tool_search/sleep/config/notebook_edit/repl/task_manager/brief... |
-| **commands/builtin/** | 32 | commit/compact/diff/context/plan/init/bridge/skills/status/subagents/review/benchmark/history/cost/doctor/model/export/clear/mcp/resume/hooks/memory/permissions/config-edit... |
+| **commands/builtin/** | 34 | commit/compact/diff/context/plan/init/bridge/skills/status/subagents/review/benchmark/history/cost/doctor/model/export/clear/mcp/resume/hooks/memory/permissions/config-edit/tools... |
 | **bridge/** | 7 | REST+WebSocket 远程控制, 多会话管理, JWT认证, Web UI |
 | **skills/** | 7域 | simplify/verify/debug/batch/update-config + 用户自定义创建/删除 + 多源自动发现 |
 | **plugins/** | 3 | 插件加载器 + 示例插件 |
@@ -62,13 +62,13 @@
 | **状态管理** | AppStateStore.ts ~100字段 + Store发布订阅 | SessionState + ModelPricing + 每模型独立追踪 + 发布订阅 + 快照/恢复 | **~80%** |
 | **查询结果** | QueryEngine yield result (含duration/cost/usage/denials) | QueryResult dataclass (相同字段) | **~90%** |
 | **错误恢复(6层)** | Fallback→Prompt-too-long→MaxOutput→StopHook→Budget→ImageStrip | 全部 6 层 (含 StopHook recovery_hint + ImageStrip) | **~80%** |
-| **上下文压缩** | Snip→Microcompact→ContextCollapse→AutoCompact | ImageStrip→Snip→Microcompact→ContextCollapse→AutoCompact (5级) | **~90%** |
+| **上下文压缩** | Snip→Microcompact→ContextCollapse→AutoCompact | ImageStrip→Snip→Microcompact→ContextCollapse→AutoCompact (5级) + 动态阈值 + token分布可视化 | **~95%** |
 | **Token追踪** | 精确到每轮，cost-tracker模块 | 每模型独立定价 + 缓存token + 费用明细 | **~85%** |
 | **中断控制** | AbortController (Web标准) | threading.Event (Python等价) | **~85%** |
 | **权限系统** | 复杂权限上下文 + Bridge远程审批 | PermissionManager 4级模式 + Bridge远程审批 | **~75%** |
-| **工具系统** | 42+ 工具目录 | 31 文件 48 工具 (+repl/task/brief) | **~75%** |
+| **工具系统** | 42+ 工具目录 | 31 文件 48 工具 + ToolTracker + ToolCache + /tools 命令 | **~80%** |
 | **技能系统** | 3 个内置 + 用户自定义 | 7 域技能 + 用户自定义创建/删除 + 多源自动发现 + 搜索/重载 | **~80%** |
-| **命令系统** | 15+ 命令 + 82子目录 | 32 个命令 (含 memory/permissions/config-edit) | **~80%** |
+| **命令系统** | 15+ 命令 + 82子目录 | 34 个命令 (含 tools/model增强) | **~85%** |
 | **记忆系统** | memdir 8文件 + MEMORY.md索引 | memory.py + memdir迁移 + LLM语义召回 + 新鲜度 | **~80%** |
 | **Bridge远程控制** | 完整Remote Bridge (JWT+WebSocket+ReplBridge) | 简化版 (FastAPI+WebSocket+多会话管理) | **~70%** |
 | **MCP集成** | 原生TS MCP | Python MCP客户端 (5传输层+插件+技能+热加载+缓存) | **~75%** |
@@ -76,20 +76,19 @@
 | **流式输出** | 完整 SSE streaming | `_call_llm_streaming()` 逐token实时 + StreamResult + 显式stream关闭 | **~95%** |
 | **Hook系统** | 83+ hooks | 14种事件 + short_circuit + 配置驱动 + 执行日志 | **~75%** |
 | **事件回调** | EventEmitter + WebSocket推送 | `_emit_event()` + BridgeSession实时转发 + Web UI可视化 | **~85%** |
-| **多模型支持** | Anthropic原生 + fallback | OpenAI兼容协议 + fallback | **~75%** |
+| **多模型支持** | Anthropic原生 + fallback | OpenAI兼容协议 + fallback + 历史/回滚 + 多模型并行对比 | **~80%** |
 | **输出模式** | BriefTool (简洁/标准/详细) | BriefTool (brief/normal/verbose) + system prompt注入 | **~80%** |
 
 ---
 
 ## 四、关键差距（下一步可改进方向）
 
-### 已完成（本轮 — 命令补齐+发布订阅+技能增强）
+### 已完成（本轮 — 上下文+工具+多模型）
 
-- **命令系统补齐** (~75% → 80%): /memory (记忆查看/搜索/添加/编辑/删除/导出) + /permissions (模式切换/allow/deny规则管理) + /config-edit (运行时配置热编辑/diff/reload)
-- **SessionState 发布/订阅** (~70% → 80%): 14种事件类型 + subscribe/subscribe_all/unsubscribe + 状态快照 create_snapshot/restore_snapshot + 事件广播集成到 record_usage/abort/turn 等
-- **技能系统增强** (~70% → 80%): 多源自动发现 (builtin + 项目级 + 用户级) + 用户自定义 Skill 创建/删除 + 搜索/重载 + 来源分组展示
-- **命令系统**: 29 → 32 个命令（新增 /memory, /permissions, /config-edit）
-- **Skills 命令增强**: 新增 create/delete/search/reload/info/sources 子命令
+- **上下文管理增强** (90% → 95%): /context 增强为 3 子命令 (overview/detail/dist) + token分布柱状图 + Top-10 消息排名 + 动态压缩阈值（根据模型窗口自动计算）+ agent_loop.py 集成动态阈值
+- **工具生态完善** (75% → 80%): ToolTracker 执行链追踪 (start/end_call + 统计报告 + 时间线可视化) + ToolCache 结果缓存 (TTL+白名单/黑名单+LRU) + 集成到 agent_loop._execute_tool + /tools 命令 (7 子命令)
+- **多模型支持深化** (75% → 80%): 模型切换历史记录 (最多50条) + /model rollback 回滚 + /model compare 多模型并行对比 (4模型多线程)
+- **命令系统**: 32 → 34 个命令（新增 /tools，增强 /model）
 
 ### 已完成（上一轮 — Hook生态+命令+恢复）
 
@@ -118,31 +117,31 @@
 
 ### 下一步高优先级
 
-1. **上下文管理增强** (90% → 95%)
-   - 智能上下文窗口可视化（当前 token 分布图）
-   - 自动压缩阈值调整（根据模型上下文窗口动态计算）
+1. **权限系统深化** (75% → 85%)
+   - 工具级权限粒度控制（按参数模式匹配）
+   - 权限审批工作流（Bridge远程审批队列）
 
-2. **工具生态完善** (75% → 80%)
-   - 工具执行链追踪（调用树 + 耗时分布）
-   - 工具结果缓存（避免重复执行）
+2. **Hook系统完善** (65% → 80%)
+   - 异步 Hook 中间件管道
+   - Hook 热重载 + 错误隔离
 
-3. **多模型支持深化** (75% → 80%)
-   - 模型切换历史记录与回滚
-   - 多模型并行对比（同一 prompt 多模型响应）
+3. **Bridge远程控制增强** (70% → 80%)
+   - 会话迁移 + 断线重连
+   - 远程文件编辑审批流程
 
 ---
 
 ## 五、总结
 
-opencode 已覆盖 Claude Code **约 89% 的核心能力**：
+opencode 已覆盖 Claude Code **约 91% 的核心能力**：
 
 | 完成度 | 模块 |
 |--------|------|
-| **~95%** | 流式输出（含精确中断控制）、查询结果结构化报告 |
-| **~90%** | 上下文压缩(5级流水线，含ImageStrip) |
-| **~85%** | 事件回调、中断控制、记忆系统、子代理、Token追踪(每模型定价) |
-| **~80%** | 核心循环、状态管理(发布/订阅+快照)、技能系统(多源自动发现)、命令系统(32命令)、输出模式、错误恢复(6层) |
-| **~75%** | 工具系统(48工具)、多模型支持、Bridge远程控制、MCP集成(热加载+缓存)、Hook系统(配置驱动) |
+| **~95%** | 流式输出（含精确中断控制）、查询结果结构化报告、上下文压缩(5级+动态阈值+可视化) |
+| **~90%** | 事件回调、中断控制 |
+| **~85%** | 记忆系统、子代理、Token追踪(每模型定价)、命令系统(34命令) |
+| **~80%** | 核心循环、状态管理(发布/订阅+快照)、技能系统(多源自动发现)、工具系统(48+追踪+缓存)、多模型支持(历史/回滚/对比)、错误恢复(6层)、输出模式 |
+| **~75%** | Bridge远程控制、MCP集成(热加载+缓存)、Hook系统(配置驱动) |
 | **~65%** | Hook系统(14事件+短路+配置+日志) |
 
-整体架构已进入 **“交互完善+状态可观测+生态开放”** 阶段。本轮新增 /memory、/permissions、/config-edit 三个命令（命令数 29→32），SessionState 新增发布/订阅 + 快照/恢复（14种事件），SkillManager 支持多源自动发现 + 用户自定义创建/删除。状态管理从 70% 升至 80%，技能系统从 70% 升至 80%，命令系统从 75% 升至 80%。
+整体架构已进入 **“智能观测+执行追踪+多模型协同”** 阶段。本轮新增 /tools 命令（7子命令）+ 增强 /model 命令（历史/回滚/对比），核心模块新增 ToolTracker + ToolCache 集成到 agent_loop，上下文管理增加动态阈值 + token分布可视化。工具系统从 75% 升至 80%，多模型支持从 75% 升至 80%，上下文压缩从 90% 升至 95%，命令系统从 80% 升至 85%。
