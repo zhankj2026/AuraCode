@@ -32,3 +32,8 @@ from . import clear_command
 from . import mcp_command
 from . import resume_command
 from . import hooks_command
+
+# New commands (Memory/Permissions/Config-edit)
+from . import memory_command
+from . import permissions_command
+from . import config_edit_command

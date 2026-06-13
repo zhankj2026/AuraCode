@@ -1,19 +1,42 @@
-"""
-会话状态管理
+"""会话状态管理
 
 参考 Claude Code 的 AppStateStore + QueryEngine 设计，
 为 opencode 提供集中式会话状态管理、Token 累计追踪和结构化结果报告。
+
+增强功能:
+- 发布/订阅: on_change 回调，状态变更事件广播
+- 状态快照/恢复: 保存和恢复完整状态快照
 """
 
 import threading
 import time
+import copy
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Literal
+from typing import List, Dict, Any, Optional, Literal, Callable
 from datetime import datetime
 
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+# ── 状态变更事件类型 ──
+class StateEvent:
+    """状态变更事件"""
+    MESSAGE_ADDED = "message_added"
+    MESSAGE_CLEARED = "message_cleared"
+    USAGE_RECORDED = "usage_recorded"
+    TURN_INCREMENTED = "turn_incremented"
+    ABORT_TRIGGERED = "abort_triggered"
+    ABORT_CLEARED = "abort_cleared"
+    BUDGET_EXCEEDED = "budget_exceeded"
+    MODEL_CHANGED = "model_changed"
+    PERMISSION_DENIED = "permission_denied"
+    QUERY_STARTED = "query_started"
+    QUERY_COMPLETED = "query_completed"
+    SNAPSHOT_CREATED = "snapshot_created"
+    SNAPSHOT_RESTORED = "snapshot_restored"
+    CONFIG_CHANGED = "config_changed"
 
 
 @dataclass
@@ -210,8 +233,17 @@ class SessionState:
     - iteration → state.turn_count
     - 新增 total_usage, total_cost_usd, abort_event, permission_denials
 
+    发布/订阅:
+    - subscribe(event, callback) — 注册状态变更回调
+    - unsubscribe(sub_id) — 注销回调
+    - _emit(event, data) — 触发状态变更事件
+
+    快照/恢复:
+    - create_snapshot() — 创建完整状态快照
+    - restore_snapshot(snapshot) — 从快照恢复状态
+
     参考 Claude Code:
-    - AppStateStore.ts (集中状态)
+    - AppStateStore.ts (集中状态 + Store 发布订阅)
     - QueryEngine (usage/cost tracking)
     - query.ts (loop state machine)
     """
@@ -255,6 +287,158 @@ class SessionState:
         # === max_output_tokens 恢复 ===
         self.output_truncation_count: int = 0  # 连续截断次数
 
+        # === 发布/订阅 ===
+        self._subscribers: Dict[int, Dict[str, Any]] = {}
+        self._sub_counter: int = 0
+
+    # ========== 发布/订阅 ==========
+
+    def subscribe(
+        self,
+        event: str,
+        callback: Callable[[str, Dict[str, Any]], None],
+        label: str = "",
+    ) -> int:
+        """注册状态变更回调
+
+        Args:
+            event: 事件类型（StateEvent 常量）
+            callback: 回调函数 callback(event, data)
+            label: 可选标签（用于调试）
+
+        Returns:
+            订阅 ID（用于 unsubscribe）
+        """
+        self._sub_counter += 1
+        sub_id = self._sub_counter
+        self._subscribers[sub_id] = {
+            "event": event,
+            "callback": callback,
+            "label": label,
+        }
+        logger.debug(f"订阅: [{sub_id}] {event} ({label})")
+        return sub_id
+
+    def subscribe_all(
+        self,
+        callback: Callable[[str, Dict[str, Any]], None],
+        label: str = "",
+    ) -> int:
+        """注册全事件回调（监听所有事件）"""
+        return self.subscribe("*", callback, label)
+
+    def unsubscribe(self, sub_id: int) -> bool:
+        """注销回调"""
+        if sub_id in self._subscribers:
+            del self._subscribers[sub_id]
+            return True
+        return False
+
+    def _emit(self, event: str, data: Optional[Dict[str, Any]] = None) -> None:
+        """触发状态变更事件"""
+        payload = data or {}
+        for sub in list(self._subscribers.values()):
+            if sub["event"] == event or sub["event"] == "*":
+                try:
+                    sub["callback"](event, payload)
+                except Exception as e:
+                    logger.warning(f"订阅回调异常: {sub.get('label', '')} -> {e}")
+
+    def get_subscriber_count(self) -> int:
+        """获取当前订阅数"""
+        return len(self._subscribers)
+
+    # ========== 快照/恢复 ==========
+
+    def create_snapshot(self, label: str = "") -> Dict[str, Any]:
+        """创建完整状态快照
+
+        Args:
+            label: 快照标签（用于标识）
+
+        Returns:
+            快照字典（可序列化存储）
+        """
+        snapshot = {
+            "label": label,
+            "timestamp": datetime.now().isoformat(),
+            "messages": copy.deepcopy(self.messages),
+            "total_usage": self.total_usage.to_dict(),
+            "total_cost_usd": self.total_cost_usd,
+            "turn_count": self.turn_count,
+            "permission_denials": copy.deepcopy(self.permission_denials),
+            "model_usage": {
+                name: {
+                    "model": e.model,
+                    "input_tokens": e.input_tokens,
+                    "output_tokens": e.output_tokens,
+                    "cache_read_tokens": e.cache_read_tokens,
+                    "cache_write_tokens": e.cache_write_tokens,
+                    "cost_usd": e.cost_usd,
+                    "api_calls": e.api_calls,
+                }
+                for name, e in self.model_usage.items()
+            },
+            "current_model": self._current_model,
+            "active_model_override": self._active_model_override,
+            "fallback_model": self.fallback_model,
+            "max_budget_usd": self.max_budget_usd,
+            "output_truncation_count": self.output_truncation_count,
+        }
+        self._emit(StateEvent.SNAPSHOT_CREATED, {"label": label, "turn": self.turn_count})
+        logger.info(f"快照已创建: {label} (turn={self.turn_count})")
+        return snapshot
+
+    def restore_snapshot(self, snapshot: Dict[str, Any]) -> bool:
+        """从快照恢复状态
+
+        Args:
+            snapshot: create_snapshot 生成的快照字典
+
+        Returns:
+            是否恢复成功
+        """
+        try:
+            label = snapshot.get("label", "")
+            self.messages = copy.deepcopy(snapshot.get("messages", []))
+
+            # 恢复 Token 追踪
+            usage = snapshot.get("total_usage", {})
+            self.total_usage = TokenUsage(
+                prompt_tokens=usage.get("prompt_tokens", 0),
+                completion_tokens=usage.get("completion_tokens", 0),
+                total_tokens=usage.get("total_tokens", 0),
+            )
+            self.total_cost_usd = snapshot.get("total_cost_usd", 0.0)
+            self.turn_count = snapshot.get("turn_count", 0)
+            self.permission_denials = copy.deepcopy(snapshot.get("permission_denials", []))
+
+            # 恢复每模型使用量
+            self.model_usage = {}
+            for name, data in snapshot.get("model_usage", {}).items():
+                entry = ModelUsageEntry(model=data["model"])
+                entry.input_tokens = data.get("input_tokens", 0)
+                entry.output_tokens = data.get("output_tokens", 0)
+                entry.cache_read_tokens = data.get("cache_read_tokens", 0)
+                entry.cache_write_tokens = data.get("cache_write_tokens", 0)
+                entry.cost_usd = data.get("cost_usd", 0.0)
+                entry.api_calls = data.get("api_calls", 0)
+                self.model_usage[name] = entry
+
+            self._current_model = snapshot.get("current_model")
+            self._active_model_override = snapshot.get("active_model_override")
+            self.fallback_model = snapshot.get("fallback_model", self.fallback_model)
+            self.max_budget_usd = snapshot.get("max_budget_usd", self.max_budget_usd)
+            self.output_truncation_count = snapshot.get("output_truncation_count", 0)
+
+            self._emit(StateEvent.SNAPSHOT_RESTORED, {"label": label, "turn": self.turn_count})
+            logger.info(f"快照已恢复: {label} (turn={self.turn_count})")
+            return True
+
+        except Exception as e:
+            logger.error(f"快照恢复失败: {e}")
+            return False
+
     # ========== Token 追踪 ==========
 
     def record_usage(self, usage, model: Optional[str] = None) -> None:
@@ -278,6 +462,20 @@ class SessionState:
 
         # 总成本（从每模型记录汇总）
         self.total_cost_usd = sum(e.cost_usd for e in self.model_usage.values())
+
+        # 发布用量事件
+        self._emit(StateEvent.USAGE_RECORDED, {
+            "model": model_name,
+            "total_tokens": self.total_usage.total_tokens,
+            "cost_usd": self.total_cost_usd,
+        })
+
+        # 预算检查
+        if self.is_budget_exceeded():
+            self._emit(StateEvent.BUDGET_EXCEEDED, {
+                "cost": self.total_cost_usd,
+                "budget": self.max_budget_usd,
+            })
 
     def set_current_model(self, model: str) -> None:
         """设置当前模型名（用于 record_usage 自动归类）"""
@@ -327,12 +525,17 @@ class SessionState:
             "reason": reason,
             "timestamp": datetime.now().isoformat(),
         })
+        self._emit(StateEvent.PERMISSION_DENIED, {
+            "tool": tool_name,
+            "reason": reason,
+        })
 
     # ========== 中断控制 ==========
 
     def abort(self) -> None:
         """触发中断信号"""
         self.abort_event.set()
+        self._emit(StateEvent.ABORT_TRIGGERED, {})
 
     def is_aborted(self) -> bool:
         """检查是否已触发中断"""
@@ -341,6 +544,7 @@ class SessionState:
     def clear_abort(self) -> None:
         """清除中断信号"""
         self.abort_event.clear()
+        self._emit(StateEvent.ABORT_CLEARED, {})
 
     # ========== 模型管理 ==========
 
@@ -368,6 +572,7 @@ class SessionState:
         self.last_turn_usage = TokenUsage()
         self.output_truncation_count = 0
         self.reset_model_override()
+        self._emit(StateEvent.QUERY_STARTED, {"turn": self.turn_count})
 
     def elapsed_ms(self) -> int:
         """返回自 start_query 以来的毫秒数"""
@@ -378,6 +583,7 @@ class SessionState:
     def increment_turn(self) -> None:
         """增加轮次计数"""
         self.turn_count += 1
+        self._emit(StateEvent.TURN_INCREMENTED, {"turn": self.turn_count})
 
     # ========== 结果生成 ==========
 
@@ -407,6 +613,7 @@ class SessionState:
         """清空消息历史（保留 token/cost 累计）"""
         self.messages = []
         self.turn_count = 0
+        self._emit(StateEvent.MESSAGE_CLEARED, {})
 
     def reset_all(self) -> None:
         """完全重置所有状态"""

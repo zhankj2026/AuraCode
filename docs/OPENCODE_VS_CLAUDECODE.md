@@ -1,6 +1,6 @@
 # opencode 状态汇总与 Claude Code 差异分析
 
-> 更新日期: 2026-06-14 | 最新提交: sess1+hook1
+> 更新日期: 2026-06-14 | 最新提交: cmd2+state1+skill1
 
 ---
 
@@ -10,9 +10,9 @@
 |------|--------|----------|
 | **core/** | 7 | AgentLoop + SessionState + SessionStore + Memory + Context + Subagent + Message |
 | **tools/builtin/** | 31 | read/write/replace/grep/find/glob/lsp/web/todo/ask/powershell/plan_mode/subagent/tool_search/sleep/config/notebook_edit/repl/task_manager/brief... |
-| **commands/builtin/** | 29 | commit/compact/diff/context/plan/init/bridge/skills/status/subagents/review/benchmark/history/cost/doctor/model/export/clear/mcp/resume/hooks... |
+| **commands/builtin/** | 32 | commit/compact/diff/context/plan/init/bridge/skills/status/subagents/review/benchmark/history/cost/doctor/model/export/clear/mcp/resume/hooks/memory/permissions/config-edit... |
 | **bridge/** | 7 | REST+WebSocket 远程控制, 多会话管理, JWT认证, Web UI |
-| **skills/** | 5域 | simplify/verify/debug/batch/update-config |
+| **skills/** | 7域 | simplify/verify/debug/batch/update-config + 用户自定义创建/删除 + 多源自动发现 |
 | **plugins/** | 3 | 插件加载器 + 示例插件 |
 | **hooks/** | 3 | 14种事件 + 配置文件驱动加载 + 执行日志 (Pre/Post/Stop/UserMessage/Session/Notification/Subagent/ToolError/PreCompact/PostCompact/ContextWarning) |
 | **permissions/** | 2 | normal/auto/plan/bypass 四级权限 |
@@ -59,7 +59,7 @@
 | 维度 | Claude Code | opencode | 完成度 |
 |------|------------|----------|--------|
 | **核心循环** | query.ts 1730行 while(true) 状态机 | agent_loop.py ~1250行 TAOR循环 | **~75%** |
-| **状态管理** | AppStateStore.ts ~100字段 + Store发布订阅 | SessionState + ModelPricing + 每模型独立追踪 | **~70%** |
+| **状态管理** | AppStateStore.ts ~100字段 + Store发布订阅 | SessionState + ModelPricing + 每模型独立追踪 + 发布订阅 + 快照/恢复 | **~80%** |
 | **查询结果** | QueryEngine yield result (含duration/cost/usage/denials) | QueryResult dataclass (相同字段) | **~90%** |
 | **错误恢复(6层)** | Fallback→Prompt-too-long→MaxOutput→StopHook→Budget→ImageStrip | 全部 6 层 (含 StopHook recovery_hint + ImageStrip) | **~80%** |
 | **上下文压缩** | Snip→Microcompact→ContextCollapse→AutoCompact | ImageStrip→Snip→Microcompact→ContextCollapse→AutoCompact (5级) | **~90%** |
@@ -67,8 +67,8 @@
 | **中断控制** | AbortController (Web标准) | threading.Event (Python等价) | **~85%** |
 | **权限系统** | 复杂权限上下文 + Bridge远程审批 | PermissionManager 4级模式 + Bridge远程审批 | **~75%** |
 | **工具系统** | 42+ 工具目录 | 31 文件 48 工具 (+repl/task/brief) | **~75%** |
-| **技能系统** | 3 个内置 + 用户自定义 | 5 域技能（simplify/verify/debug/batch/update-config） | **~70%** |
-| **命令系统** | 15+ 命令 + 82子目录 | 26 个命令 (含 cost/doctor/model/export/clear) | **~75%** |
+| **技能系统** | 3 个内置 + 用户自定义 | 7 域技能 + 用户自定义创建/删除 + 多源自动发现 + 搜索/重载 | **~80%** |
+| **命令系统** | 15+ 命令 + 82子目录 | 32 个命令 (含 memory/permissions/config-edit) | **~80%** |
 | **记忆系统** | memdir 8文件 + MEMORY.md索引 | memory.py + memdir迁移 + LLM语义召回 + 新鲜度 | **~80%** |
 | **Bridge远程控制** | 完整Remote Bridge (JWT+WebSocket+ReplBridge) | 简化版 (FastAPI+WebSocket+多会话管理) | **~70%** |
 | **MCP集成** | 原生TS MCP | Python MCP客户端 (5传输层+插件+技能+热加载+缓存) | **~75%** |
@@ -83,12 +83,13 @@
 
 ## 四、关键差距（下一步可改进方向）
 
-### 已完成（本轮 — MCP深化+会话持久化+Hook生态）
+### 已完成（本轮 — 命令补齐+发布订阅+技能增强）
 
-- **MCP 集成深化** (~65% → 75%): McpManager 热加载/注销/重启 + 工具结果 TTL 缓存 + /mcp 命令（status/add/remove/restart/tools/cache）
-- **会话持久化**: SessionStore JSON 持久化 + 会话列表/搜索/恢复 + /resume 命令 + CLI 退出自动保存
-- **Hook 生态扩展** (~65% → 75%): HookConfigLoader 配置文件驱动 + 执行日志 + /hooks 命令（config/log/reload/add/remove/test/stats）
-- **命令系统**: 26 → 29 个命令（新增 /mcp, /resume, /hooks）
+- **命令系统补齐** (~75% → 80%): /memory (记忆查看/搜索/添加/编辑/删除/导出) + /permissions (模式切换/allow/deny规则管理) + /config-edit (运行时配置热编辑/diff/reload)
+- **SessionState 发布/订阅** (~70% → 80%): 14种事件类型 + subscribe/subscribe_all/unsubscribe + 状态快照 create_snapshot/restore_snapshot + 事件广播集成到 record_usage/abort/turn 等
+- **技能系统增强** (~70% → 80%): 多源自动发现 (builtin + 项目级 + 用户级) + 用户自定义 Skill 创建/删除 + 搜索/重载 + 来源分组展示
+- **命令系统**: 29 → 32 个命令（新增 /memory, /permissions, /config-edit）
+- **Skills 命令增强**: 新增 create/delete/search/reload/info/sources 子命令
 
 ### 已完成（上一轮 — Hook生态+命令+恢复）
 
@@ -117,33 +118,31 @@
 
 ### 下一步高优先级
 
-1. **命令系统继续补齐** (75% → 80%)
-   - /memory — 记忆管理（查看/搜索/编辑/删除）
-   - /permissions — 权限规则管理（查看/添加/移除）
-   - /config-edit — 运行时配置热编辑
+1. **上下文管理增强** (90% → 95%)
+   - 智能上下文窗口可视化（当前 token 分布图）
+   - 自动压缩阈值调整（根据模型上下文窗口动态计算）
 
-2. **SessionState 发布/订阅** (70% → 75%)
-   - 状态变更事件广播（on_change 回调）
-   - 状态快照/恢复机制
+2. **工具生态完善** (75% → 80%)
+   - 工具执行链追踪（调用树 + 耗时分布）
+   - 工具结果缓存（避免重复执行）
 
-3. **技能系统增强** (70% → 75%)
-   - 用户自定义 skill 创建/管理流程
-   - skill 元数据索引与自动发现
+3. **多模型支持深化** (75% → 80%)
+   - 模型切换历史记录与回滚
+   - 多模型并行对比（同一 prompt 多模型响应）
 
 ---
 
 ## 五、总结
 
-opencode 已覆盖 Claude Code **约 87% 的核心能力**：
+opencode 已覆盖 Claude Code **约 89% 的核心能力**：
 
 | 完成度 | 模块 |
 |--------|------|
 | **~95%** | 流式输出（含精确中断控制）、查询结果结构化报告 |
 | **~90%** | 上下文压缩(5级流水线，含ImageStrip) |
 | **~85%** | 事件回调、中断控制、记忆系统、子代理、Token追踪(每模型定价) |
-| **~80%** | 核心循环、输出模式、错误恢复(6层) |
-| **~75%** | 工具系统(48工具)、命令系统(29命令)、多模型支持、Bridge远程控制、MCP集成(热加载+缓存)、Hook系统(配置驱动) |
-| **~70%** | 状态管理、技能系统 |
+| **~80%** | 核心循环、状态管理(发布/订阅+快照)、技能系统(多源自动发现)、命令系统(32命令)、输出模式、错误恢复(6层) |
+| **~75%** | 工具系统(48工具)、多模型支持、Bridge远程控制、MCP集成(热加载+缓存)、Hook系统(配置驱动) |
 | **~65%** | Hook系统(14事件+短路+配置+日志) |
 
-整体架构已进入 **"生态完善+持久化+配置驱动"** 阶段。本轮新增 MCP 热加载管理器、会话持久化存储、Hook 配置文件驱动，命令数 26→29，MCP 集成从 65% 升至 75%，Hook 系统从 65% 升至 75%。
+整体架构已进入 **“交互完善+状态可观测+生态开放”** 阶段。本轮新增 /memory、/permissions、/config-edit 三个命令（命令数 29→32），SessionState 新增发布/订阅 + 快照/恢复（14种事件），SkillManager 支持多源自动发现 + 用户自定义创建/删除。状态管理从 70% 升至 80%，技能系统从 70% 升至 80%，命令系统从 75% 升至 80%。
