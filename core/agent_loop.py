@@ -285,9 +285,20 @@ class AgentLoop:
 
             try:
                 # P2: 上下文压缩（消息过多时自动触发）
-                if len(self.state.messages) > self.context_compact_threshold:
+                msg_count = len(self.state.messages)
+                if msg_count > self.context_compact_threshold:
                     self._compact_messages()
                 else:
+                    # ContextWarning: 接近阈值时发出警告
+                    warn_threshold = int(self.context_compact_threshold * 0.8)
+                    if msg_count > warn_threshold and msg_count > 8:
+                        if not getattr(self, '_ctx_warned', False):
+                            self._ctx_warned = True
+                            self._fire_lifecycle_hook("ContextWarning", {
+                                "message_count": msg_count,
+                                "threshold": self.context_compact_threshold,
+                                "usage_pct": round(msg_count / self.context_compact_threshold * 100),
+                            })
                     # Microcompact: 轻量级预清理（在触发全量压缩之前运行）
                     self._microcompact()
                     # ContextCollapse: 折叠过时文件读取
@@ -379,11 +390,14 @@ class AgentLoop:
                     })
 
                     # Step 5: 工具结果以 role=tool 返回（OpenAI 规范）
-                    result_content = (
-                        tool_result.get("result")
-                        if tool_result.get("success")
-                        else f"Error: {tool_result.get('error')}"
-                    )
+                    if tool_result.get("success"):
+                        result_content = tool_result.get("result")
+                    else:
+                        result_content = f"Error: {tool_result.get('error')}"
+                        # StopHook 恢复: 附加恢复提示让 LLM 尝试替代方案
+                        recovery = tool_result.get("recovery_hint")
+                        if recovery:
+                            result_content += f"\n\nHint: {recovery}"
                     self.state.messages.append({
                         "role": "tool",
                         "tool_call_id": tool_call.id,
@@ -966,14 +980,20 @@ class AgentLoop:
 
                 # 检查钩子是否阻止执行
                 if not pre_result.allow:
-                    error_msg = f"钩子阻止执行: {pre_result.block_reason}"
+                    error_msg = f"Hook denied: {pre_result.block_reason or 'blocked by hook'}"
                     logger.warning(error_msg)
 
                     # 触发 PostToolUseFailure 钩子
                     if self.hooks_enabled:
                         self._trigger_failure_hook(tool_name, arguments, error_msg)
 
-                    return {"success": False, "error": error_msg}
+                    # StopHook 恢复: 提供恢复提示让 LLM 尝试替代方案
+                    recovery_hint = (
+                        f"Tool '{tool_name}' was blocked by safety hook. "
+                        f"Reason: {pre_result.block_reason or 'unknown'}. "
+                        f"Please try an alternative approach or ask the user for guidance."
+                    )
+                    return {"success": False, "error": error_msg, "recovery_hint": recovery_hint}
 
                 # 应用钩子修改的输入
                 if pre_result.modified_input:
@@ -1065,14 +1085,14 @@ class AgentLoop:
             error_msg = f"工具执行失败: {str(e)}"
             logger.error(error_msg, exc_info=True)
 
-            # 触发 PostToolUseFailure 钩子
+            # 触发 ToolError 钩子（区分异常 vs 权限拒绝）
             if self.hooks_enabled:
-                self._trigger_failure_hook(tool_name, arguments, error_msg)
+                self._trigger_tool_error_hook(tool_name, arguments, e)
 
             return {"success": False, "error": error_msg}
 
     def _trigger_failure_hook(self, tool_name: str, arguments: Dict[str, Any], error: str):
-        """触发工具失败钩子"""
+        """触发工具失败钩子（权限拒绝/钩子阻止）"""
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -1090,7 +1110,88 @@ class AgentLoop:
         except Exception as e:
             logger.warning(f"PostToolUseFailure 钩子执行失败: {e}")
 
+    def _trigger_tool_error_hook(self, tool_name: str, arguments: Dict[str, Any], exception: Exception):
+        """触发 ToolError 钩子（工具抛出异常时，区别于权限拒绝）"""
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            loop.run_until_complete(
+                self.hook_manager.execute_hooks(
+                    "ToolError",
+                    tool_name=tool_name,
+                    input=arguments,
+                    exception=exception,
+                    error_type=type(exception).__name__,
+                )
+            )
+
+            loop.close()
+        except Exception as e:
+            logger.warning(f"ToolError 钩子执行失败: {e}")
+
     # ========== 上下文压缩（多级） ==========
+
+    # ImageStrip: 大内容阈值（超过此值的工具结果将被剥离 base64/大数据）
+    IMAGE_STRIP_THRESHOLD = 8 * 1024  # 8KB
+
+    def _image_strip(self) -> int:
+        """
+        Level -1 - ImageStrip: 剥离消息中的大图片和 base64 数据。
+
+        参考 Claude Code 的 ImageStrip 机制：
+        当上下文包含 base64 编码的图片或大型嵌入数据时，
+        将其替换为占位符，释放 token 空间。
+
+        Returns:
+            剥离的消息数
+        """
+        import re
+        msgs = self.state.messages
+        stripped = 0
+
+        # base64 图片模式
+        b64_pattern = re.compile(
+            r'data:image/[^;]+;base64,[A-Za-z0-9+/=]{100,}'
+        )
+
+        for i, msg in enumerate(msgs):
+            if msg.get("role") == "system":
+                continue
+
+            content = msg.get("content", "")
+            if not isinstance(content, str):
+                continue
+
+            # 检查是否包含 base64 图片
+            if b64_pattern.search(content):
+                new_content = b64_pattern.sub(
+                    "[image stripped]", content
+                )
+                if new_content != content:
+                    msgs[i] = {**msg, "content": new_content}
+                    stripped += 1
+                    continue
+
+            # 检查超大工具结果（可能是大型 JSON/diff）
+            if msg.get("role") == "tool" and len(content) > self.IMAGE_STRIP_THRESHOLD:
+                # 保留前 200 字符 + 后 200 字符
+                preview_start = content[:200]
+                preview_end = content[-200:]
+                msgs[i] = {
+                    "role": "tool",
+                    "tool_call_id": msg.get("tool_call_id", ""),
+                    "content": (
+                        f"{preview_start}\n"
+                        f"... [image-stripped: {len(content)} chars] ...\n"
+                        f"{preview_end}"
+                    ),
+                }
+                stripped += 1
+
+        if stripped > 0:
+            logger.info(f"ImageStrip: stripped {stripped} messages")
+        return stripped
 
     def _snip_old_tool_results(self):
         """
@@ -1432,6 +1533,18 @@ class AgentLoop:
         if len(msgs) <= 4:
             return
 
+        # 触发 PreCompact 钩子
+        if self.hooks_enabled:
+            self._fire_lifecycle_hook("PreCompact", {
+                "message_count": len(msgs),
+                "threshold": self.context_compact_threshold,
+            })
+
+        # Level -1: ImageStrip — 剥离大图片和嵌入数据
+        img_stripped = self._image_strip()
+        if img_stripped:
+            logger.info(f"ImageStrip removed {img_stripped} large content blocks")
+
         # 先执行 Snip
         self._snip_old_tool_results()
 
@@ -1480,6 +1593,15 @@ class AgentLoop:
             "messages_before": old_count,
             "messages_after": len(new_msgs),
         })
+
+        # 触发 PostCompact 钩子
+        if self.hooks_enabled:
+            self._fire_lifecycle_hook("PostCompact", {
+                "messages_before": old_count,
+                "messages_after": len(new_msgs),
+                "mc_cleared": mc_cleared,
+                "cc_folded": cc_folded,
+            })
 
     # ========== 事件回调 ==========
 

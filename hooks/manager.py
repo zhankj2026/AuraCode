@@ -23,25 +23,37 @@ class HookResult:
         modified_input: 修改后的输入参数
         block_reason: 阻止执行的原因
         additional_context: 附加的上下文信息
+        short_circuit: 短路标志 — 即使 allow=True 也终止后续钩子
+        metadata: 附加结构化数据（供下游消费）
     """
     allow: bool = True
     modified_input: Optional[Dict[str, Any]] = None
     block_reason: Optional[str] = None
     additional_context: Optional[str] = None
+    short_circuit: bool = False
+    metadata: Optional[Dict[str, Any]] = None
 
 
 # 定义钩子事件类型
 HOOK_EVENTS = [
+    # ── 工具生命周期 ──
     "PreToolUse",          # 工具执行前
     "PostToolUse",         # 工具执行后（成功）
     "PostToolUseFailure",  # 工具执行失败时
+    "ToolError",           # 工具抛出异常时（区别于权限拒绝）
+    # ── 会话生命周期 ──
     "SessionStart",        # 会话开始时
     "SessionEnd",          # 会话结束时
     "Stop",                # Agent Loop 停止时（正常/异常/中断）
     "UserMessage",         # 用户消息提交时
     "Notification",        # 系统通知（预算警告、压缩事件等）
+    # ── 子代理 ──
     "SubagentStart",       # 子代理启动时
     "SubagentStop",        # 子代理结束时
+    # ── 上下文管理 ──
+    "PreCompact",          # 上下文压缩开始前
+    "PostCompact",         # 上下文压缩完成后
+    "ContextWarning",      # 上下文接近阈值警告
 ]
 
 
@@ -186,11 +198,18 @@ class HookManager:
                     logger.warning(f"钩子处理函数应返回 HookResult 实例")
                     continue
                 
-                # 如果不允许,立即返回
+                # 如果不允许,立即返回（短路）
                 if not result.allow:
                     logger.warning(
                         f"钩子阻止执行: {event} "
                         f"(原因: {result.block_reason})"
+                    )
+                    return result
+                
+                # 短路机制: 即使 allow=True 也可终止后续钩子
+                if result.short_circuit:
+                    logger.debug(
+                        f"钩子触发短路: {event} [ID: {hook['id']}]"
                     )
                     return result
                 

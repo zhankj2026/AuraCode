@@ -15,3 +15,8 @@ from . import context_command
 from . import init_command
 from . import skill_commands
 from . import bridge_command
+
+# New commands (Hook/Command/Recovery expansion)
+from . import review_command
+from . import benchmark_command
+from . import history_command
