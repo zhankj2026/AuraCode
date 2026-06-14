@@ -18,8 +18,12 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import time
+import yaml
+import threading
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from mcp.client.base import MCPClient, MCPSessionExpiredError
@@ -172,15 +176,19 @@ class McpManager:
             raise ValueError(f"Tool '{tool_name}' not found on server '{server_name}'")
 
         state.call_count += 1
+        rec_id = self.record_call_start(server_name, tool_name, arguments)
         try:
             result = await adapter.execute(arguments)
+            self.record_call_end(rec_id, success=True)
             return result
         except MCPSessionExpiredError:
             state.connected = False
             state.error_count += 1
+            self.record_call_end(rec_id, success=False, error="session_expired")
             raise
         except Exception as e:
             state.error_count += 1
+            self.record_call_end(rec_id, success=False, error=str(e)[:200])
             raise
 
     async def call_tool_cached(
@@ -193,6 +201,8 @@ class McpManager:
         # 检查缓存
         entry = self._cache.get(cache_key)
         if entry and not entry.is_expired():
+            rec_id = self.record_call_start(server_name, tool_name, arguments)
+            self.record_call_end(rec_id, success=True, cached=True)
             return entry.result
 
         # 调用
@@ -284,3 +294,287 @@ class McpManager:
     def clear_cache(self):
         """清空缓存"""
         self._cache.clear()
+
+    # ═══════════ 服务器自动发现 ═══════════
+
+    def discover_servers(self, search_paths: List[str] = None) -> List[Dict[str, Any]]:
+        """
+        自动发现 MCP 服务器配置
+
+        搜索位置:
+        1. .mcp/ 目录下的 *.json / *.yaml 文件
+        2. config.yaml 中的 mcp_servers 节
+        3. package.json 中的 mcp 字段
+        4. 自定义路径列表
+
+        Returns:
+            发现的服务器配置列表 [{name, type, config_dict, source}]
+        """
+        discovered = []
+        if search_paths is None:
+            search_paths = []
+
+        # 1. .mcp/ 目录
+        mcp_dir = Path(".mcp")
+        if mcp_dir.exists():
+            for f in mcp_dir.iterdir():
+                if f.suffix in ('.json', '.yaml', '.yml'):
+                    try:
+                        cfg = self._parse_config_file(str(f))
+                        if cfg:
+                            discovered.append({
+                                "name": f.stem,
+                                "type": cfg.get("type", "stdio"),
+                                "config_dict": cfg,
+                                "source": str(f),
+                            })
+                    except Exception as e:
+                        logger.warning(f"Failed to parse MCP config {f}: {e}")
+
+        # 2. config.yaml 中的 mcp_servers 节
+        for cfg_file in ["config.yaml", "config.yml", ".opencode.yaml"]:
+            p = Path(cfg_file)
+            if p.exists():
+                try:
+                    with open(p, 'r', encoding='utf-8') as fh:
+                        data = yaml.safe_load(fh) or {}
+                    servers = data.get("mcp_servers", data.get("mcpServers", {}))
+                    if isinstance(servers, dict):
+                        for name, cfg in servers.items():
+                            if isinstance(cfg, dict):
+                                discovered.append({
+                                    "name": name,
+                                    "type": cfg.get("type", "stdio"),
+                                    "config_dict": cfg,
+                                    "source": f"{cfg_file}#mcp_servers",
+                                })
+                except Exception as e:
+                    logger.debug(f"No MCP config in {cfg_file}: {e}")
+
+        # 3. package.json
+        pkg = Path("package.json")
+        if pkg.exists():
+            try:
+                with open(pkg, 'r', encoding='utf-8') as fh:
+                    data = json.load(fh)
+                mcp_cfg = data.get("mcp", data.get("mcpServers", {}))
+                if isinstance(mcp_cfg, dict):
+                    for name, cfg in mcp_cfg.items():
+                        if isinstance(cfg, dict):
+                            discovered.append({
+                                "name": name,
+                                "type": cfg.get("type", "stdio"),
+                                "config_dict": cfg,
+                                "source": "package.json#mcp",
+                            })
+            except Exception:
+                pass
+
+        # 4. 自定义搜索路径
+        for sp in search_paths:
+            p = Path(sp)
+            if p.exists() and p.suffix in ('.json', '.yaml', '.yml'):
+                try:
+                    cfg = self._parse_config_file(str(p))
+                    if cfg:
+                        discovered.append({
+                            "name": p.stem,
+                            "type": cfg.get("type", "stdio"),
+                            "config_dict": cfg,
+                            "source": str(p),
+                        })
+                except Exception:
+                    pass
+
+        logger.info(f"Discovered {len(discovered)} MCP servers")
+        return discovered
+
+    def _parse_config_file(self, path: str) -> Optional[Dict]:
+        """解析 MCP 配置文件"""
+        with open(path, 'r', encoding='utf-8') as f:
+            if path.endswith('.json'):
+                return json.load(f)
+            else:
+                return yaml.safe_load(f) or {}
+
+    async def auto_register_discovered(self, search_paths: List[str] = None) -> Dict[str, McpServerState]:
+        """
+        自动发现并注册所有 MCP 服务器
+
+        Returns:
+            {server_name: McpServerState} 已注册的服务器
+        """
+        discovered = self.discover_servers(search_paths)
+        registered = {}
+
+        for item in discovered:
+            name = item["name"]
+            if name in self.servers:
+                logger.debug(f"MCP server '{name}' already registered, skipping")
+                continue
+
+            config = self._dict_to_config(name, item["config_dict"])
+            if config:
+                try:
+                    state = await self.add_server(name, config)
+                    registered[name] = state
+                    logger.info(f"Auto-registered MCP server: {name} ({item['source']})")
+                except Exception as e:
+                    logger.warning(f"Failed to auto-register '{name}': {e}")
+
+        return registered
+
+    def _dict_to_config(self, name: str, cfg: Dict) -> Optional[McpServerConfig]:
+        """将字典转换为 McpServerConfig"""
+        cfg_type = cfg.get("type", "stdio")
+        try:
+            if cfg_type == "stdio":
+                return McpStdioServerConfig(
+                    command=cfg.get("command", ""),
+                    args=cfg.get("args", []),
+                    env=cfg.get("env", {}),
+                )
+            elif cfg_type in ("sse", "http"):
+                return McpSSEServerConfig(
+                    url=cfg.get("url", ""),
+                    headers=cfg.get("headers", {}),
+                )
+            else:
+                logger.warning(f"Unknown MCP config type: {cfg_type}")
+                return None
+        except Exception as e:
+            logger.error(f"Failed to create config for '{name}': {e}")
+            return None
+
+    # ═══════════ 工具调用链追踪 ═══════════
+
+    @dataclass
+    class _CallRecord:
+        """调用记录"""
+        server: str
+        tool: str
+        arguments: Dict[str, Any]
+        start_time: float
+        end_time: Optional[float] = None
+        success: bool = True
+        error: Optional[str] = None
+        cached: bool = False
+
+        @property
+        def duration_ms(self) -> float:
+            if self.end_time:
+                return (self.end_time - self.start_time) * 1000
+            return 0.0
+
+        def to_dict(self) -> Dict[str, Any]:
+            return {
+                "server": self.server,
+                "tool": self.tool,
+                "arguments": self.arguments,
+                "start_time": self.start_time,
+                "duration_ms": round(self.duration_ms, 2),
+                "success": self.success,
+                "error": self.error,
+                "cached": self.cached,
+            }
+
+    def _ensure_call_tracking(self):
+        """延迟初始化调用追踪"""
+        if not hasattr(self, '_call_history'):
+            self._call_history: List = []
+            self._call_history_lock = threading.Lock()
+            self._call_stats: Dict[str, Dict[str, int]] = {}
+
+    def record_call_start(self, server: str, tool: str, arguments: Dict) -> int:
+        """记录调用开始，返回记录ID"""
+        self._ensure_call_tracking()
+        rec = self._CallRecord(
+            server=server, tool=tool, arguments=arguments,
+            start_time=time.time()
+        )
+        with self._call_history_lock:
+            self._call_history.append(rec)
+            return len(self._call_history) - 1
+
+    def record_call_end(self, record_id: int, success: bool = True,
+                        error: str = None, cached: bool = False):
+        """记录调用结束"""
+        self._ensure_call_tracking()
+        with self._call_history_lock:
+            if 0 <= record_id < len(self._call_history):
+                rec = self._call_history[record_id]
+                rec.end_time = time.time()
+                rec.success = success
+                rec.error = error
+                rec.cached = cached
+
+                # 更新统计
+                key = f"{rec.server}::{rec.tool}"
+                if key not in self._call_stats:
+                    self._call_stats[key] = {"calls": 0, "errors": 0, "cached": 0,
+                                              "total_ms": 0}
+                self._call_stats[key]["calls"] += 1
+                if not success:
+                    self._call_stats[key]["errors"] += 1
+                if cached:
+                    self._call_stats[key]["cached"] += 1
+                self._call_stats[key]["total_ms"] += rec.duration_ms
+
+    def get_call_history(self, limit: int = 50, server: str = None,
+                         tool: str = None) -> List[Dict[str, Any]]:
+        """
+        获取调用链历史
+
+        Args:
+            limit: 返回条数
+            server: 按服务器过滤
+            tool: 按工具过滤
+
+        Returns:
+            调用记录列表
+        """
+        self._ensure_call_tracking()
+        with self._call_history_lock:
+            records = list(self._call_history)
+
+        if server:
+            records = [r for r in records if r.server == server]
+        if tool:
+            records = [r for r in records if r.tool == tool]
+
+        return [r.to_dict() for r in records[-limit:]]
+
+    def get_call_stats(self) -> Dict[str, Dict[str, Any]]:
+        """
+        获取调用链统计 (按 server::tool 分组)
+
+        Returns:
+            {server::tool: {calls, errors, cached, total_ms, avg_ms, error_rate}}
+        """
+        self._ensure_call_tracking()
+        result = {}
+        for key, s in self._call_stats.items():
+            avg = s["total_ms"] / s["calls"] if s["calls"] > 0 else 0
+            err_rate = s["errors"] / s["calls"] if s["calls"] > 0 else 0
+            result[key] = {
+                **s,
+                "avg_ms": round(avg, 2),
+                "error_rate": round(err_rate, 4),
+            }
+        return result
+
+    def get_debug_report(self) -> Dict[str, Any]:
+        """
+        获取 MCP 调试报告
+
+        Returns:
+            包含服务器状态、调用统计、缓存统计的完整报告
+        """
+        return {
+            "servers": self.get_status(),
+            "call_stats": self.get_call_stats(),
+            "call_history_count": len(self._call_history) if hasattr(self, '_call_history') else 0,
+            "cache": self.get_cache_stats(),
+            "registered_tools": len(self._registered_tool_names),
+            "timestamp": time.time(),
+        }

@@ -687,3 +687,328 @@ Do NOT return raw search results or verbose logs."""
 
 # 全局 Subagent 管理器实例
 subagent_manager = SubagentManager(max_concurrent=5)
+
+
+# ── 子代理间消息传递 ─────────────────────────────────────────
+
+@dataclass
+class AgentMessage:
+    """子代理间消息"""
+    sender: str          # 发送者 agent_id
+    receiver: str        # 接收者 agent_id ("*" 表示广播)
+    content: str         # 消息内容
+    msg_type: str = "info"  # info/request/result/error
+    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+
+
+class AgentMailbox:
+    """
+    子代理邮箱 — 支持代理间消息传递与协作
+
+    功能:
+    - send(): 发送消息到指定代理或广播
+    - receive(): 获取指定代理的所有消息
+    - request_and_wait(): 发送请求并等待响应
+    - get_conversation(): 获取两个代理间的对话历史
+    """
+
+    def __init__(self):
+        self._messages: Dict[str, List[AgentMessage]] = {}  # agent_id -> messages
+        self._events: Dict[str, threading.Event] = {}  # msg_id -> event
+        self._lock = threading.Lock()
+        self._message_count = 0
+
+    def send(self, sender: str, receiver: str, content: str,
+             msg_type: str = "info") -> str:
+        """
+        发送消息
+
+        Args:
+            sender: 发送者 agent_id
+            receiver: 接收者 agent_id ("*" 表示广播)
+            content: 消息内容
+            msg_type: 消息类型
+
+        Returns:
+            message_id
+        """
+        msg = AgentMessage(
+            sender=sender, receiver=receiver,
+            content=content, msg_type=msg_type
+        )
+        msg_id = f"msg_{self._message_count}"
+        self._message_count += 1
+
+        with self._lock:
+            if receiver == "*":
+                # 广播给所有已注册的代理
+                for aid in self._messages:
+                    if aid != sender:
+                        self._messages[aid].append(msg)
+            else:
+                if receiver not in self._messages:
+                    self._messages[receiver] = []
+                self._messages[receiver].append(msg)
+
+        logger.debug(f"Message {msg_id}: {sender} → {receiver} [{msg_type}]")
+        return msg_id
+
+    def receive(self, agent_id: str, msg_type: str = None,
+                since: str = None) -> List[AgentMessage]:
+        """
+        接收消息
+
+        Args:
+            agent_id: 接收者 agent_id
+            msg_type: 过滤消息类型
+            since: 只返回此时间之后的消息
+
+        Returns:
+            消息列表
+        """
+        with self._lock:
+            msgs = list(self._messages.get(agent_id, []))
+
+        if msg_type:
+            msgs = [m for m in msgs if m.msg_type == msg_type]
+        if since:
+            msgs = [m for m in msgs if m.timestamp > since]
+
+        return msgs
+
+    def register_agent(self, agent_id: str):
+        """注册代理邮箱"""
+        with self._lock:
+            if agent_id not in self._messages:
+                self._messages[agent_id] = []
+
+    def unregister_agent(self, agent_id: str):
+        """注销代理邮箱"""
+        with self._lock:
+            self._messages.pop(agent_id, None)
+
+    def get_conversation(self, agent_a: str, agent_b: str) -> List[AgentMessage]:
+        """获取两个代理间的对话历史"""
+        with self._lock:
+            msgs_a = [m for m in self._messages.get(agent_a, [])
+                      if m.sender == agent_b or m.receiver == agent_b]
+            msgs_b = [m for m in self._messages.get(agent_b, [])
+                      if m.sender == agent_a or m.receiver == agent_a]
+
+        # 合并并按时间排序
+        all_msgs = msgs_a + msgs_b
+        seen = set()
+        unique = []
+        for m in all_msgs:
+            key = (m.sender, m.receiver, m.timestamp, m.content)
+            if key not in seen:
+                seen.add(key)
+                unique.append(m)
+
+        return sorted(unique, key=lambda m: m.timestamp)
+
+    def get_stats(self) -> Dict[str, Any]:
+        """邮箱统计"""
+        with self._lock:
+            return {
+                "registered_agents": len(self._messages),
+                "total_messages": self._message_count,
+                "pending_by_agent": {
+                    aid: len(msgs) for aid, msgs in self._messages.items()
+                },
+            }
+
+
+class SubagentOrchestrator:
+    """
+    子代理编排器 — 协调多个子代理执行复杂任务
+
+    功能:
+    - 编排多代理工作流 (串行/并行/条件)
+    - 共享上下文传递
+    - 结果聚合分析
+    """
+
+    def __init__(self, manager: SubagentManager = None):
+        self.manager = manager or subagent_manager
+        self.mailbox = AgentMailbox()
+        self._shared_context: Dict[str, Any] = {}
+        self._workflow_results: Dict[str, List[Dict]] = {}
+
+    def set_shared_context(self, key: str, value: Any):
+        """设置共享上下文"""
+        self._shared_context[key] = value
+
+    def get_shared_context(self, key: str, default: Any = None) -> Any:
+        """获取共享上下文"""
+        return self._shared_context.get(key, default)
+
+    def run_sequential(self, tasks: List[Dict[str, Any]],
+                       model: str = "glm-4-plus") -> List[Dict]:
+        """
+        串行执行任务链 (前一个结果自动注入下一个上下文)
+
+        Args:
+            tasks: [{"task": "...", "agent_type": "..."}]
+            model: 默认模型
+
+        Returns:
+            结果列表
+        """
+        results = []
+        prev_result = None
+
+        for i, task_def in enumerate(tasks):
+            # 注入前序结果
+            task_text = task_def["task"]
+            if prev_result:
+                task_text += f"\n\n---\n前置任务结果:\n{prev_result[:500]}"
+
+            # 注入共享上下文
+            if self._shared_context:
+                ctx_str = json.dumps(self._shared_context, ensure_ascii=False)[:300]
+                task_text = f"[共享上下文] {ctx_str}\n\n{task_text}"
+
+            agent_type = task_def.get("agent_type", "general")
+            handle = self.manager.spawn_subagent(
+                task=task_text, model=model,
+                agent_type=agent_type, run_in_background=False
+            )
+
+            result_dict = {
+                "step": i + 1,
+                "task": task_def["task"][:100],
+                "agent_id": handle.agent_id,
+                "agent_type": agent_type,
+                "status": handle.status,
+                "result_preview": (handle.result or "")[:200],
+            }
+            results.append(result_dict)
+
+            # 邮箱注册并传递结果
+            self.mailbox.register_agent(handle.agent_id)
+            if handle.result:
+                prev_result = handle.result
+
+        return results
+
+    def run_parallel(self, tasks: List[Dict[str, Any]],
+                     model: str = "glm-4-plus",
+                     timeout: float = 120.0) -> List[Dict]:
+        """
+        并行执行多个任务并等待全部完成
+
+        Args:
+            tasks: [{"task": "...", "agent_type": "..."}]
+            model: 默认模型
+            timeout: 超时秒数
+
+        Returns:
+            结果列表
+        """
+        handles = []
+        results = []
+
+        # 注入共享上下文
+        ctx_prefix = ""
+        if self._shared_context:
+            ctx_str = json.dumps(self._shared_context, ensure_ascii=False)[:300]
+            ctx_prefix = f"[共享上下文] {ctx_str}\n\n"
+
+        # 全部启动
+        for task_def in tasks:
+            task_text = ctx_prefix + task_def["task"]
+            agent_type = task_def.get("agent_type", "general")
+            handle = self.manager.spawn_subagent(
+                task=task_text, model=model,
+                agent_type=agent_type, run_in_background=True
+            )
+            self.mailbox.register_agent(handle.agent_id)
+            handles.append((task_def, handle))
+
+        # 全部等待
+        for task_def, handle in handles:
+            try:
+                handle.thread.join(timeout=timeout)
+                status = handle.status
+                result_preview = (handle.result or "")[:200]
+            except Exception as e:
+                status = "error"
+                result_preview = str(e)[:200]
+
+            results.append({
+                "task": task_def["task"][:100],
+                "agent_id": handle.agent_id,
+                "agent_type": task_def.get("agent_type", "general"),
+                "status": status,
+                "result_preview": result_preview,
+            })
+
+        return results
+
+    def aggregate_results(self, results: List[Dict],
+                         strategy: str = "summary") -> Dict[str, Any]:
+        """
+        聚合多个子代理的执行结果
+
+        Args:
+            results: run_parallel 或 run_sequential 返回的结果列表
+            strategy: 聚合策略
+                - "summary": 汇总各任务状态与关键发现
+                - "merge": 合并所有结果文本
+                - "vote": 多数投票(对同类任务)
+
+        Returns:
+            聚合报告
+        """
+        total = len(results)
+        completed = sum(1 for r in results if r.get("status") == "completed")
+        failed = sum(1 for r in results if r.get("status") == "failed")
+
+        report = {
+            "total_tasks": total,
+            "completed": completed,
+            "failed": failed,
+            "success_rate": completed / total if total > 0 else 0,
+            "strategy": strategy,
+            "tasks": results,
+        }
+
+        if strategy == "summary":
+            # 汇总模式: 提取每个任务的关键发现
+            findings = []
+            for r in results:
+                preview = r.get("result_preview", "")
+                # 提取关键行
+                lines = preview.split("\n")
+                key_lines = [l for l in lines if any(
+                    kw in l.lower() for kw in ["##", "**", "found", "error", "建议", "发现"]
+                )]
+                findings.append({
+                    "agent_id": r.get("agent_id", "?"),
+                    "task": r.get("task", "")[:60],
+                    "key_findings": key_lines[:3],
+                })
+            report["findings"] = findings
+
+        elif strategy == "merge":
+            # 合并模式: 拼接所有结果
+            merged = []
+            for r in results:
+                merged.append(f"### Agent {r.get('agent_id', '?')} - {r.get('task', '')[:50]}")
+                merged.append(r.get("result_preview", "(无结果)"))
+                merged.append("")
+            report["merged_text"] = "\n".join(merged)
+
+        elif strategy == "vote":
+            # 投票模式: 统计多数一致的结果
+            from collections import Counter
+            previews = [r.get("result_preview", "")[:50] for r in results]
+            counter = Counter(previews)
+            if counter:
+                most_common = counter.most_common(1)[0]
+                report["consensus"] = most_common[0]
+                report["agreement_count"] = most_common[1]
+                report["agreement_rate"] = most_common[1] / total
+
+        return report
