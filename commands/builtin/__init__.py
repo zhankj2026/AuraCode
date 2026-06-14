@@ -43,3 +43,6 @@ from . import tools_command
 
 # New commands (Session rewind + Plugin management)
 from . import rewind_command
+
+# New commands (Security review)
+from . import security_review_command

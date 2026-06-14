@@ -87,7 +87,7 @@ def resume_handler(args, loop=None):
         success = restore_session_to_loop(loop, record)
         if success:
             meta = record.meta
-            return (
+            result = (
                 f"✅ 已恢复会话 [{meta.session_id[:8]}]\n"
                 f"   模型: {meta.model}\n"
                 f"   消息: {meta.message_count} 条\n"
@@ -95,6 +95,18 @@ def resume_handler(args, loop=None):
                 f"   Token: {meta.total_tokens}\n"
                 f"   首条: {meta.first_prompt[:80]}"
             )
+            # AwaySummary: 生成离开时摘要
+            try:
+                from services.away_summary import generate_away_summary, get_away_summary_service
+                messages = record.messages or []
+                if messages:
+                    summary_result = generate_away_summary(messages)
+                    if summary_result.success:
+                        svc = get_away_summary_service()
+                        result += "\n\n" + svc.format_display(summary_result)
+            except Exception:
+                pass
+            return result
         else:
             return "❌ 恢复失败，请检查日志。"
 
@@ -170,7 +182,7 @@ def resume_handler(args, loop=None):
     success = restore_session_to_loop(loop, record)
     if success:
         meta = record.meta
-        return (
+        result = (
             f"✅ 已恢复会话 [{meta.session_id[:8]}]\n"
             f"   模型: {meta.model}\n"
             f"   消息: {meta.message_count} 条\n"
@@ -180,6 +192,18 @@ def resume_handler(args, loop=None):
             f"   首条: {meta.first_prompt[:80]}\n"
             f"\n💡 消息已加载到当前会话，继续对话即可。"
         )
+        # AwaySummary: 生成离开时摘要
+        try:
+            from services.away_summary import generate_away_summary, get_away_summary_service
+            messages = record.messages or []
+            if messages:
+                summary_result = generate_away_summary(messages)
+                if summary_result.success:
+                    svc = get_away_summary_service()
+                    result += "\n\n" + svc.format_display(summary_result)
+        except Exception:
+            pass
+        return result
     else:
         return "❌ 恢复失败，请检查日志。"
 
