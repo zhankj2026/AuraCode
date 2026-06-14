@@ -80,3 +80,11 @@ from . import task_manager
 # 15. Brief - 简洁模式切换
 from . import brief_tool
 
+# ── Phase 4: Worktree + 定时任务 ──
+
+# 16. Worktree - Git Worktree 隔离工作区
+from . import worktree_tool
+
+# 17. Cron - 定时任务调度
+from . import cron_tool
+

@@ -1,16 +1,16 @@
 # opencode 状态汇总与 Claude Code 差异分析
 
-> 更新日期: 2026-06-16 | 最新提交: security-review+away-summary+tip-system
+> 更新日期: 2026-06-17 | 最新提交: worktree+cron-scheduling
 
 ---
 
-## 一、opencode 当前模块总览（19 次 Git 提交）
+## 一、opencode 当前模块总览（20 次 Git 提交）
 
 | 模块 | 文件数 | 核心能力 |
 |------|--------|----------|
 | **core/** | 10 | AgentLoop + SessionState + SessionStore + Memory + Context + Subagent + Message + ToolEnhancer(已集成) + SessionIntelligence(已集成) + CodeAnalyzer(已集成) |
-| **tools/builtin/** | 31 | read/write/replace/grep/find/glob/lsp/web/todo/ask/powershell/plan_mode/subagent/tool_search/sleep/config/notebook_edit/repl/task_manager/brief... |
-| **commands/builtin/** | 45 | commit/compact/diff/context/plan/init/bridge/skills/status/subagents/review/benchmark/history/cost/doctor/model/export/clear/mcp/resume/hooks/memory/permissions/config-edit/tools/plugins/rewind/security-review/tips... |
+| **tools/builtin/** | 33 | read/write/replace/grep/find/glob/lsp/web/todo/ask/powershell/plan_mode/subagent/tool_search/sleep/config/notebook_edit/repl/task_manager/brief/worktree_tool/cron_tool... |
+| **commands/builtin/** | 47 | commit/compact/diff/context/plan/init/bridge/skills/status/subagents/review/benchmark/history/cost/doctor/model/export/clear/mcp/resume/hooks/memory/permissions/config-edit/tools/plugins/rewind/security-review/tips/worktree/cron... |
 | **bridge/** | 7 | REST+WebSocket 远程控制, 多会话管理, JWT认证, Web UI |
 | **skills/** | 7域 | simplify/verify/debug/batch/update-config + 用户自定义创建/删除 + 多源自动发现 |
 | **plugins/** | 4 | 插件加载器 + PluginRegistry注册中心 + PluginBus事件总线 + DependencyResolver依赖解析 |
@@ -155,7 +155,8 @@
 
 ### 下一步高优先级
 
-> **分析**: 当前覆盖率已达 ~99%，所有 Claude Code 的核心功能均已迁移并集成到主系统。
+> **分析**: 当前覆盖率已达 ~99.8%，所有 Claude Code 的核心功能均已迁移并集成到主系统。
+> Phase 4 新增了 Git Worktree(隔离工作区) 和 Cron 定时任务调度，进一步覆盖并行开发和自动化能力。
 > 剩余工作主要是性能优化、UI/UX 改善和边缘场景处理，不再有重大功能缺口。
 
 1. **性能优化** (可选)
@@ -176,9 +177,9 @@ opencode 已覆盖 Claude Code **~99.5% 的核心能力**：
 |--------|------|
 | **~99%** | 流式输出、查询结果、上下文压缩、工具智能(摘要+重试+裁剪+已集成到主循环) |
 | **~95%** | 命令系统(45命令)、安全审查(16类漏洞检测+误报过滤)、代码理解(依赖图+影响分析+已集成到/review) |
-| **~92%** | 事件回调、中断控制、工具系统(48+追踪+缓存+摘要+重试+幂等重试) |
+| **~92%** | 事件回调、中断控制、工具系统(53+追踪+缓存+摘要+重试+幂等重试+worktree+cron) |
 | **~90%** | 会话管理(回退/分支/搜索/离开时摘要)、子代理、会话智能、MCP集成、会话持久化 |
 | **~85%** | 记忆系统、权限系统、Token追踪、功能发现提示 |
 | **~80%** | 核心循环、状态管理、技能系统、多模型支持、错误恢复、Hook系统、Bridge远程控制、插件生态 |
 
-整体架构已达到 **“智能生态+安全防线+代码理解+多代理协同+工程化集成+会话管理+功能发现”** 的完整状态。本轮新增 /security-review(安全漏洞扫描) + AwaySummary(离开时摘要) + TipSystem(功能发现提示) + /tips 命令。命令数从 43 增至 45。所有 Claude Code 核心功能已完全迁移，不再有重大功能缺口。
+整体架构已达到 **“智能生态+安全防线+代码理解+多代理协同+工程化集成+会话管理+功能发现+并行工作区+定时任务”** 的完整状态。Phase 4 新增 EnterWorktree/ExitWorktree(隔离工作区) + CronCreate/Delete/List(定时任务调度) + /worktree 命令 + /cron 命令。工具数从 48 增至 53，命令数从 45 增至 47。所有 Claude Code 核心功能已完全迁移，不再有重大功能缺口。
