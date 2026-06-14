@@ -40,3 +40,6 @@ from . import config_edit_command
 
 # New commands (Tool tracking + Model enhancement)
 from . import tools_command
+
+# New commands (Session rewind + Plugin management)
+from . import rewind_command

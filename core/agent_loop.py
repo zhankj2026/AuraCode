@@ -291,6 +291,16 @@ class AgentLoop:
             logger.info(f"Turn {self.state.turn_count}/{self.max_iterations}")
             self._emit_event("turn_start", {"turn": self.state.turn_count})
 
+            # Rewind 检查点: 在每轮开始前保存快照
+            try:
+                from commands.builtin.rewind_command import get_checkpoint_manager
+                get_checkpoint_manager().create_checkpoint(
+                    self.state.turn_count,
+                    list(self.state.messages),
+                )
+            except Exception:
+                pass  # 检查点创建失败不影响主流程
+
             # 中断检查
             if self.state.is_aborted():
                 logger.info("Aborted by user")
