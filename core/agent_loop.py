@@ -52,6 +52,7 @@ from plugins.loader import PluginLoader
 from hooks.manager import HookManager, HookResult
 from skills.loader import SkillManager
 from skills.context import SkillContext
+from core.tool_enhancer import get_tool_enhancer
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +137,9 @@ class AgentLoop:
 
         # 8. 事件回调（供 Bridge 等外部系统订阅）
         self.event_callback = None
+
+        # 9. 工具智能增强（自动摘要 + 幂等重试 + 输出裁剪）
+        self.tool_enhancer = get_tool_enhancer()
 
         logger.info(f"AgentLoop initialized with model={self.model}, "
                    f"max_iterations={self.max_iterations}, "
@@ -1072,68 +1076,88 @@ class AgentLoop:
             logger.info(f"Tool {tool_name} cache hit")
             return {"success": True, "result": cached_result, "_cached": True}
 
-        # 4. 执行工具
-        try:
-            handler = tool["handler"]
-            result = handler(**arguments)
+        # 4. 执行工具（含 ToolEnhancer 幂等重试）
+        max_retries = 3
+        attempt = 0
+        while attempt <= max_retries:
+            try:
+                handler = tool["handler"]
+                result = handler(**arguments)
 
-            # 5. 输出截断
-            if isinstance(result, str) and len(result.splitlines()) > 500:
-                lines = result.splitlines()
-                truncated = (
-                    lines[:250] +
-                    [f"... (截断 {len(lines) - 500} 行) ..."] +
-                    lines[-250:]
-                )
-                result = "\n".join(truncated)
-
-            logger.info(f"Tool {tool_name} executed successfully")
-
-            # 追踪 + 缓存写入
-            tracker.end_call(success=True, result_preview=str(result)[:200])
-            cache.put(tool_name, arguments, result)
-
-            # 4.5 ContextCollapse: 追踪文件操作
-            self._track_file_operation(tool_name, arguments)
-
-            # 6. PostToolUse 钩子
-            if self.hooks_enabled and self.hook_manager:
-                try:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-
-                    post_result = loop.run_until_complete(
-                        self.hook_manager.execute_hooks(
-                            "PostToolUse",
-                            tool_name=tool_name,
-                            input=arguments,
-                            output={"success": True, "result": result}
-                        )
+                # 5. 输出截断（基础保护）
+                if isinstance(result, str) and len(result.splitlines()) > 500:
+                    lines = result.splitlines()
+                    truncated = (
+                        lines[:250] +
+                        [f"... (截断 {len(lines) - 500} 行) ..."] +
+                        lines[-250:]
                     )
+                    result = "\n".join(truncated)
 
-                    loop.close()
+                # 5.5 ToolEnhancer: 智能裁剪 + 摘要
+                if isinstance(result, str) and result:
+                    result = self.tool_enhancer.process_tool_result(tool_name, result)
 
-                    # 记录附加上下文
-                    if post_result.additional_context:
-                        logger.info(f"PostToolUse 钩子: {post_result.additional_context}")
+                logger.info(f"Tool {tool_name} executed successfully")
 
-                except Exception as e:
-                    logger.warning(f"PostToolUse 钩子执行失败: {e}")
+                # 追踪 + 缓存写入
+                tracker.end_call(success=True, result_preview=str(result)[:200])
+                cache.put(tool_name, arguments, result)
 
-            return {"success": True, "result": result}
+                # 4.5 ContextCollapse: 追踪文件操作
+                self._track_file_operation(tool_name, arguments)
 
-        except Exception as e:
-            error_msg = f"工具执行失败: {str(e)}"
-            logger.error(error_msg, exc_info=True)
+                # 6. PostToolUse 钩子
+                if self.hooks_enabled and self.hook_manager:
+                    try:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
 
-            # 追踪失败
-            tracker.end_call(success=False, error=str(e)[:200])
+                        post_result = loop.run_until_complete(
+                            self.hook_manager.execute_hooks(
+                                "PostToolUse",
+                                tool_name=tool_name,
+                                input=arguments,
+                                output={"success": True, "result": result}
+                            )
+                        )
 
-            # 触发 ToolError 钩子（区分异常 vs 权限拒绝）
-            if self.hooks_enabled:
-                self._trigger_tool_error_hook(tool_name, arguments, e)
+                        loop.close()
 
-            return {"success": False, "error": error_msg}
+                        if post_result.additional_context:
+                            logger.info(f"PostToolUse 钩子: {post_result.additional_context}")
+
+                    except Exception as e:
+                        logger.warning(f"PostToolUse 钩子执行失败: {e}")
+
+                return {"success": True, "result": result}
+
+            except Exception as e:
+                error_msg = f"工具执行失败: {str(e)}"
+                logger.error(error_msg, exc_info=True)
+
+                # ToolEnhancer: 幂等工具自动重试
+                attempt += 1
+                if attempt <= max_retries and self.tool_enhancer.should_retry(tool_name, str(e), attempt):
+                    delay = self.tool_enhancer.get_retry_delay(attempt)
+                    logger.info(f"Tool {tool_name} failed, retrying ({attempt}/{max_retries}) after {delay:.1f}s")
+                    self._emit_event("tool_retry", {
+                        "tool_name": tool_name,
+                        "attempt": attempt,
+                        "error": str(e)[:200],
+                        "delay": delay,
+                    })
+                    time.sleep(delay)
+                    continue  # 重试
+
+                # 不再重试，记录失败
+                tracker.end_call(success=False, error=str(e)[:200])
+
+                # 触发 ToolError 钩子
+                if self.hooks_enabled:
+                    self._trigger_tool_error_hook(tool_name, arguments, e)
+
+                return {"success": False, "error": error_msg}
 
     def _trigger_failure_hook(self, tool_name: str, arguments: Dict[str, Any], error: str):
         """触发工具失败钩子（权限拒绝/钩子阻止）"""

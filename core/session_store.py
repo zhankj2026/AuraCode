@@ -18,6 +18,9 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from pathlib import Path
 
+# 会话智能增强集成
+from core.session_intelligence import SessionBrancher, SessionSearch, SessionIntelligence
+
 logger = logging.getLogger(__name__)
 
 
@@ -96,7 +99,13 @@ class SessionStore:
         """
         self.sessions_dir = sessions_dir or _default_sessions_dir()
         os.makedirs(self.sessions_dir, exist_ok=True)
-        logger.debug(f"SessionStore initialized: {self.sessions_dir}")
+
+        # 会话智能增强
+        self._intelligence = SessionIntelligence()
+        self._brancher = self._intelligence.brancher
+        self._search = self._intelligence.search
+
+        logger.debug(f"SessionStore initialized: {self.sessions_dir} (with SessionIntelligence)")
 
     def _session_path(self, session_id: str) -> str:
         """获取会话文件路径"""
@@ -181,10 +190,112 @@ class SessionStore:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(record.to_dict(), f, ensure_ascii=False, indent=2)
             logger.info(f"Session saved: {meta.session_id} ({meta.message_count} msgs, {path})")
+            # 自动索引到 SessionSearch
+            self._auto_index_session(meta.session_id, messages)
         except Exception as e:
             logger.error(f"Failed to save session: {e}")
 
         return meta
+
+    # ========== 会话智能增强方法 ==========
+
+    def _auto_index_session(self, session_id: str, messages: List[Dict[str, Any]]):
+        """自动将保存的会话加入搜索索引"""
+        try:
+            self._search.index_session(session_id, messages)
+        except Exception as e:
+            logger.debug(f"Auto-index failed for {session_id}: {e}")
+
+    def search_sessions_enhanced(
+        self,
+        query: str,
+        limit: int = 20,
+        role_filter: Optional[str] = None,
+        session_filter: Optional[List[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        增强的跨会话全文检索（基于 SessionSearch 倒排索引）
+
+        与 search_sessions() 不同，此方法搜索消息内容而非元数据，
+        支持角色过滤和评分排序。
+        """
+        # 自动索引未索引的会话
+        indexed_count = len(self._search._index)
+        all_sessions = self.list_sessions(limit=100)
+        if indexed_count < len(all_sessions):
+            for meta in all_sessions:
+                if meta.session_id not in self._search._index:
+                    record = self.load_session(meta.session_id)
+                    if record:
+                        self._search.index_session(meta.session_id, record.messages)
+
+        return self._search.query(
+            query, limit=limit,
+            role_filter=role_filter,
+            session_filter=session_filter,
+        )
+
+    def create_branch(
+        self,
+        session_id: str,
+        from_index: int,
+        branch_name: str,
+    ) -> Optional[Dict[str, Any]]:
+        """从会话的指定位置创建分支"""
+        record = self.load_session(session_id)
+        if not record:
+            logger.warning(f"Cannot branch: session {session_id} not found")
+            return None
+
+        branch = self._brancher.create_branch(
+            record.messages, from_index, branch_name,
+            parent_id=session_id,
+        )
+        logger.info(
+            f"Branch created: {branch.branch_id} ({branch_name}) "
+            f"from session {session_id} at index {from_index}"
+        )
+        return {
+            "branch_id": branch.branch_id,
+            "name": branch.name,
+            "parent_id": branch.parent_id,
+            "fork_point": branch.fork_point,
+            "message_count": len(branch.messages),
+            "created_at": branch.created_at,
+        }
+
+    def evaluate_branch(self, branch_id: str, criteria: Optional[Dict] = None) -> Optional[float]:
+        """评估分支质量 (0-1 分)"""
+        return self._brancher.evaluate_branch(branch_id, criteria)
+
+    def merge_branches(
+        self,
+        branch_ids: List[str],
+        strategy: str = "best",
+    ) -> Optional[List[Dict[str, Any]]]:
+        """合并多个分支 (best/concat/interleave)"""
+        return self._brancher.merge_branches(branch_ids, strategy)
+
+    def get_branch_info(self) -> Dict[str, Any]:
+        """获取所有分支信息"""
+        branches = self._brancher.list_branches()
+        return {
+            "total": len(branches),
+            "branches": [
+                {
+                    "id": b.get("branch_id", ""),
+                    "name": b.get("name", ""),
+                    "parent": b.get("parent_id"),
+                    "messages": len(b.get("messages", [])),
+                    "created": b.get("created_at", ""),
+                }
+                for b in branches
+            ],
+        }
+
+    def get_search_stats(self) -> Dict[str, Any]:
+        """获取搜索索引统计"""
+        return self._search.get_stats()
 
     def load_session(self, session_id: str) -> Optional[SessionRecord]:
         """

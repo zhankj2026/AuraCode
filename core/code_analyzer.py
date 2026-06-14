@@ -32,6 +32,15 @@ from collections import defaultdict, deque
 logger = logging.getLogger(__name__)
 
 
+def _safe_relpath(path: str, start: str) -> str:
+    """安全的 os.path.relpath，处理 Windows 跨盘符问题"""
+    try:
+        return os.path.relpath(path, start)
+    except ValueError:
+        # Windows 跨盘符时 relpath 会抛出 ValueError
+        return path
+
+
 # ── 依赖图 ─────────────────────────────────────────────────
 
 
@@ -190,7 +199,7 @@ class DependencyGraph:
                 if top not in self.IGNORE_MODULES:
                     imports.append(module)
 
-        rel_path = os.path.relpath(file_path, self.project_root)
+        rel_path = _safe_relpath(file_path, self.project_root)
         module_name = rel_path.replace(os.sep, '.').replace('.py', '')
 
         return DepNode(
@@ -215,7 +224,7 @@ class DependencyGraph:
                 # 相对/绝对路径
                 imports.append(module)
 
-        rel_path = os.path.relpath(file_path, self.project_root)
+        rel_path = _safe_relpath(file_path, self.project_root)
         module_name = rel_path.replace(os.sep, '/')
 
         return DepNode(
@@ -411,7 +420,7 @@ class ImpactAnalyzer:
         for cf in changed_files:
             # 规范化路径
             cf_abs = os.path.abspath(cf)
-            cf_rel = os.path.relpath(cf_abs, self.graph.project_root)
+            cf_rel = _safe_relpath(cf_abs, self.graph.project_root)
 
             # 尝试匹配图中的节点
             matched = self._find_matching_node(cf_abs, cf_rel)
@@ -520,7 +529,7 @@ class ImpactAnalyzer:
             f"直接影响 ({len(result.direct_impact)} 个):",
         ])
         for f in result.direct_impact[:15]:
-            lines.append(f"  - {os.path.relpath(f, self.graph.project_root)}")
+            lines.append(f"  - {_safe_relpath(f, self.graph.project_root)}")
         if len(result.direct_impact) > 15:
             lines.append(f"  ... 还有 {len(result.direct_impact) - 15} 个")
 
@@ -530,7 +539,7 @@ class ImpactAnalyzer:
                 f"间接影响 ({len(result.indirect_impact)} 个):",
             ])
             for f in result.indirect_impact[:10]:
-                lines.append(f"  - {os.path.relpath(f, self.graph.project_root)}")
+                lines.append(f"  - {_safe_relpath(f, self.graph.project_root)}")
             if len(result.indirect_impact) > 10:
                 lines.append(f"  ... 还有 {len(result.indirect_impact) - 10} 个")
 
@@ -540,7 +549,7 @@ class ImpactAnalyzer:
                 f"受影响测试 ({len(result.test_files_affected)} 个):",
             ])
             for f in result.test_files_affected:
-                lines.append(f"  - {os.path.relpath(f, self.graph.project_root)}")
+                lines.append(f"  - {_safe_relpath(f, self.graph.project_root)}")
 
         lines.extend([
             "",

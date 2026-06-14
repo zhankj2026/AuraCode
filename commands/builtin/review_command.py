@@ -3,6 +3,7 @@ Review 命令 — AI 代码审查
 
 对当前工作区的 Git 变更进行 AI 驱动的代码审查，
 输出结构化报告（严重性/类别/建议）。
+集成 CodeAnalyzer 进行变更影响分析。
 参考 Claude Code 的 /review skill。
 """
 import os
@@ -82,7 +83,33 @@ def review_handler(args: list, loop=None) -> str:
             for i in info:
                 lines.append(f"  • [{i['category']}] {i['message']}")
 
-    # 4. 如果 LLM 可用，进行 AI 审查
+    # 4. 变更影响分析 (CodeAnalyzer 集成)
+    try:
+        from core.code_analyzer import CodeAnalyzer
+        project_root = os.getcwd()
+        analyzer = CodeAnalyzer(project_root=project_root)
+        graph = analyzer.build_dependency_graph()
+
+        # 获取变更文件列表
+        changed_files = list(stats.get("_changed_files", set()))
+        if not changed_files:
+            # 从 diff 中提取文件名
+            changed_files = _extract_changed_files(diff_output)
+
+        if changed_files and graph:
+            impact = analyzer.analyze_impact(changed_files)
+            if impact:
+                lines.append("")
+                lines.append("─" * 40)
+                lines.append("📊 变更影响分析:")
+                report = analyzer.generate_impact_report(changed_files)
+                lines.append(report)
+    except ImportError:
+        pass  # CodeAnalyzer 不可用时跳过
+    except Exception as e:
+        lines.append(f"\n⚠️ 影响分析失败: {e}")
+
+    # 5. 如果 LLM 可用，进行 AI 审查
     if loop:
         lines.append("")
         lines.append("─" * 40)
@@ -93,6 +120,17 @@ def review_handler(args: list, loop=None) -> str:
     lines.append("")
     lines.append("=" * 60)
     return "\n".join(lines)
+
+
+def _extract_changed_files(diff: str) -> list:
+    """从 diff 输出中提取变更文件列表"""
+    files = []
+    for line in diff.splitlines():
+        if line.startswith("diff --git"):
+            parts = line.split(" b/")
+            if len(parts) > 1:
+                files.append(parts[-1])
+    return files
 
 
 def _run_git(*args) -> str:
