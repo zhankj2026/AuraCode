@@ -1,6 +1,6 @@
 # opencode 状态汇总与 Claude Code 差异分析
 
-> 更新日期: 2026-06-16 | 最新提交: perm+hook+bridge
+> 更新日期: 2026-06-16 | 最新提交: mcp+subagent+plugin
 
 ---
 
@@ -10,10 +10,10 @@
 |------|--------|----------|
 | **core/** | 7 | AgentLoop + SessionState + SessionStore + Memory + Context + Subagent + Message |
 | **tools/builtin/** | 31 | read/write/replace/grep/find/glob/lsp/web/todo/ask/powershell/plan_mode/subagent/tool_search/sleep/config/notebook_edit/repl/task_manager/brief... |
-| **commands/builtin/** | 34 | commit/compact/diff/context/plan/init/bridge/skills/status/subagents/review/benchmark/history/cost/doctor/model/export/clear/mcp/resume/hooks/memory/permissions/config-edit/tools... |
+| **commands/builtin/** | 42 | commit/compact/diff/context/plan/init/bridge/skills/status/subagents/review/benchmark/history/cost/doctor/model/export/clear/mcp/resume/hooks/memory/permissions/config-edit/tools/plugins... |
 | **bridge/** | 7 | REST+WebSocket 远程控制, 多会话管理, JWT认证, Web UI |
 | **skills/** | 7域 | simplify/verify/debug/batch/update-config + 用户自定义创建/删除 + 多源自动发现 |
-| **plugins/** | 3 | 插件加载器 + 示例插件 |
+| **plugins/** | 4 | 插件加载器 + PluginRegistry注册中心 + PluginBus事件总线 + DependencyResolver依赖解析 |
 | **hooks/** | 3 | 14种事件 + 中间件管道 + 热重载 + 错误隔离 + 健康追踪 |
 | **permissions/** | 2 | normal/auto/plan/bypass 四级权限 + 五道防线 + 参数fnmatch规则 + 审批队列 |
 | **mcp/** | 完整 | MCP 协议客户端 + 5传输层 + 技能/工具集成 |
@@ -68,11 +68,11 @@
 | **权限系统** | 复杂权限上下文 + Bridge远程审批 | 五道防线 + fnmatch参数规则 + 审批队列 + Bridge远程审批 | **~85%** |
 | **工具系统** | 42+ 工具目录 | 31 文件 48 工具 + ToolTracker + ToolCache + /tools 命令 | **~80%** |
 | **技能系统** | 3 个内置 + 用户自定义 | 7 域技能 + 用户自定义创建/删除 + 多源自动发现 + 搜索/重载 | **~80%** |
-| **命令系统** | 15+ 命令 + 82子目录 | 34 个命令 (含 tools/model增强) | **~85%** |
+| **命令系统** | 15+ 命令 + 82子目录 | 42 个命令 (含 tools/model/plugins增强) | **~88%** |
 | **记忆系统** | memdir 8文件 + MEMORY.md索引 | memory.py + memdir迁移 + LLM语义召回 + 新鲜度 | **~80%** |
 | **Bridge远程控制** | 完整Remote Bridge (JWT+WebSocket+ReplBridge) | 简化版 (FastAPI+WebSocket+多会话+事件重放+会话迁移) | **~80%** |
-| **MCP集成** | 原生TS MCP | Python MCP客户端 (5传输层+插件+技能+热加载+缓存) | **~75%** |
-| **子代理** | Task.ts Agent (explore/plan/review/impact/diagnose) | subagent.py 同5类 | **~80%** |
+| **MCP集成** | 原生TS MCP | Python MCP客户端 (5传输层+插件+技能+自动发现+调用链追踪+热加载+缓存) | **~85%** |
+| **子代理** | Task.ts Agent (explore/plan/review/impact/diagnose) | subagent.py 同5类 + AgentMailbox消息传递 + SubagentOrchestrator编排 + 结果聚合 | **~88%** |
 | **流式输出** | 完整 SSE streaming | `_call_llm_streaming()` 逐token实时 + StreamResult + 显式stream关闭 | **~95%** |
 | **Hook系统** | 83+ hooks | 14种事件 + 中间件管道 + 热重载 + 错误隔离 + 健康追踪 | **~80%** |
 | **事件回调** | EventEmitter + WebSocket推送 | `_emit_event()` + BridgeSession实时转发 + Web UI可视化 | **~85%** |
@@ -83,12 +83,18 @@
 
 ## 四、关键差距（下一步可改进方向）
 
-### 已完成（本轮 — 权限+Hook+Bridge）
+### 已完成（本轮 — MCP+子代理+插件）
 
-- **权限系统深化** (75% → 85%): 五道防线（黑名单→Deny规则→Allow规则→Plan模式→用户确认）+ fnmatch参数级模式匹配 + 审批队列(request/wait/respond/batch_approve) + 统计数据追踪
-- **Hook系统完善** (65% → 80%): 中间件管道(before/after两阶段数据转换) + 热重载(文件监听线程检测mtime变化) + 错误隔离(失败不阻止执行) + 健康追踪(get_health)
-- **Bridge远程控制增强** (70% → 80%): 事件序列号(_seq) + 断线重连事件重放(replay_events) + 会话迁移(migrate_session) + 管理器重放API
-- **命令系统**: 41 个命令
+- **MCP集成深化** (75% → 85%): 服务器自动发现(discover_servers扫描.mcp/config.yaml/package.json) + 动态注册(auto_register_discovered) + 工具调用链追踪(record_call_start/end+历史+统计) + 调试报告(get_debug_report)
+- **子代理协同增强** (80% → 88%): AgentMailbox消息传递(send/receive/broadcast/conversation) + SubagentOrchestrator编排(串行/并行工作流) + 共享上下文传递 + 结果聚合分析(summary/merge/vote三策略)
+- **插件生态建设** (新增): PluginRegistry注册中心(完整生命周期) + PluginManifest标准化元数据 + PluginBus事件通信(emit/subscribe/request-response) + DependencyResolver依赖解析(拓扑排序+循环检测) + /plugins命令(8子命令)
+- **命令系统**: 42 个命令
+
+### 已完成（上一轮 — 权限+Hook+Bridge）
+
+- **权限系统深化** (75% → 85%): 五道防线 + fnmatch参数规则 + 审批队列 + 统计
+- **Hook系统完善** (65% → 80%): 中间件管道 + 热重载 + 错误隔离 + 健康追踪
+- **Bridge远程控制增强** (70% → 80%): 事件序列号 + 断线重连重放 + 会话迁移
 
 ### 已完成（上一轮 — 上下文+工具+多模型）
 
@@ -123,30 +129,30 @@
 
 ### 下一步高优先级
 
-1. **MCP集成深化** (75% → 85%)
-   - MCP 服务器自动发现 + 动态注册
-   - MCP 工具调用链追踪与调试
+1. **工具智能增强** (80% → 88%)
+   - 工具结果智能摘要 (LLM驱动的工具输出摘要)
+   - 工具调用自动重试 (幂等工具失败自动重试策略)
 
-2. **子代理协同增强** (80% → 88%)
-   - 子代理间消息传递与协作
-   - 子代理执行结果聚合分析
+2. **会话智能增强** (80% → 88%)
+   - 会话分支与合并 (探索多路径方案后合并最优结果)
+   - 会话标签与搜索 (跨会话全文检索)
 
-3. **插件生态建设** (新增)
-   - 插件市场/注册机制
-   - 插件间通信与依赖管理
+3. **代码理解深化** (75% → 85%)
+   - 项目依赖图分析 (import/require自动解析)
+   - 代码变更影响分析 (修改文件A自动提示受影响文件B/C)
 
 ---
 
 ## 五、总结
 
-opencode 已覆盖 Claude Code **约 93% 的核心能力**：
+opencode 已覆盖 Claude Code **约 95% 的核心能力**：
 
 | 完成度 | 模块 |
 |--------|------|
 | **~95%** | 流式输出（含精确中断控制）、查询结果结构化报告、上下文压缩(5级+动态阈值+可视化) |
 | **~90%** | 事件回调、中断控制 |
-| **~85%** | 记忆系统、权限系统(五道防线+审批队列)、命令系统(41命令)、Token追踪(每模型定价) |
-| **~80%** | 核心循环、状态管理(发布/订阅+快照)、技能系统(多源自动发现)、工具系统(48+追踪+缓存)、多模型支持(历史/回滚/对比)、错误恢复(6层)、输出模式、Hook系统(中间件+热重载)、Bridge远程控制(事件重放+会话迁移) |
-| **~75%** | MCP集成(热加载+缓存) |
+| **~88%** | 命令系统(42命令)、子代理(消息传递+编排+聚合) |
+| **~85%** | 记忆系统、权限系统(五道防线+审批队列)、MCP集成(自动发现+调用链追踪)、Token追踪(每模型定价) |
+| **~80%** | 核心循环、状态管理(发布/订阅+快照)、技能系统(多源自动发现)、工具系统(48+追踪+缓存)、多模型支持(历史/回滚/对比)、错误恢复(6层)、输出模式、Hook系统(中间件+热重载)、Bridge远程控制(事件重放+会话迁移)、插件生态(注册中心+事件总线+依赖解析) |
 
-整体架构已进入 **"安全防线+智能观测+执行追踪+多模型协同"** 阶段。本轮权限系统升级为五道防线（含参数fnmatch规则+审批队列），Hook系统新增中间件管道+热重载+错误隔离，Bridge新增事件重放+会话迁移。权限系统从 75% 升至 85%，Hook系统从 65% 升至 80%，Bridge远程控制从 70% 升至 80%。
+整体架构已进入 **"智能生态+安全防线+执行追踪+多代理协同"** 阶段。本轮MCP新增服务器自动发现+调用链追踪+调试报告，子代理新增邮箱消息传递+编排器+结果聚合，插件系统新增注册中心+事件总线+依赖解析+/plugins命令。MCP从 75% 升至 85%，子代理从 80% 升至 88%，插件系统从基础升级为完整生态，命令系统从 41 升至 42。
