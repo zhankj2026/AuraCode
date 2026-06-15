@@ -474,17 +474,21 @@ class AgentLoop:
                         )
                 self._prompt_retried = False
 
-                # 瞬时网络错误（超时/连接失败等）— 轮次级重试
+                # 瞬时网络错误（超时/速率限制等）— 轮次级重试
                 # _call_llm_streaming 内部已重试 3 次，这里额外给一次轮次级机会
                 if self._is_transient_error(e) and _turn_retry_count < 1:
                     _turn_retry_count += 1
-                    wait = 5  # 等久一点再试
-                    logger.info(f"Transient error, turn-level retry in {wait}s: {e}")
-                    print(f"\n⚠️ 网络瞬时故障，{wait}s 后重试当前轮次...")
+                    is_rate_limit = self._is_rate_limit_error(e)
+                    # 速率限制用更长等待；普通超时用较短等待
+                    wait = self._get_retry_wait(e, 2) if is_rate_limit else 10
+                    error_label = "速率限制" if is_rate_limit else "网络故障"
+                    logger.info(f"Transient error, turn-level retry in {wait:.0f}s: {e}")
+                    print(f"\n⚠️ API {error_label}，{wait:.0f}s 后重试当前轮次...")
                     self._emit_event("turn_retry", {
                         "turn": self.state.turn_count,
                         "error": str(e),
-                        "wait_seconds": wait,
+                        "wait_seconds": round(wait, 1),
+                        "is_rate_limit": is_rate_limit,
                     })
                     time.sleep(wait)
                     continue
@@ -789,18 +793,66 @@ class AgentLoop:
 4. 遇到不确定的操作,先询问用户
 5. 保护用户隐私,不要泄露敏感信息"""
     
-    # 瞬时错误关键词（用于识别可重试的网络/超时错误）
+    # 瞬时错误关键词（超时/网络/服务器故障）
     _TRANSIENT_ERROR_KEYWORDS = (
         "timeout", "timed out", "connection", "network",
         "temporary failure", "server_error", "502", "503", "504",
-        "rate limit", "rate_limit", "overloaded",
         "reset by peer", "broken pipe", "eof occurred",
+        "overloaded",
+    )
+
+    # 速率限制关键词（需要更长的等待时间）
+    _RATE_LIMIT_KEYWORDS = (
+        "rate limit", "rate_limit", "rate-limit", "ratelimit",
+        "too many requests", "429",
+        "速率限制", "请求频率", "请求次数",
+        "1302",  # GLM 速率限制错误码
     )
 
     def _is_transient_error(self, error: Exception) -> bool:
-        """判断是否为瞬时可重试错误（超时/网络/服务器过载等）"""
+        """判断是否为瞬时可重试错误（超时/网络/服务器过载/速率限制等）"""
         error_str = str(error).lower()
-        return any(kw in error_str for kw in self._TRANSIENT_ERROR_KEYWORDS)
+        return (
+            any(kw in error_str for kw in self._TRANSIENT_ERROR_KEYWORDS)
+            or self._is_rate_limit_error(error)
+        )
+
+    def _is_rate_limit_error(self, error: Exception) -> bool:
+        """判断是否为速率限制错误（429 / GLM 1302 等）"""
+        # 类型检查（openai 库 RateLimitError）
+        if type(error).__name__ in ('RateLimitError', 'RateLimit'):
+            return True
+        error_str = str(error).lower()
+        return any(kw in error_str for kw in self._RATE_LIMIT_KEYWORDS)
+
+    def _get_retry_wait(self, error: Exception, attempt: int) -> float:
+        """
+        根据错误类型计算重试等待时间。
+        - 速率限制：30s/60s/90s（GLM 等 API 的速率窗口通常 60s）
+        - 普通瞬时错误：指数退避 2s/4s/8s
+        - 若有 Retry-After header，优先使用
+        """
+        import random
+
+        if self._is_rate_limit_error(error):
+            # 优先读取 Retry-After 响应头
+            retry_after = getattr(error, 'response', None)
+            if retry_after:
+                try:
+                    ra = retry_after.headers.get('retry-after')
+                    if ra and ra.isdigit():
+                        return min(int(ra), 120)  # 最多等 120s
+                except Exception:
+                    pass
+            # 速率限制：长等待 + 随机抖动避免雪崩
+            base = 30 * attempt
+            jitter = random.uniform(0, 5)
+            return base + jitter
+        else:
+            # 普通瞬时错误：快速指数退避 + 小抖动
+            base = 2 ** attempt
+            jitter = random.uniform(0, 1)
+            return base + jitter
 
     def _call_llm_streaming(self) -> StreamResult:
         """
@@ -921,19 +973,22 @@ class AgentLoop:
                 )
 
             except Exception as e:
-                # 瞬时错误（超时/网络/服务器过载）→ 指数退避重试
+                # 瞬时错误（超时/网络/速率限制）→ 按错误类型计算等待时间并重试
                 if self._is_transient_error(e) and attempt < max_retries:
-                    wait = 2 ** attempt  # 2s, 4s
+                    wait = self._get_retry_wait(e, attempt)
+                    is_rate_limit = self._is_rate_limit_error(e)
+                    error_label = "速率限制" if is_rate_limit else "网络故障"
                     logger.warning(
-                        f"LLM streaming 瞬时错误 (attempt {attempt}/{max_retries}): {e}, "
-                        f"retrying in {wait}s..."
+                        f"LLM streaming {error_label} (attempt {attempt}/{max_retries}): {e}, "
+                        f"retrying in {wait:.1f}s..."
                     )
-                    print(f"\n⚠️ API 请求失败 ({e}), {wait}s 后重试 ({attempt}/{max_retries})...")
+                    print(f"\n⚠️ API {error_label} ({e}), {wait:.0f}s 后重试 ({attempt}/{max_retries})...")
                     self._emit_event("api_retry", {
                         "attempt": attempt,
                         "max_retries": max_retries,
-                        "wait_seconds": wait,
+                        "wait_seconds": round(wait, 1),
                         "error": str(e),
+                        "is_rate_limit": is_rate_limit,
                     })
                     time.sleep(wait)
                     continue
