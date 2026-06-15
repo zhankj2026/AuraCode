@@ -110,6 +110,8 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); co
 .event-item.tool_complete { border-left-color: var(--yellow); background: rgba(210,153,34,.04); }
 .event-item.context_compacted { border-left-color: #ff8c42; background: rgba(255,140,66,.06); }
 .event-item.fallback_activated { border-left-color: var(--red); background: rgba(248,81,73,.08); }
+.event-item.api_retry { border-left-color: #f0883e; background: rgba(240,136,62,.08); }
+.event-item.turn_retry { border-left-color: #f0883e; background: rgba(240,136,62,.1); }
 .event-item.prompt_too_long_recovery { border-left-color: var(--red); background: rgba(248,81,73,.06); }
 .event-item.aborted { border-left-color: var(--red); background: rgba(248,81,73,.1); }
 
@@ -221,6 +223,8 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); co
               <option value="tool_complete">工具完成</option>
               <option value="context_compacted">上下文压缩</option>
               <option value="fallback_activated">备用模型</option>
+              <option value="api_retry">API重试</option>
+              <option value="turn_retry">轮次重试</option>
               <option value="aborted">已中断</option>
             </optgroup>
           </select>
@@ -413,7 +417,7 @@ function selectSession(id) {
         appendChat('system', evt.data.text, evt.timestamp);
       } else if (evt.type === 'session_stopped') {
         appendChat('system', `🏁 会话已停止 (原因: ${evt.data.reason || 'unknown'})`, evt.timestamp);
-      } else if (['turn_start','turn_complete','tool_execute','tool_complete','context_compacted','fallback_activated','prompt_too_long_recovery','aborted'].includes(evt.type)) {
+      } else if (['turn_start','turn_complete','tool_execute','tool_complete','context_compacted','fallback_activated','api_retry','turn_retry','prompt_too_long_recovery','aborted'].includes(evt.type)) {
         // AgentLoop 实时事件 — 重新触发挥发逻辑
         handleEvent(evt);
       }
@@ -637,6 +641,12 @@ function handleEvent(evt) {
         break;
       case 'fallback_activated':
         appendChat('system', `⚠️ 备用模型: ${evt.data.model}`);
+        break;
+      case 'api_retry':
+        appendChat('system', `⚠️ API 请求失败，${evt.data.wait_seconds}s 后重试 (${evt.data.attempt}/${evt.data.max_retries}): ${evt.data.error}`);
+        break;
+      case 'turn_retry':
+        appendChat('system', `⚠️ 网络瞬时故障，${evt.data.wait_seconds}s 后重试轮次 ${evt.data.turn}: ${evt.data.error}`);
         break;
       case 'prompt_too_long_recovery':
         appendChat('system', `⚠️ Prompt 过长，压缩重试 (${evt.data.messages_before} 条)`);

@@ -287,6 +287,7 @@ class AgentLoop:
 
         # 2. Agent Loop — 核心循环
         last_assistant_text = ""
+        _turn_retry_count = 0  # 轮次级瞬时错误重试计数
 
         while self.state.turn_count < self.max_iterations:
             self.state.increment_turn()
@@ -473,6 +474,21 @@ class AgentLoop:
                         )
                 self._prompt_retried = False
 
+                # 瞬时网络错误（超时/连接失败等）— 轮次级重试
+                # _call_llm_streaming 内部已重试 3 次，这里额外给一次轮次级机会
+                if self._is_transient_error(e) and _turn_retry_count < 1:
+                    _turn_retry_count += 1
+                    wait = 5  # 等久一点再试
+                    logger.info(f"Transient error, turn-level retry in {wait}s: {e}")
+                    print(f"\n⚠️ 网络瞬时故障，{wait}s 后重试当前轮次...")
+                    self._emit_event("turn_retry", {
+                        "turn": self.state.turn_count,
+                        "error": str(e),
+                        "wait_seconds": wait,
+                    })
+                    time.sleep(wait)
+                    continue
+
                 # Fallback 模型 — API 错误时尝试切换
                 if self.state.fallback_model and not self.state._active_model_override:
                     activated = self.state.activate_fallback()
@@ -480,6 +496,8 @@ class AgentLoop:
                         print(f"\n⚠️ 主模型不可用，已切换到备用模型: {activated}")
                         self._emit_event("fallback_activated", {"model": activated})
                         continue
+
+                # 所有重试手段耗尽，返回错误
                 return self.state.to_result(
                     status="error",
                     text=last_assistant_text,
@@ -771,127 +789,158 @@ class AgentLoop:
 4. 遇到不确定的操作,先询问用户
 5. 保护用户隐私,不要泄露敏感信息"""
     
+    # 瞬时错误关键词（用于识别可重试的网络/超时错误）
+    _TRANSIENT_ERROR_KEYWORDS = (
+        "timeout", "timed out", "connection", "network",
+        "temporary failure", "server_error", "502", "503", "504",
+        "rate limit", "rate_limit", "overloaded",
+        "reset by peer", "broken pipe", "eof occurred",
+    )
+
+    def _is_transient_error(self, error: Exception) -> bool:
+        """判断是否为瞬时可重试错误（超时/网络/服务器过载等）"""
+        error_str = str(error).lower()
+        return any(kw in error_str for kw in self._TRANSIENT_ERROR_KEYWORDS)
+
     def _call_llm_streaming(self) -> StreamResult:
         """
         流式调用 LLM — 逐 token 实时输出，同时累积工具调用。
-
-        参考 claude.ts:1822 的 { stream: true } 实现。
-        返回 StreamResult（归一化接口，兼容原同步 API）。
+        内置指数退避重试：对超时/网络错误最多重试 3 次。
         """
         active_model = self.state.get_active_model(self.model)
         logger.debug(f"Streaming LLM ({active_model}) with {len(self.messages)} messages")
         print(f"\n🤔 思考中... (模型={active_model}, {len(self.messages)} 条消息)")
 
-        try:
-            response = self.client.chat.completions.create(
-                model=active_model,
-                messages=self.messages,
-                tools=self.tools,
-                tool_choice="auto",
-                temperature=0.2,
-                max_tokens=self.max_tokens,
-                stream=True,
-            )
+        max_retries = 3
 
-            # 流式处理
-            full_content = ""
-            tool_calls_map: Dict[int, Dict] = {}  # index -> accumulated data
-            finish_reason = None
-            usage = None
-            first_chunk = True
-
+        for attempt in range(1, max_retries + 1):
             try:
-                for chunk in response:
-                    # 中断检查（每个 chunk 都检查）
-                    if self.state.is_aborted():
-                        logger.info("Stream aborted by user")
-                        finish_reason = "aborted"
-                        break
+                response = self.client.chat.completions.create(
+                    model=active_model,
+                    messages=self.messages,
+                    tools=self.tools,
+                    tool_choice="auto",
+                    temperature=0.2,
+                    max_tokens=self.max_tokens,
+                    stream=True,
+                )
 
-                    if not chunk.choices:
-                        # 最后一个 chunk 可能携带 usage（无 choices）
+                # 流式处理
+                full_content = ""
+                tool_calls_map: Dict[int, Dict] = {}  # index -> accumulated data
+                finish_reason = None
+                usage = None
+                first_chunk = True
+
+                try:
+                    for chunk in response:
+                        # 中断检查（每个 chunk 都检查）
+                        if self.state.is_aborted():
+                            logger.info("Stream aborted by user")
+                            finish_reason = "aborted"
+                            break
+
+                        if not chunk.choices:
+                            # 最后一个 chunk 可能携带 usage（无 choices）
+                            if hasattr(chunk, 'usage') and chunk.usage:
+                                usage = chunk.usage
+                            continue
+
+                        choice = chunk.choices[0]
+                        delta = choice.delta
+
+                        # finish_reason 在最后一个 chunk
+                        if choice.finish_reason:
+                            finish_reason = choice.finish_reason
+
+                        # 文本增量 — 实时输出
+                        if delta and delta.content:
+                            if first_chunk:
+                                print("\n🤖 Assistant: ", end="", flush=True)
+                                first_chunk = False
+                            print(delta.content, end="", flush=True)
+                            full_content += delta.content
+
+                        # 工具调用增量累积
+                        if delta and hasattr(delta, 'tool_calls') and delta.tool_calls:
+                            for tc_chunk in delta.tool_calls:
+                                idx = tc_chunk.index
+                                if idx not in tool_calls_map:
+                                    tool_calls_map[idx] = {
+                                        "id": tc_chunk.id or "",
+                                        "type": "function",
+                                        "name": "",
+                                        "arguments": "",
+                                    }
+                                if tc_chunk.id:
+                                    tool_calls_map[idx]["id"] = tc_chunk.id
+                                if tc_chunk.function:
+                                    if tc_chunk.function.name:
+                                        tool_calls_map[idx]["name"] += tc_chunk.function.name
+                                    if tc_chunk.function.arguments:
+                                        tool_calls_map[idx]["arguments"] += tc_chunk.function.arguments
+
+                        # usage 可能在最后一个 chunk（部分 API）
                         if hasattr(chunk, 'usage') and chunk.usage:
                             usage = chunk.usage
-                        continue
 
-                    choice = chunk.choices[0]
-                    delta = choice.delta
+                finally:
+                    # 显式关闭流式连接，确保 HTTP 资源释放
+                    try:
+                        if hasattr(response, 'close'):
+                            response.close()
+                        elif hasattr(response, '_response') and hasattr(response._response, 'close'):
+                            response._response.close()
+                    except Exception:
+                        pass
 
-                    # finish_reason 在最后一个 chunk
-                    if choice.finish_reason:
-                        finish_reason = choice.finish_reason
+                # 流式结束
+                if not first_chunk:
+                    print()  # 换行
 
-                    # 文本增量 — 实时输出
-                    if delta and delta.content:
-                        if first_chunk:
-                            print("\n🤖 Assistant: ", end="", flush=True)
-                            first_chunk = False
-                        print(delta.content, end="", flush=True)
-                        full_content += delta.content
+                # 构建工具调用对象列表（模拟 OpenAI ToolCall）
+                tool_calls_list = []
+                for idx in sorted(tool_calls_map.keys()):
+                    tc_data = tool_calls_map[idx]
+                    tool_calls_list.append(_StreamToolCall(tc_data))
 
-                    # 工具调用增量累积
-                    if delta and hasattr(delta, 'tool_calls') and delta.tool_calls:
-                        for tc_chunk in delta.tool_calls:
-                            idx = tc_chunk.index
-                            if idx not in tool_calls_map:
-                                tool_calls_map[idx] = {
-                                    "id": tc_chunk.id or "",
-                                    "type": "function",
-                                    "name": "",
-                                    "arguments": "",
-                                }
-                            if tc_chunk.id:
-                                tool_calls_map[idx]["id"] = tc_chunk.id
-                            if tc_chunk.function:
-                                if tc_chunk.function.name:
-                                    tool_calls_map[idx]["name"] += tc_chunk.function.name
-                                if tc_chunk.function.arguments:
-                                    tool_calls_map[idx]["arguments"] += tc_chunk.function.arguments
+                # Token 统计
+                if usage:
+                    logger.info(f"Token: prompt={getattr(usage, 'prompt_tokens', '?')}, "
+                               f"completion={getattr(usage, 'completion_tokens', '?')}, "
+                               f"total={getattr(usage, 'total_tokens', '?')}")
+                    print(f"💰 Token: 输入={getattr(usage, 'prompt_tokens', '?')}, "
+                          f"输出={getattr(usage, 'completion_tokens', '?')}, "
+                          f"总计={getattr(usage, 'total_tokens', '?')}")
 
-                    # usage 可能在最后一个 chunk（部分 API）
-                    if hasattr(chunk, 'usage') and chunk.usage:
-                        usage = chunk.usage
+                return StreamResult(
+                    content=full_content,
+                    tool_calls=tool_calls_list,
+                    finish_reason=finish_reason,
+                    usage=usage,
+                )
 
-            finally:
-                # 显式关闭流式连接，确保 HTTP 资源释放
-                # 特别是 abort 时丢弃剩余 chunk，避免服务端继续生成
-                try:
-                    if hasattr(response, 'close'):
-                        response.close()
-                    elif hasattr(response, '_response') and hasattr(response._response, 'close'):
-                        response._response.close()
-                except Exception:
-                    pass
+            except Exception as e:
+                # 瞬时错误（超时/网络/服务器过载）→ 指数退避重试
+                if self._is_transient_error(e) and attempt < max_retries:
+                    wait = 2 ** attempt  # 2s, 4s
+                    logger.warning(
+                        f"LLM streaming 瞬时错误 (attempt {attempt}/{max_retries}): {e}, "
+                        f"retrying in {wait}s..."
+                    )
+                    print(f"\n⚠️ API 请求失败 ({e}), {wait}s 后重试 ({attempt}/{max_retries})...")
+                    self._emit_event("api_retry", {
+                        "attempt": attempt,
+                        "max_retries": max_retries,
+                        "wait_seconds": wait,
+                        "error": str(e),
+                    })
+                    time.sleep(wait)
+                    continue
 
-            # 流式结束
-            if not first_chunk:
-                print()  # 换行
-
-            # 构建工具调用对象列表（模拟 OpenAI ToolCall）
-            tool_calls_list = []
-            for idx in sorted(tool_calls_map.keys()):
-                tc_data = tool_calls_map[idx]
-                tool_calls_list.append(_StreamToolCall(tc_data))
-
-            # Token 统计
-            if usage:
-                logger.info(f"Token: prompt={getattr(usage, 'prompt_tokens', '?')}, "
-                           f"completion={getattr(usage, 'completion_tokens', '?')}, "
-                           f"total={getattr(usage, 'total_tokens', '?')}")
-                print(f"💰 Token: 输入={getattr(usage, 'prompt_tokens', '?')}, "
-                      f"输出={getattr(usage, 'completion_tokens', '?')}, "
-                      f"总计={getattr(usage, 'total_tokens', '?')}")
-
-            return StreamResult(
-                content=full_content,
-                tool_calls=tool_calls_list,
-                finish_reason=finish_reason,
-                usage=usage,
-            )
-
-        except Exception as e:
-            logger.error(f"LLM streaming 调用失败 ({active_model}): {e}")
-            raise
+                # 不可重试错误或重试已耗尽
+                logger.error(f"LLM streaming 调用失败 ({active_model}): {e}")
+                raise
 
     def _call_llm(self):
         """同步调用 LLM（流式不可用时的降级方案）"""
