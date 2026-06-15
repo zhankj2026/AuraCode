@@ -33,7 +33,7 @@ ENV/
 *.swo
 *~
 
-# Configuration (包含敏感信息)
+# Configuration (contains sensitive info)
 config.yaml
 .env
 
@@ -49,3 +49,14 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Runtime data
+.subagent_output/
+.backup/
+.opencode/
+.claude/
+memory/
+-p/
+
+# Local scripts
+setup_env.ps1
