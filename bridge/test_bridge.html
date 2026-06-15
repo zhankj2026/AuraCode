@@ -287,6 +287,13 @@ let allEvents = [];
 let chatMsgCount = 0;
 let pendingPermRequest = null;
 
+// ── Chat 流式状态 ──
+let chatTurnNum = 0;           // 当前轮次编号
+let chatContentHashes = new Set(); // assistant_message 内容去重
+let chatToolCallIds = new Set();   // tool_call ID 去重
+let chatToolResultIds = new Set(); // tool_result ID 去重
+let chatActiveTurn = null;     // { num, el, bubbleEl } 当前轮次气泡
+
 // ── Helpers ──
 function getUrl() { return document.getElementById('serverUrl').value.replace(/\/$/, ''); }
 function getToken() { return document.getElementById('authToken').value; }
@@ -386,6 +393,12 @@ function selectSession(id) {
   $('chatMessages').innerHTML = '';
   chatMsgCount = 0;
   $('chatCount').textContent = '0';
+  // 重置流式状态
+  chatTurnNum = 0;
+  chatContentHashes.clear();
+  chatToolCallIds.clear();
+  chatToolResultIds.clear();
+  chatActiveTurn = null;
 
   // Load event history
   api('GET', `/api/sessions/${id}/events`).then(events => {
@@ -509,55 +522,127 @@ function handleEvent(evt) {
     }
   }
 
-  // Chat messages
+  // Chat messages — 流式 + 按事件顺序 + 去重
   if (evt.session_id === activeSessionId) {
     switch (evt.type) {
-      case 'assistant_message':
-        appendChat('assistant', evt.data.content || '');
+      // ═══ 实时事件（run期间从 event_callback 推送）═══
+      case 'turn_start': {
+        chatTurnNum = evt.data.turn || (chatTurnNum + 1);
+        // 创建轮次占位气泡（流式效果的起点）
+        const el = $('chatMessages');
+        const ph = el.querySelector('.placeholder');
+        if (ph) ph.remove();
+        const div = document.createElement('div');
+        div.className = 'msg assistant';
+        div.innerHTML = `<div class="label">🤖 AI · 第 ${chatTurnNum} 轮</div><div class="bubble turn-bubble" id="tb-${chatTurnNum}">🤔 思考中...</div><div class="ts">${now()}</div>`;
+        el.appendChild(div);
+        el.scrollTop = el.scrollHeight;
+        chatMsgCount++;
+        $('chatCount').textContent = chatMsgCount;
+        chatActiveTurn = { num: chatTurnNum, el: div, bubbleEl: div.querySelector('.bubble') };
         break;
+      }
+      case 'turn_complete': {
+        const tNum = evt.data.turn || chatTurnNum;
+        const preview = evt.data.content_preview || '';
+        const tc = evt.data.tool_calls || 0;
+        // 用 content_preview 更新占位气泡（用户立即看到部分结果）
+        if (chatActiveTurn && chatActiveTurn.num === tNum && preview) {
+          chatActiveTurn.bubbleEl.textContent = preview + (tc > 0 ? `\n\n🔧 调用 ${tc} 个工具...` : '');
+          $('chatMessages').scrollTop = $('chatMessages').scrollHeight;
+        } else if (preview) {
+          // 没有 turn_start 的降级处理
+          appendChat('assistant', preview + (tc > 0 ? `\n\n🔧 调用 ${tc} 个工具...` : ''));
+        }
+        if (tc === 0 && chatActiveTurn && chatActiveTurn.num === tNum) {
+          chatActiveTurn = null; // 无工具调用 → 轮次结束
+        }
+        break;
+      }
+      case 'tool_execute': {
+        const tn = evt.data.tool_name || '?';
+        // 在轮次气泡内附加工具状态
+        if (chatActiveTurn) {
+          chatActiveTurn.bubbleEl.textContent += `\n⚙️ 执行: ${tn}`;
+          $('chatMessages').scrollTop = $('chatMessages').scrollHeight;
+        } else {
+          appendChat('system', `⚙️ 执行工具: ${tn}`);
+        }
+        break;
+      }
+      case 'tool_complete': {
+        const tn = evt.data.tool_name || '?';
+        const ok = evt.data.success !== false;
+        appendChat('system', `${ok ? '✅' : '❌'} ${tn} ${ok ? '完成' : '失败'}`);
+        break;
+      }
+
+      // ═══ 后置事件（run结束后从 _extract_events 批量发送，需去重）═══
+      case 'assistant_message': {
+        const content = evt.data.content || '';
+        const hash = content.substring(0, 200);
+        if (chatContentHashes.has(hash)) break; // 已被 turn_complete preview 覆盖
+        chatContentHashes.add(hash);
+        if (chatActiveTurn) {
+          // 替换占位气泡为完整内容
+          chatActiveTurn.bubbleEl.textContent = content;
+          chatActiveTurn = null;
+          $('chatMessages').scrollTop = $('chatMessages').scrollHeight;
+        } else {
+          appendChat('assistant', content);
+        }
+        break;
+      }
+      case 'tool_call': {
+        const tcId = evt.data.tool_call_id;
+        if (tcId && chatToolCallIds.has(tcId)) break;
+        if (tcId) chatToolCallIds.add(tcId);
+        const tn = evt.data.tool_name || '?';
+        const args = formatJson(evt.data.arguments);
+        appendChat('system', `🔧 ${tn}\n${args}`);
+        break;
+      }
+      case 'tool_result': {
+        const trId = evt.data.tool_call_id;
+        if (trId && chatToolResultIds.has(trId)) break;
+        if (trId) chatToolResultIds.add(trId);
+        appendChat('system', `📋 结果:\n${(evt.data.content || '').substring(0, 500)}`);
+        break;
+      }
+
+      // ═══ 其他事件 ═══
       case 'result': {
+        // 清理轮次状态
+        chatActiveTurn = null;
+        chatContentHashes.clear();
+        chatToolCallIds.clear();
+        chatToolResultIds.clear();
         const status = evt.data.status || (evt.data.success ? 'success' : 'error');
-        const turns = evt.data.num_turns || '?';
-        const duration = evt.data.duration_ms ? ` ${(evt.data.duration_ms / 1000).toFixed(1)}s` : '';
-        const stopReason = evt.data.stop_reason || '';
-        appendChat('system', `✅ 轮次完成 (状态: ${status}, ${turns} 轮${duration})${stopReason ? ', 原因: ' + stopReason : ''}\n${evt.data.result ? evt.data.result.substring(0, 500) : ''}${evt.data.error ? '\n错误: ' + evt.data.error : ''}`);
-        // 自动滚动到底部
-        const chatEl = document.getElementById('chatMessages');
-        if (chatEl) chatEl.scrollTop = chatEl.scrollHeight;
+        const rTurns = evt.data.num_turns || '?';
+        const dur = evt.data.duration_ms ? ` ${(evt.data.duration_ms / 1000).toFixed(1)}s` : '';
+        const sr = evt.data.stop_reason || '';
+        let txt = `✅ 轮次完成 (${status}, ${rTurns} 轮${dur})`;
+        if (sr) txt += ` · ${sr}`;
+        if (evt.data.result) txt += `\n${evt.data.result.substring(0, 500)}`;
+        if (evt.data.error) txt += `\n❌ ${evt.data.error}`;
+        appendChat('system', txt);
+        $('chatMessages').scrollTop = $('chatMessages').scrollHeight;
         break;
       }
       case 'output':
         if (evt.data.text) appendChat('system', evt.data.text);
         break;
-      case 'tool_call':
-        appendChat('system', `🔧 调用工具: ${evt.data.tool_name}\n${formatJson(evt.data.arguments)}`);
-        break;
-      case 'tool_result':
-        appendChat('system', `📋 工具结果:\n${(evt.data.content || '').substring(0, 500)}`);
-        break;
-      // AgentLoop 实时事件
-      case 'turn_start':
-        appendChat('system', `🔄 第 ${evt.data.turn || '?'} 轮开始`);
-        break;
-      case 'turn_complete':
-        appendChat('system', `✅ 第 ${evt.data.turn || '?'} 轮完成${evt.data.tool_calls ? ' (工具调用: ' + evt.data.tool_calls + ')' : ''}${evt.data.content_preview ? '\n' + evt.data.content_preview.substring(0, 200) : ''}`);
-        break;
-      case 'tool_execute':
-        appendChat('system', `⚙️ 执行工具: ${evt.data.tool_name}`);
-        break;
-      case 'tool_complete':
-        appendChat('system', `${evt.data.success ? '✅' : '❌'} 工具完成: ${evt.data.tool_name}`);
-        break;
       case 'context_compacted':
         appendChat('system', `🗜️ 上下文压缩: ${evt.data.messages_before} → ${evt.data.messages_after} 条消息`);
         break;
       case 'fallback_activated':
-        appendChat('system', `⚠️ 备用模型激活: ${evt.data.model}`);
+        appendChat('system', `⚠️ 备用模型: ${evt.data.model}`);
         break;
       case 'prompt_too_long_recovery':
-        appendChat('system', `⚠️ Prompt 过长，正在压缩重试 (原始 ${evt.data.messages_before} 条)`);
+        appendChat('system', `⚠️ Prompt 过长，压缩重试 (${evt.data.messages_before} 条)`);
         break;
       case 'aborted':
+        chatActiveTurn = null;
         appendChat('system', '🛑 执行已中断');
         break;
     }
