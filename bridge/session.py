@@ -422,10 +422,6 @@ class BridgeSession:
 
                 self._process_message(message, writer)
 
-                # 会话已完成 → 退出消息循环
-                if self.state == SessionState.COMPLETED:
-                    break
-
         except Exception as e:
             logger.error(f"Bridge session {self.session_id} error: {e}", exc_info=True)
             self.state = SessionState.FAILED
@@ -485,31 +481,17 @@ class BridgeSession:
                 result_data["stop_reason"] = result.stop_reason
                 result_data["num_turns"] = result.num_turns
                 result_data["duration_ms"] = result.duration_ms
-                result_data["done"] = result.stop_reason == "end_turn"
             else:
                 result_data["result"] = ""
 
-            # 完成事件
+            # 轮次完成事件（= Claude Code 的 result 消息）
+            # 注意：一轮完成 ≠ 会话结束。会话保持 IDLE 等待下一条用户消息。
+            self.state = SessionState.IDLE
             self._emit(BridgeEvent(
                 type=BridgeEventType.RESULT.value,
                 session_id=self.session_id,
                 data=result_data,
             ))
-
-            # 任务自然完成（无更多工具调用）→ 发送 session_stopped 信号
-            if result_data.get("done"):
-                self.state = SessionState.COMPLETED
-                self._emit(BridgeEvent(
-                    type=BridgeEventType.SESSION_STOPPED.value,
-                    session_id=self.session_id,
-                    data={
-                        "reason": "task_completed",
-                        "status": result.status if result else "success",
-                        "num_turns": result.num_turns if result else 0,
-                    },
-                ))
-            else:
-                self.state = SessionState.IDLE
 
         except Exception as e:
             logger.error(f"Message processing failed: {e}", exc_info=True)
