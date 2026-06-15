@@ -6,7 +6,7 @@ WebSearch 工具 - 搜索互联网获取实时信息
 2. Tavily Search API（需 Tavily API Key）
 3. SerpAPI（需 Google SerpAPI Key）
 
-结果格式与 Claude Code WebSearchTool 对齐。
+结果格式与 OpenCode WebSearchTool 对齐。
 """
 
 import os

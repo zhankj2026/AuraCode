@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Claude Code Python MVP - CLI 入口
+OpenCode - CLI 入口
 
 支持两种模式:
 1. 对话模式: 与 AI 进行多轮自然语言交互
@@ -119,7 +119,7 @@ class ChatMode:
     def show_welcome(self):
         """显示欢迎信息"""
         print("=" * 60)
-        print("🚀 Claude Code Python MVP - 多轮对话模式")
+        print("🚀 OpenCode - 多轮对话模式")
         print("=" * 60)
         print(f"   Model: {self.config['model']}")
         print(f"   Permission Mode: {self.config['permission_mode']}")
@@ -347,7 +347,7 @@ def check_api_key():
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Claude Code Python MVP - AI 编程助手",
+        description="OpenCode - AI 编程助手",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:

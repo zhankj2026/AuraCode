@@ -39,7 +39,7 @@ KEY_FILES = [
 
 INIT_SYSTEM_PROMPT = """你是一个代码库文档专家。请分析以下项目信息，创建一份精炼的 OPENCODE.md 文件。
 
-OPENCODE.md 是给 AI 编程助手（如 OpenCode、Claude Code）使用的项目指南，帮助 AI 快速理解项目。
+OPENCODE.md 是给 AI 编程助手使用的项目指南，帮助 AI 快速理解项目。
 
 规则:
 1. 只包含 AI 不知道就无法正确工作的信息

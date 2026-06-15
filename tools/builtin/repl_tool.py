@@ -2,7 +2,7 @@
 REPLTool — 交互式 Python REPL
 
 允许 LLM 在沙箱环境中执行 Python 代码片段并获取输出结果。
-参考 Claude Code 的 REPLTool 实现。
+参考 REPLTool 实现。
 """
 import io
 import sys

@@ -4,7 +4,6 @@ TipSystem 服务 — 功能发现提示
 在适当时机向用户展示功能使用提示，
 帮助用户发现 opencode 的高级功能。
 支持提示注册、冷却机制、历史记录和上下文感知调度。
-参考 Claude Code 的 tips/ 模块。
 """
 import json
 import os

@@ -4,7 +4,6 @@ Security Review 命令 — 安全漏洞扫描
 对当前分支的 Git 变更进行安全专项审查，
 覆盖 16 类安全漏洞（注入/认证/密码学/XSS/数据泄露等），
 使用模式匹配 + 严重性分级 + 误报过滤，生成结构化报告。
-参考 Claude Code 的 /security-review 命令。
 """
 import os
 import re

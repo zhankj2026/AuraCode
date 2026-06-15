@@ -1,7 +1,7 @@
 """
 Subagent 管理器 - 并行任务执行 (增强版)
 
-基于 code.md Phase 6 实现，参考 Claude Code Subagents 设计
+基于 code.md Phase 6 实现，参考 Subagents 设计
 实现: 真实 LLM 调用、Fork 模式、结果压缩、Agent 定义文件
 """
 

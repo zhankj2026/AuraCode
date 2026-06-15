@@ -1,7 +1,6 @@
 """
 诊断追踪服务
 
-参考 Claude Code 的 DiagnosticTrackingService 设计，
 实现自动 LSP 错误追踪：在文件修改后自动获取编译/lint 诊断，
 追踪新增错误并向用户报告。
 

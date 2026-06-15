@@ -1,7 +1,7 @@
 """
 Config 工具 - 环境配置读写
 
-参考 Claude Code ConfigTool 设计，支持读取和修改项目配置，
+参考 ConfigTool 设计，支持读取和修改项目配置，
 包括 config.yaml、环境变量、项目元数据等。
 """
 

@@ -1,6 +1,6 @@
 """会话状态管理
 
-参考 Claude Code 的 AppStateStore + QueryEngine 设计，
+参考 AppStateStore + QueryEngine 设计，
 为 opencode 提供集中式会话状态管理、Token 累计追踪和结构化结果报告。
 
 增强功能:
@@ -75,7 +75,7 @@ class TokenUsage:
 class QueryResult:
     """结构化查询结果报告
 
-    参考 Claude Code QueryEngine.submitMessage 末尾 yield 的 result 消息。
+    参考 QueryEngine.submitMessage 末尾 yield 的 result 消息。
     用于 CLI 展示、Bridge 远程返回、日志记录等场景。
     """
     status: str  # 'success', 'error_max_turns', 'error_max_budget', 'error', 'aborted'
@@ -242,7 +242,7 @@ class SessionState:
     - create_snapshot() — 创建完整状态快照
     - restore_snapshot(snapshot) — 从快照恢复状态
 
-    参考 Claude Code:
+    参考 OpenCode:
     - AppStateStore.ts (集中状态 + Store 发布订阅)
     - QueryEngine (usage/cost tracking)
     - query.ts (loop state machine)

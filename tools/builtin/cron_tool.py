@@ -2,7 +2,7 @@
 Cron Tool — 定时任务管理
 
 创建、管理、删除定时/周期性任务。
-参考 Claude Code 的 ScheduleCronTool (CronCreate/Delete/List)。
+参考 ScheduleCronTool (CronCreate/Delete/List)。
 
 功能:
   - CronCreate: 创建定时任务(cron 表达式 + 一次性)

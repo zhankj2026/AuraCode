@@ -1,7 +1,7 @@
 """
 ToolSearch 工具 - 搜索可用的工具
 
-参考 Claude Code ToolSearchTool 设计，支持按名称/描述/类别搜索工具，
+参考 ToolSearchTool 设计，支持按名称/描述/类别搜索工具，
 帮助 LLM 在工具较多时发现正确的工具。
 """
 

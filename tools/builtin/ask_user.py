@@ -1,7 +1,7 @@
 """
 AskUserQuestion 工具 - 向用户提出多项选择题
 
-参考 Claude Code AskUserQuestionTool 设计：
+参考 AskUserQuestionTool 设计：
 - LLM 主动向用户提问（收集偏好/澄清需求/获取决策）
 - 支持单选和多选模式
 - 用户可选择预设选项或输入自定义文本

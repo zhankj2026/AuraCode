@@ -2,7 +2,7 @@
 Worktree Tool — Git Worktree 隔离工作区管理
 
 创建/退出/管理 Git Worktree，支持并行开发。
-参考 Claude Code 的 EnterWorktreeTool / ExitWorktreeTool。
+参考 EnterWorktreeTool / ExitWorktreeTool。
 
 功能:
   - 创建隔离的 git worktree 工作区

@@ -373,6 +373,7 @@ class BridgeSession:
                 "enable_hooks": True,
                 "enable_skills": True,
                 "active_skills": [],
+                "project_root": self.config.work_dir,  # 工具文件操作的基准路径
             }
 
             self._agent_loop = AgentLoop(config)
@@ -420,6 +421,10 @@ class BridgeSession:
                     break  # 哨兵值
 
                 self._process_message(message, writer)
+
+                # 会话已完成 → 退出消息循环
+                if self.state == SessionState.COMPLETED:
+                    break
 
         except Exception as e:
             logger.error(f"Bridge session {self.session_id} error: {e}", exc_info=True)
@@ -472,13 +477,39 @@ class BridgeSession:
                     data={"text": output.strip()},
                 ))
 
+            # 提取 QueryResult 结构化信息
+            result_data = {"success": True}
+            if result:
+                result_data["result"] = result.text or ""
+                result_data["status"] = result.status
+                result_data["stop_reason"] = result.stop_reason
+                result_data["num_turns"] = result.num_turns
+                result_data["duration_ms"] = result.duration_ms
+                result_data["done"] = result.stop_reason == "end_turn"
+            else:
+                result_data["result"] = ""
+
             # 完成事件
-            self.state = SessionState.IDLE
             self._emit(BridgeEvent(
                 type=BridgeEventType.RESULT.value,
                 session_id=self.session_id,
-                data={"result": result or "", "success": True},
+                data=result_data,
             ))
+
+            # 任务自然完成（无更多工具调用）→ 发送 session_stopped 信号
+            if result_data.get("done"):
+                self.state = SessionState.COMPLETED
+                self._emit(BridgeEvent(
+                    type=BridgeEventType.SESSION_STOPPED.value,
+                    session_id=self.session_id,
+                    data={
+                        "reason": "task_completed",
+                        "status": result.status if result else "success",
+                        "num_turns": result.num_turns if result else 0,
+                    },
+                ))
+            else:
+                self.state = SessionState.IDLE
 
         except Exception as e:
             logger.error(f"Message processing failed: {e}", exc_info=True)

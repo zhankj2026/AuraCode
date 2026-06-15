@@ -1,7 +1,7 @@
 """
 Bash / Shell 命令执行工具（增强版）
 
-参考 Claude Code BashTool 设计，增强功能：
+参考 BashTool 设计，增强功能：
 - 可配置超时（默认 60 秒，最大 600 秒）
 - 后台执行（run_in_background 模式）
 - 工作目录会话级持久化（cd 效果跨命令保留）

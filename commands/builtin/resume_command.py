@@ -1,7 +1,6 @@
 """
 /resume 命令 - 会话恢复
 
-参考 Claude Code 的 conversationRecovery.ts 设计，
 支持列出、搜索和恢复之前的会话。
 
 用法:

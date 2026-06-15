@@ -1,7 +1,6 @@
 """
 Hook 配置加载器
 
-参考 Claude Code 的 hooksSettings.ts 设计，
 支持从 JSON 配置文件加载 Hook 规则。
 
 配置文件格式 (hooks.json):

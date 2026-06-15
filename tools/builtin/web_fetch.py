@@ -1,7 +1,7 @@
 """
 WebFetch 工具 - 获取网页内容并用 AI 分析
 
-参考 Claude Code WebFetchTool 设计：
+参考 WebFetchTool 设计：
 - 获取 URL 内容（HTML→Markdown）
 - 可选用 LLM 小模型对内容进行摘要/分析
 - 内置 15 分钟 TTL 缓存

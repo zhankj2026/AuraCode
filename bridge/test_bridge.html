@@ -382,6 +382,12 @@ function selectSession(id) {
   activeSessionId = id;
   renderSessions();
 
+  // 重置输入区域状态
+  const inputEl = document.getElementById('msgInput');
+  const sendBtn = document.getElementById('sendBtn');
+  if (inputEl) { inputEl.disabled = false; inputEl.placeholder = '输入消息... (Enter 发送)'; }
+  if (sendBtn) { sendBtn.disabled = false; }
+
   // Clear chat and load events for this session
   $('chatMessages').innerHTML = '';
   chatMsgCount = 0;
@@ -398,6 +404,12 @@ function selectSession(id) {
         appendChat('system', `执行${evt.data.success ? '成功' : '失败'}${evt.data.error ? ': ' + evt.data.error : ''}`, evt.timestamp);
       } else if (evt.type === 'output' && evt.data.text) {
         appendChat('system', evt.data.text, evt.timestamp);
+      } else if (evt.type === 'session_stopped') {
+        appendChat('system', `🏁 对话结束 (共 ${evt.data.num_turns || '?'} 轮)`, evt.timestamp);
+        const inputEl = document.getElementById('msgInput');
+        const sendBtn = document.getElementById('sendBtn');
+        if (inputEl) { inputEl.disabled = true; inputEl.placeholder = '对话已结束'; }
+        if (sendBtn) { sendBtn.disabled = true; }
       } else if (['turn_start','turn_complete','tool_execute','tool_complete','context_compacted','fallback_activated','prompt_too_long_recovery','aborted'].includes(evt.type)) {
         // AgentLoop 实时事件 — 重新触发挥发逻辑
         handleEvent(evt);
@@ -515,6 +527,16 @@ function handleEvent(evt) {
         break;
       case 'result':
         appendChat('system', `✅ 执行${evt.data.success ? '成功' : '失败'}${evt.data.result ? '\n' + evt.data.result.substring(0, 500) : ''}${evt.data.error ? '\n错误: ' + evt.data.error : ''}`);
+        break;
+      case 'session_stopped':
+        const turns = evt.data.num_turns || '?';
+        const reason = evt.data.reason || 'unknown';
+        appendChat('system', `🏁 对话结束 (共 ${turns} 轮, 原因: ${reason})`);
+        // 禁用输入区域
+        const inputEl = document.getElementById('msgInput');
+        const sendBtn = document.getElementById('sendBtn');
+        if (inputEl) { inputEl.disabled = true; inputEl.placeholder = '对话已结束'; }
+        if (sendBtn) { sendBtn.disabled = true; }
         break;
       case 'output':
         if (evt.data.text) appendChat('system', evt.data.text);

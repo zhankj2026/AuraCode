@@ -1,7 +1,7 @@
 """
 NotebookEdit 工具 - Jupyter Notebook 编辑
 
-参考 Claude Code NotebookEditTool 设计，支持对 .ipynb 文件进行
+参考 NotebookEditTool 设计，支持对 .ipynb 文件进行
 单元格级别的编辑、插入、删除操作，无需整体重写整个 notebook。
 """
 

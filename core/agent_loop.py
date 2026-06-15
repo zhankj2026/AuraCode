@@ -1,7 +1,7 @@
 """
 Agent Loop 核心实现
 
-基于 Claude Code 的 TAOR 循环(Think-Act-Observe-Repeat)设计,
+基于 TAOR 循环(Think-Act-Observe-Repeat)设计,
 实现完整的智能体交互流程。
 """
 
@@ -59,8 +59,8 @@ logger = logging.getLogger(__name__)
 
 class AgentLoop:
     """
-    简化版 AI 编程工具核心
-    基于 Claude Code 的 TAOR 循环设计
+    AI 编程助手核心引擎
+    基于 TAOR 循环设计
     """
     
     def __init__(self, config: Dict[str, Any]):
@@ -95,6 +95,8 @@ class AgentLoop:
         self.model = config.get("model", "glm-4-plus")
         self.max_iterations = config.get("max_iterations", 20)
         self.max_tokens = config.get("max_tokens", 8192)
+        # 工作目录：工具文件操作的基准路径（Bridge 模式下为用户指定的 work_dir）
+        self.project_root = os.path.abspath(config.get("project_root", "."))
         self.max_output_recovery_limit = config.get("max_output_recovery_limit", 3)
         self.context_compact_threshold = config.get("context_compact_threshold", None)
         if self.context_compact_threshold is None:
@@ -265,7 +267,7 @@ class AgentLoop:
         """
         主入口：处理用户输入并执行 Agent Loop
 
-        参考 Claude Code 的 QueryEngine.submitMessage + query.ts 循环。
+        参考 QueryEngine.submitMessage + query.ts 循环。
         返回结构化 QueryResult（含状态/token/成本/耗时）。
 
         Args:
@@ -585,7 +587,7 @@ class AgentLoop:
         """
         构建记忆上下文。
         注入记忆行为指导 + MEMORY.md 索引内容。
-        迁移自 Claude Code memdir.ts 的 loadMemoryPrompt()。
+        迁移自 memdir.ts 的 loadMemoryPrompt()。
         """
         try:
             from core.memory import build_memory_prompt_section
@@ -686,7 +688,7 @@ class AgentLoop:
 - 对于UI或前端更改，在报告任务完成之前，启动开发服务器并在浏览器中使用该功能。确保测试功能的主路径和边缘情况，并监控其他功能是否有回归。类型检查和测试套件验证代码正确性，而不是功能正确性——如果你无法测试UI，请明确说明，而不要声称成功。
 - 避免向后兼容的hack，例如重命名未使用的`_vars`、重新导出类型、添加`// removed`注释等。如果你确信某个东西未被使用，可以直接完全删除它。
 - 如果用户需要帮助或想要提供反馈，告知他们以下内容：
-  - `/help`：获取使用Claude Code的帮助
+  - `/help`：获取使用帮助
 
 ## 谨慎执行操作
 
@@ -773,7 +775,7 @@ class AgentLoop:
         """
         流式调用 LLM — 逐 token 实时输出，同时累积工具调用。
 
-        参考 Claude Code claude.ts:1822 的 { stream: true } 实现。
+        参考 claude.ts:1822 的 { stream: true } 实现。
         返回 StreamResult（归一化接口，兼容原同步 API）。
         """
         active_model = self.state.get_active_model(self.model)
@@ -1091,6 +1093,12 @@ class AgentLoop:
         attempt = 0
         while attempt <= max_retries:
             try:
+                for pk in ("path", "file_path", "directory"):
+                    if pk in arguments and isinstance(arguments[pk], str):
+                        p = arguments[pk]
+                        if not os.path.isabs(p):
+                            arguments[pk] = os.path.join(self.project_root, p)
+
                 handler = tool["handler"]
                 result = handler(**arguments)
 
@@ -1217,7 +1225,7 @@ class AgentLoop:
         """
         Level -1 - ImageStrip: 剥离消息中的大图片和 base64 数据。
 
-        参考 Claude Code 的 ImageStrip 机制：
+        参考 ImageStrip 机制：
         当上下文包含 base64 编码的图片或大型嵌入数据时，
         将其替换为占位符，释放 token 空间。
 
@@ -1276,7 +1284,7 @@ class AgentLoop:
         Level 0 - Snip: 激进裁剪旧的工具输出。
 
         保留最近 8 条消息完整内容，更早的 tool/assistant 消息
-        只保留前 100 字符摘要。参考 Claude Code query.ts 的 Snip 机制。
+        只保留前 100 字符摘要。参考 query.ts 的 Snip 机制。
         """
         msgs = self.state.messages
         if len(msgs) <= 8:
@@ -1312,7 +1320,7 @@ class AgentLoop:
         """
         Level 2 - LLM-driven summary: 用 LLM 生成旧消息的高质量摘要。
 
-        参考 Claude Code query.ts 的 microcompact 机制。
+        参考 query.ts 的 microcompact 机制。
         """
         try:
             # 构建摘要请求
@@ -1380,7 +1388,7 @@ class AgentLoop:
         """
         Level 0.5 - Microcompact: 清除旧工具结果内容，保留消息结构。
 
-        参考 Claude Code apiMicrocompact.ts 的 TOOLS_CLEARABLE_RESULTS 机制：
+        参考 apiMicrocompact.ts 的 TOOLS_CLEARABLE_RESULTS 机制：
         - 识别可清除的工具（读类型：shell/grep/glob/read/web...）
         - 保留最近 keep_recent 个结果
         - 更早的结果替换为占位符文本
@@ -1522,7 +1530,7 @@ class AgentLoop:
         当文件先被 read_file 读取、后被 write_file/replace_in_file 修改时，
         旧的读取结果已不再有意义，将其折叠为简短摘要。
 
-        参考 Claude Code services/contextCollapse 的 projectView() 机制：
+        参考 services/contextCollapse 的 projectView() 机制：
         - 读时投影：在发送给 LLM 前替换旧消息
         - 保留文件元信息（路径、行数），清除完整文件内容
 
@@ -1602,7 +1610,7 @@ class AgentLoop:
         """
         多级上下文压缩：Snip → Microcompact → ContextCollapse → LLM-driven AutoCompact。
 
-        参考 Claude Code query.ts 的 4 级压缩机制：
+        参考 query.ts 的 4 级压缩机制：
         - Level 0: Snip — 裁剪旧工具输出
         - Level 0.5: Microcompact — 清除旧可丢弃工具结果
         - Level 1: ContextCollapse — 折叠过时文件读取
@@ -1688,7 +1696,7 @@ class AgentLoop:
         """
         发射事件回调（供 Bridge、日志等外部系统订阅）。
 
-        参考 Claude Code QueryEngine 的 AsyncGenerator yield 机制。
+        参考 QueryEngine 的 AsyncGenerator yield 机制。
 
         Args:
             event_type: 事件类型 (turn_start/turn_complete/tool_execute/
@@ -1919,5 +1927,9 @@ class AgentLoop:
                 "total": len(TOOL_REGISTRY)
             }
         }
+
+        return status
+
+        return status
 
         return status

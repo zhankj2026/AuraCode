@@ -1,5 +1,5 @@
 """
-记忆系统 - 仿 Claude Code 设计
+记忆系统 - 设计
 
 提供持久化记忆存储,支持多种记忆类型:
 - user: 用户信息(角色、目标、偏好、知识)
@@ -854,7 +854,7 @@ def build_memory_prompt_section(memory_dir: Path) -> str:
     构建记忆系统行为指导提示词。
     包含: 类型定义、保存时机、不应保存的内容、MEMORY.md 索引。
     用于注入系统提示词，让模型主动管理记忆。
-    迁移自 Claude Code memdir.ts 的 buildMemoryLines()。
+    迁移自 OpenCode memdir.ts 的 buildMemoryLines()。
     """
     mem_dir_str = str(memory_dir)
     lines = [

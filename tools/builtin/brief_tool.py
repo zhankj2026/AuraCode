@@ -2,7 +2,7 @@
 BriefTool — 简洁模式切换
 
 控制 LLM 输出的详细程度，支持 brief（简洁）/ normal / verbose（详细）三种模式。
-参考 Claude Code 的 BriefTool 实现。
+参考 BriefTool 实现。
 """
 from tools.registry import register_tool
 

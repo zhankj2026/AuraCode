@@ -4,7 +4,6 @@ Review 命令 — AI 代码审查
 对当前工作区的 Git 变更进行 AI 驱动的代码审查，
 输出结构化报告（严重性/类别/建议）。
 集成 CodeAnalyzer 进行变更影响分析。
-参考 Claude Code 的 /review skill。
 """
 import os
 import subprocess

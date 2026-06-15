@@ -2,7 +2,6 @@
 Rewind 命令 — 会话回退 / Checkpoint
 
 允许用户将对话回退到之前的某个检查点，撤销后续的对话轮次。
-参考 Claude Code 的 /rewind 命令。
 
 功能:
 - /rewind list    — 列出所有检查点（每轮对话的入口）

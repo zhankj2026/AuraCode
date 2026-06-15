@@ -4,7 +4,6 @@ AwaySummary 服务 — 离开时摘要
 当用户恢复会话时，自动生成简短的 "while you were away" 回顾摘要。
 使用 LLM 对最近 30 条消息生成 1-3 句总结，
 帮助用户快速了解离开的期间进展。
-参考 Claude Code 的 awaySummary.ts。
 """
 import time
 import threading

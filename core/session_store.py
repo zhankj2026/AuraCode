@@ -1,7 +1,6 @@
 """
 会话持久化存储
 
-参考 Claude Code 的 conversationRecovery.ts + history.ts 设计，
 实现会话消息的 JSON 持久化、列表、搜索和恢复。
 
 每个会话保存为独立 JSON 文件，包含元数据和完整消息历史。

@@ -1,7 +1,7 @@
 """
 LSP 工具 - Language Server Protocol 代码智能
 
-参考 Claude Code LSPTool 设计，通过 LSP 协议与语言服务器交互：
+参考 LSPTool 设计，通过 LSP 协议与语言服务器交互：
 - goToDefinition: 跳转定义
 - findReferences: 查找引用
 - hover: 悬停信息（类型、文档）

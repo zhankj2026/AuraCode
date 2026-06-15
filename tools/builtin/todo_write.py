@@ -1,7 +1,7 @@
 """
 TodoWrite 工具 - 会话级任务进度跟踪
 
-参考 Claude Code TodoWriteTool 设计：
+参考 TodoWriteTool 设计：
 - 维护会话级任务列表（内存存储）
 - 支持创建、更新、完成、删除任务
 - LLM 主动使用以展示任务进度

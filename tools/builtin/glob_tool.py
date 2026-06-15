@@ -1,7 +1,7 @@
 """
 Glob 工具 - 使用 Glob 模式快速查找文件
 
-参考 Claude Code GlobTool 设计，支持标准 glob 模式，
+参考 GlobTool 设计，支持标准 glob 模式，
 结果按修改时间排序（最新优先）。
 """
 

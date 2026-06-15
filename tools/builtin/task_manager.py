@@ -3,7 +3,7 @@ TaskManager — 结构化任务管理三件套
 
 提供 task_create / task_update / task_list 三个工具，
 支持层级任务、依赖关系、进度追踪。
-参考 Claude Code 的 Task 系统 (TaskCreate/Get/List)。
+参考 Task 系统 (TaskCreate/Get/List)。
 """
 import time
 import uuid

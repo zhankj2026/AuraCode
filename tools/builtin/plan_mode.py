@@ -1,7 +1,7 @@
 """
 PlanMode 工具 - 计划模式状态管理
 
-参考 Claude Code EnterPlanModeTool / ExitPlanModeTool 设计：
+参考 EnterPlanModeTool / ExitPlanModeTool 设计：
 - 进入计划模式：限制为只读工具，专注代码探索和方案设计
 - 退出计划模式：用户审批后，恢复正常执行模式
 - 全局状态标志，AgentLoop 检查此标志过滤工具

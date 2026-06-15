@@ -1,7 +1,7 @@
 """
 消息管理系统
 
-Claude Code 使用扁平消息历史,所有消息按时间顺序存储在列表中。
+系统使用扁平消息历史,所有消息按时间顺序存储在列表中。
 支持 system/user/assistant/tool 四种角色,符合 OpenAI/Claude API 规范。
 """
 
