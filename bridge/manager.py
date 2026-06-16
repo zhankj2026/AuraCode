@@ -164,8 +164,12 @@ class BridgeSessionManager:
         with self._lock:
             session = self._sessions.get(session_id)
         if session:
-            session.send_message(content)
-            return True
+            try:
+                session.send_message(content)
+                return True
+            except RuntimeError:
+                # 会话已停止（_stop_flag 已设置）
+                return False
         return False
 
     @property
