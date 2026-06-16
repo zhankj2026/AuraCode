@@ -13,7 +13,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
-from openai import OpenAI
+from openai import OpenAI, APIError, APIConnectionError, APITimeoutError, RateLimitError, APIStatusError
 
 from tools.registry import TOOL_REGISTRY, get_tool_schemas, register_tool
 from permissions.manager import PermissionManager
@@ -288,6 +288,7 @@ class AgentLoop:
         # 2. Agent Loop — 核心循环
         last_assistant_text = ""
         _turn_retry_count = 0  # 轮次级瞬时错误重试计数
+        _consecutive_server_errors = 0  # 跨轮次连续服务器错误计数
 
         while self.state.turn_count < self.max_iterations:
             self.state.increment_turn()
@@ -348,6 +349,9 @@ class AgentLoop:
                 assistant_content = stream_result.content
                 active_m = self.state.get_active_model(self.model)
                 self.state.record_usage(stream_result.usage, model=active_m)
+
+                # LLM 调用成功 → 重置连续服务器错误计数
+                _consecutive_server_errors = 0
 
                 # 构建助手消息
                 assistant_msg: Dict[str, Any] = {
@@ -452,10 +456,11 @@ class AgentLoop:
 
             except Exception as e:
                 error_str = str(e).lower()
-                logger.error(f"Turn {self.state.turn_count} failed: {e}", exc_info=True)
+                error_category = self._classify_error(e)
+                logger.error(f"Turn {self.state.turn_count} failed [{error_category}]: {e}", exc_info=True)
 
                 # Prompt-too-long 恢复: 压缩上下文后重试一次
-                if "context_length" in error_str or "too_long" in error_str or "too long" in error_str:
+                if error_category == 'prompt_too_long' or "context_length" in error_str or "too long" in error_str:
                     if not getattr(self, '_prompt_retried', False):
                         self._prompt_retried = True
                         print("\n⚠️ 上下文过长，正在压缩后重试...")
@@ -474,12 +479,11 @@ class AgentLoop:
                         )
                 self._prompt_retried = False
 
-                # 瞬时网络错误（超时/速率限制等）— 轮次级重试
-                # _call_llm_streaming 内部已重试 3 次，这里额外给一次轮次级机会
+                # 瞬时网络错误（超时/速率限制/服务器过载）— 轮次级重试
+                # _call_llm_streaming 内部已重试 5 次，这里额外给一次轮次级机会
                 if self._is_transient_error(e) and _turn_retry_count < 1:
                     _turn_retry_count += 1
-                    is_rate_limit = self._is_rate_limit_error(e)
-                    # 速率限制用更长等待；普通超时用较短等待
+                    is_rate_limit = error_category == 'rate_limit'
                     wait = self._get_retry_wait(e, 2) if is_rate_limit else 10
                     error_label = "速率限制" if is_rate_limit else "网络故障"
                     logger.info(f"Transient error, turn-level retry in {wait:.0f}s: {e}")
@@ -488,12 +492,38 @@ class AgentLoop:
                         "turn": self.state.turn_count,
                         "error": str(e),
                         "wait_seconds": round(wait, 1),
+                        "category": error_category,
                         "is_rate_limit": is_rate_limit,
                     })
                     time.sleep(wait)
                     continue
 
-                # Fallback 模型 — API 错误时尝试切换
+                # 连续服务器错误（5xx/529）→ 累计计数，触发 fallback 模型
+                if self._is_server_error(e):
+                    _consecutive_server_errors += 1
+                    logger.info(
+                        f"Consecutive server errors: {_consecutive_server_errors}/"
+                        f"{self._MAX_CONSECUTIVE_SERVER_ERRORS}"
+                    )
+                    if (
+                        _consecutive_server_errors >= self._MAX_CONSECUTIVE_SERVER_ERRORS
+                        and self.state.fallback_model
+                        and not self.state._active_model_override
+                    ):
+                        activated = self.state.activate_fallback()
+                        if activated:
+                            _consecutive_server_errors = 0
+                            print(f"\n⚠️ 主模型连续 {_consecutive_server_errors} 次服务器错误，已切换到备用模型: {activated}")
+                            self._emit_event("fallback_activated", {
+                                "model": activated,
+                                "reason": f"连续 {_consecutive_server_errors} 次服务器错误",
+                            })
+                            continue
+                else:
+                    # 非服务器错误 → 重置连续计数
+                    _consecutive_server_errors = 0
+
+                # Fallback 模型 — 其他 API 错误时尝试切换
                 if self.state.fallback_model and not self.state._active_model_override:
                     activated = self.state.activate_fallback()
                     if activated:
@@ -793,12 +823,20 @@ class AgentLoop:
 4. 遇到不确定的操作,先询问用户
 5. 保护用户隐私,不要泄露敏感信息"""
     
+    # ── 错误分类与重试策略 ──────────────────────────────────────────
+    # 参考 Claude Code withRetry.ts 的分层错误处理设计
+
+    _MAX_API_RETRIES = 5          # API 级最大重试次数
+    _MAX_BACKOFF_S = 32           # 非速率限制退避上限（秒）
+    _RATE_LIMIT_BASE_S = 30       # 速率限制基础等待（秒）
+    _MAX_CONSECUTIVE_SERVER_ERRORS = 2  # 连续服务器错误后触发 fallback
+
     # 瞬时错误关键词（超时/网络/服务器故障）
     _TRANSIENT_ERROR_KEYWORDS = (
         "timeout", "timed out", "connection", "network",
         "temporary failure", "server_error", "502", "503", "504",
         "reset by peer", "broken pipe", "eof occurred",
-        "overloaded",
+        "overloaded", "overloaded_error",
     )
 
     # 速率限制关键词（需要更长的等待时间）
@@ -809,27 +847,88 @@ class AgentLoop:
         "1302",  # GLM 速率限制错误码
     )
 
+    def _extract_status_code(self, error: Exception) -> Optional[int]:
+        """从异常中提取 HTTP 状态码（兼容 openai SDK 各种异常类型）"""
+        code = getattr(error, 'status_code', None)
+        if code is not None:
+            return int(code)
+        code = getattr(error, 'status', None)
+        if code is not None:
+            return int(code)
+        return None
+
+    def _classify_error(self, error: Exception) -> str:
+        """
+        精确分类 API 错误，优先使用 HTTP 状态码，回退到关键词匹配。
+        返回: 'rate_limit' | 'server_overload' | 'timeout' | 'connection' |
+              'server_error' | 'prompt_too_long' | 'auth' | 'unknown'
+        """
+        status = self._extract_status_code(error)
+        error_str = str(error).lower()
+
+        # 1. 按 HTTP 状态码精确分类
+        if status == 429:
+            return 'rate_limit'
+        if status == 529 or (status == 500 and 'overloaded' in error_str):
+            return 'server_overload'
+        if status in (408, 409):
+            return 'timeout'
+        if status in (401, 403):
+            return 'auth'
+        if status and status >= 500:
+            return 'server_error'
+
+        # 2. 类型检查（openai SDK 异常类）
+        if isinstance(error, APITimeoutError):
+            return 'timeout'
+        if isinstance(error, APIConnectionError):
+            return 'connection'
+        if isinstance(error, RateLimitError):
+            return 'rate_limit'
+
+        # 3. 关键词回退（处理非标准 API 如 GLM）
+        if self._is_rate_limit_error(error):
+            return 'rate_limit'
+        if 'timeout' in error_str or 'timed out' in error_str:
+            return 'timeout'
+        if 'context_length' in error_str or 'too_long' in error_str or 'too long' in error_str:
+            return 'prompt_too_long'
+        if any(kw in error_str for kw in ('connection', 'network', 'reset by peer', 'broken pipe')):
+            return 'connection'
+
+        return 'unknown'
+
     def _is_transient_error(self, error: Exception) -> bool:
         """判断是否为瞬时可重试错误（超时/网络/服务器过载/速率限制等）"""
-        error_str = str(error).lower()
-        return (
-            any(kw in error_str for kw in self._TRANSIENT_ERROR_KEYWORDS)
-            or self._is_rate_limit_error(error)
+        category = self._classify_error(error)
+        return category in (
+            'rate_limit', 'server_overload', 'timeout',
+            'connection', 'server_error',
         )
 
     def _is_rate_limit_error(self, error: Exception) -> bool:
         """判断是否为速率限制错误（429 / GLM 1302 等）"""
-        # 类型检查（openai 库 RateLimitError）
-        if type(error).__name__ in ('RateLimitError', 'RateLimit'):
+        if isinstance(error, RateLimitError):
+            return True
+        status = self._extract_status_code(error)
+        if status == 429:
             return True
         error_str = str(error).lower()
         return any(kw in error_str for kw in self._RATE_LIMIT_KEYWORDS)
 
+    def _is_server_error(self, error: Exception) -> bool:
+        """判断是否为服务器端错误（5xx / 529 overloaded）"""
+        status = self._extract_status_code(error)
+        if status and status >= 500:
+            return True
+        error_str = str(error).lower()
+        return 'overloaded' in error_str or 'server_error' in error_str
+
     def _get_retry_wait(self, error: Exception, attempt: int) -> float:
         """
-        根据错误类型计算重试等待时间。
-        - 速率限制：30s/60s/90s（GLM 等 API 的速率窗口通常 60s）
-        - 普通瞬时错误：指数退避 2s/4s/8s
+        根据错误类型计算重试等待时间（参考 withRetry.ts getRetryDelay）。
+        - 速率限制：30s/60s/90s + 抖动（GLM 等 API 的速率窗口通常 60s）
+        - 普通瞬时错误：1s → 2s → 4s → 8s → 16s（cap 32s）+ 小抖动
         - 若有 Retry-After header，优先使用
         """
         import random
@@ -840,30 +939,30 @@ class AgentLoop:
             if retry_after:
                 try:
                     ra = retry_after.headers.get('retry-after')
-                    if ra and ra.isdigit():
+                    if ra and str(ra).isdigit():
                         return min(int(ra), 120)  # 最多等 120s
                 except Exception:
                     pass
             # 速率限制：长等待 + 随机抖动避免雪崩
-            base = 30 * attempt
+            base = self._RATE_LIMIT_BASE_S * attempt
             jitter = random.uniform(0, 5)
             return base + jitter
         else:
-            # 普通瞬时错误：快速指数退避 + 小抖动
-            base = 2 ** attempt
-            jitter = random.uniform(0, 1)
+            # 普通瞬时错误：指数退避 (base 1s) + 25% 抖动，上限 32s
+            base = min(2 ** (attempt - 1), self._MAX_BACKOFF_S)
+            jitter = random.uniform(0, 0.25 * base)
             return base + jitter
 
     def _call_llm_streaming(self) -> StreamResult:
         """
         流式调用 LLM — 逐 token 实时输出，同时累积工具调用。
-        内置指数退避重试：对超时/网络错误最多重试 3 次。
+        内置指数退避重试：最多 5 次，普通错误 1-32s，速率限制 30-90s。
         """
         active_model = self.state.get_active_model(self.model)
         logger.debug(f"Streaming LLM ({active_model}) with {len(self.messages)} messages")
         print(f"\n🤔 思考中... (模型={active_model}, {len(self.messages)} 条消息)")
 
-        max_retries = 3
+        max_retries = self._MAX_API_RETRIES
 
         for attempt in range(1, max_retries + 1):
             try:
@@ -973,11 +1072,18 @@ class AgentLoop:
                 )
 
             except Exception as e:
-                # 瞬时错误（超时/网络/速率限制）→ 按错误类型计算等待时间并重试
+                # 瞬时错误 → 按类型计算等待时间并重试
                 if self._is_transient_error(e) and attempt < max_retries:
                     wait = self._get_retry_wait(e, attempt)
-                    is_rate_limit = self._is_rate_limit_error(e)
-                    error_label = "速率限制" if is_rate_limit else "网络故障"
+                    category = self._classify_error(e)
+                    error_labels = {
+                        'rate_limit': '速率限制',
+                        'server_overload': '服务器过载',
+                        'timeout': '请求超时',
+                        'connection': '连接失败',
+                        'server_error': '服务器错误',
+                    }
+                    error_label = error_labels.get(category, '网络故障')
                     logger.warning(
                         f"LLM streaming {error_label} (attempt {attempt}/{max_retries}): {e}, "
                         f"retrying in {wait:.1f}s..."
@@ -988,7 +1094,8 @@ class AgentLoop:
                         "max_retries": max_retries,
                         "wait_seconds": round(wait, 1),
                         "error": str(e),
-                        "is_rate_limit": is_rate_limit,
+                        "category": category,
+                        "is_rate_limit": category == 'rate_limit',
                     })
                     time.sleep(wait)
                     continue

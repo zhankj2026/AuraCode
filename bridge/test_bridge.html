@@ -639,15 +639,23 @@ function handleEvent(evt) {
       case 'context_compacted':
         appendChat('system', `🗜️ 上下文压缩: ${evt.data.messages_before} → ${evt.data.messages_after} 条消息`);
         break;
-      case 'fallback_activated':
-        appendChat('system', `⚠️ 备用模型: ${evt.data.model}`);
+      case 'fallback_activated': {
+        const reason = evt.data.reason ? ` (${evt.data.reason})` : '';
+        appendChat('system', `⚠️ 备用模型: ${evt.data.model}${reason}`);
         break;
-      case 'api_retry':
-        appendChat('system', `⚠️ API 请求失败，${evt.data.wait_seconds}s 后重试 (${evt.data.attempt}/${evt.data.max_retries}): ${evt.data.error}`);
+      }
+      case 'api_retry': {
+        const categoryLabels = { rate_limit: '速率限制', server_overload: '服务器过载', timeout: '请求超时', connection: '连接失败', server_error: '服务器错误' };
+        const catLabel = categoryLabels[evt.data.category] || 'API故障';
+        appendChat('system', `⚠️ ${catLabel}，${evt.data.wait_seconds}s 后重试 (${evt.data.attempt}/${evt.data.max_retries}): ${evt.data.error}`);
         break;
-      case 'turn_retry':
-        appendChat('system', `⚠️ 网络瞬时故障，${evt.data.wait_seconds}s 后重试轮次 ${evt.data.turn}: ${evt.data.error}`);
+      }
+      case 'turn_retry': {
+        const catLabels = { rate_limit: '速率限制', server_overload: '服务器过载', timeout: '请求超时', connection: '连接失败' };
+        const catLabel = catLabels[evt.data.category] || '网络故障';
+        appendChat('system', `⚠️ ${catLabel}，${evt.data.wait_seconds}s 后重试轮次 ${evt.data.turn}: ${evt.data.error}`);
         break;
+      }
       case 'prompt_too_long_recovery':
         appendChat('system', `⚠️ Prompt 过长，压缩重试 (${evt.data.messages_before} 条)`);
         break;
