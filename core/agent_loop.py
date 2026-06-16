@@ -486,13 +486,13 @@ class AgentLoop:
                         )
                 self._prompt_retried = False
 
-                # 瞬时网络错误（超时/速率限制/服务器过载）— 轮次级重试
-                # _call_llm_streaming 内部已重试 5 次，这里额外给一次轮次级机会
-                if self._is_transient_error(e) and _turn_retry_count < 1:
+                # 瞬时网络错误（超时/服务器过载）— 轮次级重试
+                # 注意: 速率限制 (429) 不做 turn-level retry，内层 _call_llm_streaming 已有
+                # 8 次重试，足够覆盖速率窗口。此处仅处理服务器错误/超时/连接问题。
+                if self._is_transient_error(e) and error_category != 'rate_limit' and _turn_retry_count < 1:
                     _turn_retry_count += 1
-                    is_rate_limit = error_category == 'rate_limit'
-                    wait = self._get_retry_wait(e, 2) if is_rate_limit else 10
-                    error_label = "速率限制" if is_rate_limit else "网络故障"
+                    wait = 10  # 服务器错误统一等 10s
+                    error_label = "网络故障"
                     logger.info(f"Transient error, turn-level retry in {wait:.0f}s: {e}")
                     print(f"\n⚠️ API {error_label}，{wait:.0f}s 后重试当前轮次...")
                     self._emit_event("turn_retry", {
@@ -500,7 +500,7 @@ class AgentLoop:
                         "error": str(e),
                         "wait_seconds": round(wait, 1),
                         "category": error_category,
-                        "is_rate_limit": is_rate_limit,
+                        "is_rate_limit": False,
                     })
                     time.sleep(wait)
                     continue
@@ -833,9 +833,10 @@ class AgentLoop:
     # ── 错误分类与重试策略 ──────────────────────────────────────────
     # 参考 Claude Code withRetry.ts 的分层错误处理设计
 
-    _MAX_API_RETRIES = 5          # API 级最大重试次数
+    _MAX_API_RETRIES = 8          # API 级最大重试次数（参考 withRetry.ts 的 10 次）
     _MAX_BACKOFF_S = 32           # 非速率限制退避上限（秒）
-    _RATE_LIMIT_BASE_S = 30       # 速率限制基础等待（秒）
+    _RATE_LIMIT_FLOOR_S = 8      # 速率限制最低等待（秒），参考 withRetry.ts BASE_DELAY_MS=500ms
+    _RATE_LIMIT_CAP_S = 60       # 速率限制最大等待（秒），避免过度等待
     _MAX_CONSECUTIVE_SERVER_ERRORS = 2  # 连续服务器错误后触发 fallback
 
     # 瞬时错误关键词（超时/网络/服务器故障）
@@ -934,24 +935,37 @@ class AgentLoop:
     def _get_retry_wait(self, error: Exception, attempt: int) -> float:
         """
         根据错误类型计算重试等待时间（参考 withRetry.ts getRetryDelay）。
-        - 速率限制：30s/60s/90s + 抖动（GLM 等 API 的速率窗口通常 60s）
-        - 普通瞬时错误：1s → 2s → 4s → 8s → 16s（cap 32s）+ 小抖动
-        - 若有 Retry-After header，优先使用
+
+        优先级:
+        1. Retry-After 响应头（最精确，直接使用 + 10% 抖动）
+        2. 错误消息中的等待时间提示（GLM 等 API 在 message 中嵌入等待秒数）
+        3. 默认退避策略:
+           - 速率限制: 8 * sqrt(attempt) 秒，上限 60s
+           - 其他瞬时错误: 指数退避 1/2/4/8/16/32s + 25% 抖动
         """
         import random
 
         if self._is_rate_limit_error(error):
-            # 优先读取 Retry-After 响应头
-            retry_after = getattr(error, 'response', None)
-            if retry_after:
-                try:
-                    ra = retry_after.headers.get('retry-after')
-                    if ra and str(ra).isdigit():
-                        return min(int(ra), 120)  # 最多等 120s
-                except Exception:
-                    pass
-            # 速率限制：长等待 + 随机抖动避免雪崩
-            base = self._RATE_LIMIT_BASE_S * attempt
+            # ── 策略 1: 读取 Retry-After 响应头 ──
+            retry_after = self._extract_retry_after(error)
+            if retry_after is not None:
+                jitter = random.uniform(0, max(1, retry_after * 0.1))
+                return min(retry_after + jitter, 300)  # 最多 5 分钟
+
+            # ── 策略 2: 从错误消息中提取等待时间 ──
+            hint = self._extract_wait_hint(error)
+            if hint is not None:
+                jitter = random.uniform(0, max(1, hint * 0.1))
+                return hint + jitter
+
+            # ── 策略 3: 默认退避 — 平方根增长，避免过度等待 ──
+            # attempt: 1→8s, 2→11s, 3→14s, 4→16s, 5→18s, 8→23s
+            # 比 30*attempt (30/60/90s) 快得多，减少用户等待
+            import math
+            base = min(
+                self._RATE_LIMIT_FLOOR_S * math.sqrt(attempt),
+                self._RATE_LIMIT_CAP_S,
+            )
             jitter = random.uniform(0, 5)
             return base + jitter
         else:
@@ -960,10 +974,61 @@ class AgentLoop:
             jitter = random.uniform(0, 0.25 * base)
             return base + jitter
 
+    def _extract_retry_after(self, error: Exception) -> Optional[float]:
+        """
+        从异常中提取 Retry-After 响应头（参考 withRetry.ts getRetryAfter）。
+        兼容 openai SDK 多种异常类型的 headers 访问路径。
+        """
+        # 路径 1: error.response.headers (httpx.Response)
+        resp = getattr(error, 'response', None)
+        if resp is not None:
+            try:
+                ra = resp.headers.get('retry-after')
+                if ra and str(ra).isdigit():
+                    return min(float(ra), 300)  # 最多 5 分钟
+            except Exception:
+                pass
+
+        # 路径 2: error.headers (dict / httpx.Headers)
+        headers = getattr(error, 'headers', None)
+        if headers is not None:
+            try:
+                ra = headers.get('retry-after') if hasattr(headers, 'get') else None
+                if ra and str(ra).isdigit():
+                    return min(float(ra), 300)
+            except Exception:
+                pass
+
+        return None
+
+    def _extract_wait_hint(self, error: Exception) -> Optional[float]:
+        """
+        从错误消息中提取等待时间提示。
+        某些 API (如 GLM) 在错误消息中嵌入建议等待时间，例如:
+        - "Xs 后重试"
+        - "X秒后重试"
+        - "retry after Xs"
+        """
+        import re
+        msg = str(error)
+        for pattern in (
+            r'(\d+)\s*[sS秒]\s*后?\s*重试',
+            r'retry\s+after\s+(\d+)',
+            r'wait\s+(\d+)\s*[sS]',
+            r'please\s+wait\s+(\d+)',
+        ):
+            m = re.search(pattern, msg, re.IGNORECASE)
+            if m:
+                val = float(m.group(1))
+                if 1 <= val <= 300:  # 只接受 1-300 秒的合理值
+                    return val
+        return None
+
     def _call_llm_streaming(self) -> StreamResult:
         """
         流式调用 LLM — 逐 token 实时输出，同时累积工具调用。
-        内置指数退避重试：最多 5 次，普通错误 1-32s，速率限制 30-90s。
+        内置智能退避重试：最多 8 次，优先读取 Retry-After header，
+        速率限制默认 8-60s，普通错误指数退避 1-32s。
         """
         active_model = self.state.get_active_model(self.model)
         logger.debug(f"Streaming LLM ({active_model}) with {len(self.messages)} messages")
