@@ -664,3 +664,263 @@ opencode 当前已实现类 Claude Code 的 AI 编程助手核心能力（完成
 | 8 | **增加"版本管理"** — 需求/设计/接口定义均需版本历史和 Diff | 中 |
 | 9 | **补充用户旅程图** — 至少 3-5 个核心端到端操作流程 | 中 |
 | 10 | **修正"完成度"表述** — 明确区分"AI 引擎层"和"平台基础设施"完成度 | 高 |
+
+---
+
+## 附录 B：架构决策记录
+
+**决策日期**：2026-06-16  
+**决策范围**：前端/后端/网关的分离与合并策略  
+
+---
+
+### B.1 决策背景
+
+newplan_V2 提出构建三层系统（前端 + 后端 + 集成网关），核心问题是：
+1. Web 前端、后端、网关是否应该分开设计？
+2. 后端与网关是否可以合并为一个服务？
+
+两个决策需综合考量。
+
+---
+
+### B.2 最终架构决策
+
+| 层级 | 决策 | 理由 |
+|------|------|------|
+| **前端** | **完全独立**（独立仓库/独立构建） | 技术栈异构（JS/TS vs Python），部署方式不同（CDN vs K8s），开发节奏独立 |
+| **后端** | **与网关合并**（同一 FastAPI 服务） | 同技术栈、共享数据库/认证、减少通信开销、降低初期运维复杂度 |
+| **网关** | **作为后端子模块**（`platform/gateway/`） | 当前适配器数量 <10，Webhook 接收量 <5000 QPS，不需要独立进程 |
+| **opencode** | **保持独立**（AI 引擎库） | 核心 AI 能力不受平台改造影响，CLI 模式保持可用 |
+
+**一句话总结**：**前端独立、后端+网关合并、opencode 作为引擎库被引用**
+
+---
+
+### B.3 目标架构总览
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    前端（Next.js + Ant Design Pro）              │
+│  独立构建 / CDN 部署 / WebSocket 客户端                          │
+└─────────────────────────────────────────────────────────────────┘
+                           ↕ HTTP/REST + WebSocket
+┌─────────────────────────────────────────────────────────────────┐
+│                  后端服务（FastAPI 单体）                         │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐         │
+│  │ 业务 API 层 │  │ 网关模块    │  │ AI 引擎引用层   │         │
+│  │ (91 个端点) │  │ adapters/   │  │ import opencode │         │
+│  │             │  │ router.py   │  │                 │         │
+│  │ projects/   │  │ webhooks.py │  │ AgentLoop       │         │
+│  │ requirements│  │ events.py   │  │ SessionStore    │         │
+│  │ sessions/   │  │ retry.py    │  │ Tools/Memory    │         │
+│  └─────────────┘  └─────────────┘  └─────────────────┘         │
+├─────────────────────────────────────────────────────────────────┤
+│  PostgreSQL / Redis / Celery Worker / MinIO                    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### B.4 项目目录结构
+
+```
+opencode/                        # 现有：AI 引擎（保持不动）
+├── core/                        # AgentLoop / SessionState / Memory
+├── tools/                       # 50+ 工具
+├── bridge/                      # WebSocket 会话管理
+├── services/                    # 持久化服务
+└── ...                          # CLI / 配置 / 测试
+
+platform/                        # 新增：业务后端 + 网关（同一服务）
+├── main.py                      # FastAPI 入口（注册所有路由）
+├── api/                         # 业务 API 端点
+│   ├── projects.py
+│   ├── requirements.py
+│   ├── design.py
+│   ├── sessions.py
+│   ├── testing.py
+│   ├── deployment.py
+│   ├── acceptance.py
+│   └── notifications.py         # 通知中心（补充缺失模块）
+├── gateway/                     # 网关模块（内嵌）
+│   ├── __init__.py
+│   ├── adapters/                # 适配器
+│   │   ├── base.py              # BaseAdapter 抽象类
+│   │   ├── dingtalk.py          # 钉钉
+│   │   ├── feishu.py            # 飞书
+│   │   ├── wecom.py             # 企业微信
+│   │   ├── jira.py              # Jira/TAPD
+│   │   └── jenkins.py           # Jenkins/GitLab CI
+│   ├── events.py                # 统一事件模型（Pydantic）
+│   ├── router.py                # 事件路由器（条件分发）
+│   ├── webhooks.py              # Webhook 接收端点
+│   └── retry.py                 # 重试队列（Celery 任务）
+├── core/                        # 业务核心（非 AI）
+│   ├── stage_gate.py            # 阶段门禁状态机
+│   ├── traceability.py          # 追溯矩阵
+│   └── versioning.py            # 版本管理
+├── models/                      # SQLAlchemy ORM 模型
+│   ├── project.py
+│   ├── requirement.py
+│   ├── design.py
+│   ├── test_case.py
+│   ├── defect.py
+│   ├── deployment.py
+│   └── notification.py
+├── auth/                        # JWT + RBAC
+│   ├── jwt.py
+│   ├── rbac.py                  # 8 角色（含 Tech Lead）
+│   └── middleware.py
+├── tasks/                       # Celery 异步任务
+│   ├── ai_tasks.py              # LLM 调用异步包装
+│   ├── test_tasks.py            # 测试执行
+│   └── deploy_tasks.py          # 部署执行
+└── config.py                    # 服务配置
+
+frontend/                        # 新增：Web 前端（完全独立）
+├── package.json
+├── next.config.js
+├── src/
+│   ├── app/                     # Next.js 页面路由
+│   ├── components/              # 通用组件
+│   ├── services/                # API 调用层（axios）
+│   ├── stores/                  # Zustand 状态管理
+│   └── hooks/                   # 自定义 hooks
+└── public/
+```
+
+---
+
+### B.5 后端与网关合并的具体实现
+
+#### B.5.1 Webhook 端点挂载
+
+```python
+# platform/main.py
+from fastapi import FastAPI
+from api import projects, requirements, sessions  # 业务 API
+from gateway.webhooks import router as webhook_router  # 网关 Webhook
+
+app = FastAPI(title="OpenCode Platform")
+
+# 业务 API 路由
+app.include_router(projects.router, prefix="/api/v1")
+app.include_router(requirements.router, prefix="/api/v1")
+app.include_router(sessions.router, prefix="/api/v1")
+
+# 网关 Webhook 路由（外部系统回调）
+app.include_router(webhook_router, prefix="/webhooks")
+```
+
+#### B.5.2 适配器调用（Celery 异步）
+
+```python
+# platform/gateway/router.py
+from celery import shared_task
+from gateway.adapters.dingtalk import DingTalkAdapter
+from gateway.adapters.jira import JiraAdapter
+
+@shared_task(bind=True, max_retries=3)
+def dispatch_event(self, event_type: str, payload: dict):
+    """事件路由：根据事件类型分发到对应适配器"""
+    routes = {
+        "deployment.success": [DingTalkAdapter, "notify_deploy"],
+        "requirement.updated": [JiraAdapter, "sync_requirement"],
+        "review.approved": [DingTalkAdapter, "notify_review"],
+    }
+    adapter_cls, method = routes.get(event_type, [None, None])
+    if adapter_cls:
+        getattr(adapter_cls(), method)(payload)
+```
+
+#### B.5.3 事件模型（统一格式）
+
+```python
+# platform/gateway/events.py
+from pydantic import BaseModel
+from enum import Enum
+from datetime import datetime
+
+class EventType(str, Enum):
+    REQUIREMENT_UPDATED = "requirement.updated"
+    DESIGN_REVIEWED = "design.reviewed"
+    CODE_COMMITTED = "code.committed"
+    TEST_PASSED = "test.passed"
+    DEPLOYMENT_SUCCESS = "deployment.success"
+    DEPLOYMENT_FAILED = "deployment.failed"
+    ACCEPTANCE_APPROVED = "acceptance.approved"
+
+class PlatformEvent(BaseModel):
+    event_id: str
+    event_type: EventType
+    project_id: str
+    source: str          # 触发来源（web/jira/jenkins）
+    payload: dict
+    timestamp: datetime = datetime.utcnow()
+```
+
+---
+
+### B.6 与 opencode 的集成方式
+
+**关键原则**：opencode 作为 Python 库被平台后端 import，而非 HTTP 调用
+
+```python
+# platform/api/sessions.py
+from fastapi import APIRouter, WebSocket
+from opencode.core.agent_loop import AgentLoop        # 引用 AI 引擎
+from opencode.bridge.session import BridgeSession      # 引用会话管理
+from opencode.bridge.manager import BridgeSessionManager
+
+router = APIRouter()
+
+@router.post("/projects/{project_id}/sessions")
+async def create_session(project_id: str, req: CreateSessionReq):
+    """创建开发会话（复用 opencode BridgeSession）"""
+    config = SessionConfig(
+        work_dir=get_project_workdir(project_id),
+        model=req.model,
+        ...
+    )
+    session = session_manager.create_session(config)
+    return {"session_id": session.session_id}
+
+@router.websocket("/sessions/{session_id}/ws")
+async def session_websocket(ws: WebSocket, session_id: str):
+    """WebSocket 会话（复用 opencode Bridge 事件推送）"""
+    ...
+```
+
+---
+
+### B.7 分阶段演进路线
+
+| 阶段 | 架构形态 | 说明 |
+|------|----------|------|
+| **P0（第 1-2 月）** | Monorepo 内分层 | opencode + platform + frontend 在同一仓库，后端/网关合并为单一 FastAPI 服务 |
+| **P1（第 3-5 月）** | 同 P0 | 网关模块逐步完善（适配器从 2 个增至 5 个），仍为同一服务 |
+| **P2（第 6-8 月）** | 同 P0 | AI 增强功能嵌入后端，追溯矩阵等复杂功能加入 |
+| **P3+（如需）** | 可选拆分 | 当网关适配器 >15 个 或 Webhook QPS >5000 时，将 gateway/ 拆为独立服务 |
+
+---
+
+### B.8 关键决策对比表
+
+| 方案 | 前端 | 后端 | 网关 | 适用场景 |
+|------|------|------|------|----------|
+| A. 全部合并 | 嵌入后端 | 合并 | 合并 | 极小项目（已排除） |
+| B. 前端独立，后端+网关合并 | **独立** | **合并** | **合并** | **当前选择（P0-P2）** |
+| C. 三层完全分离 | 独立 | 独立 | 独立 | 大团队/高并发（P3+ 备选） |
+| D. 微服务 | 独立 | 拆多个 | 独立 | 超大规模（暂不需要） |
+
+---
+
+### B.9 风险与缓解
+
+| 风险 | 概率 | 缓解措施 |
+|------|------|----------|
+| 后端+网关合并后代码耦合 | 中 | gateway/ 模块严格只依赖 events.py 和 base.py，不直接 import api/ |
+| 适配器崩溃影响核心 API | 低 | 适配器调用全部走 Celery 异步任务，异常不影响 API 响应 |
+| 未来拆分困难 | 低 | gateway/ 已设计为独立模块，拆分时只需改 import 为 HTTP 调用 |
+| 前端与后端接口契约不一致 | 中 | 后端提供 OpenAPI 文档，前端用 openapi-typescript-codegen 自动生成调用层 |
