@@ -46,3 +46,6 @@ from . import rewind_command
 
 # New commands (Security review)
 from . import security_review_command
+
+# New commands (Persistence: settings/history-log/file-history)
+from . import settings_command

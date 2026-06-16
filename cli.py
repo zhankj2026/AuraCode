@@ -304,29 +304,30 @@ class ChatMode:
         """运行多轮对话循环"""
         self.show_welcome()
 
-        # 处理初始输入
-        if initial_input:
-            if not self.handle_input(initial_input):
-                return
+        try:
+            # 处理初始输入
+            if initial_input:
+                if not self.handle_input(initial_input):
+                    return
 
-        # 对话循环
-        while True:
-            try:
-                user_input = input(f"[{self.round}]> ")
-                if not self.handle_input(user_input):
+            # 对话循环
+            while True:
+                try:
+                    user_input = input(f"[{self.round}]> ")
+                    if not self.handle_input(user_input):
+                        break
+                except KeyboardInterrupt:
+                    print("\n\n👋 用户中断")
                     break
-            except KeyboardInterrupt:
-                print("\n\n👋 用户中断")
-                break
-            except EOFError:
-                print("\n\n👋 输入结束")
-                break
-
-        # 自动保存会话
-        self._auto_save_on_exit()
-        # 显示会话统计
-        self.show_stats()
-        print("\n✅ 感谢使用！再见！")
+                except EOFError:
+                    print("\n\n👋 输入结束")
+                    break
+        finally:
+            # 无论正常退出还是异常，都持久化会话
+            self._auto_save_on_exit()
+            # 显示会话统计
+            self.show_stats()
+            print("\n✅ 感谢使用！再见！")
 
 
 def check_api_key():

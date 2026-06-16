@@ -20,6 +20,7 @@ from bridge.types import (
     BridgeEvent, BridgeEventType, SessionConfig, SessionInfo,
     SessionState, PermissionRequest, PermissionResponse,
 )
+from core.session_store import SessionStore, auto_save_session
 
 logger = logging.getLogger(__name__)
 
@@ -246,6 +247,8 @@ class BridgeSession:
         self.created_at = time.time()
         self.last_activity = 0.0
         self.title = ""
+        self._round_count = 0  # 已处理的消息轮次数
+        self._session_store = SessionStore()  # 会话持久化
 
     # ── 公共方法 ─────────────────────────────────────────────────────
 
@@ -431,9 +434,40 @@ class BridgeSession:
                 data={"error": str(e)},
             ))
         finally:
+            # 退出前持久化会话
+            self._save_session_on_exit()
             sys.stdout = old_stdout
             if self.state not in (SessionState.COMPLETED, SessionState.FAILED):
                 self.state = SessionState.COMPLETED
+
+    def _save_session_on_exit(self):
+        """退出时持久化会话到 ~/.opencode/sessions/"""
+        try:
+            if not self._agent_loop:
+                return
+            state = self._agent_loop.state
+            if not state.messages:
+                return
+
+            status = "completed" if self.state != SessionState.FAILED else "error"
+
+            meta = auto_save_session(
+                store=self._session_store,
+                messages=state.messages,
+                model=self.config.model,
+                turn_count=self._round_count,
+                total_tokens=state.total_usage.total_tokens,
+                total_cost_usd=state.total_cost_usd,
+                status=status,
+                session_id=self.session_id,
+            )
+            if meta:
+                logger.info(
+                    f"Bridge session saved: {self.session_id} "
+                    f"({meta.message_count} msgs, {self._round_count} rounds)"
+                )
+        except Exception as e:
+            logger.warning(f"Bridge session save failed: {e}")
 
     def _process_message(self, content: str, writer: ThreadLocalWriter):
         """处理一条用户消息"""
@@ -459,6 +493,7 @@ class BridgeSession:
 
             # 运行 AgentLoop
             result = self._agent_loop.run(content)
+            self._round_count += 1
 
             # 提取新增的消息并生成事件
             new_messages = self._agent_loop.messages[pre_msg_count:]

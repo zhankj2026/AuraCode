@@ -276,6 +276,13 @@ class AgentLoop:
         Returns:
             QueryResult 结构化结果
         """
+        result = self._run_inner(user_input)
+        # 记录到全局历史日志
+        self._record_history(user_input, result)
+        return result
+
+    def _run_inner(self, user_input: str) -> QueryResult:
+        """Agent Loop 内部实现（不含历史日志记录）"""
         logger.info(f"Starting agent loop with input: {user_input[:50]}...")
         self.state.start_query()
 
@@ -1310,6 +1317,9 @@ class AgentLoop:
                         if not os.path.isabs(p):
                             arguments[pk] = os.path.join(self.project_root, p)
 
+                # file-history: 在写入前自动备份
+                self._track_file_history(tool_name, arguments)
+
                 handler = tool["handler"]
                 result = handler(**arguments)
 
@@ -1733,6 +1743,72 @@ class AgentLoop:
             self._cc_file_ops.append((msg_idx, "read", abs_path))
         elif tool_name in self._CC_WRITE_TOOLS:
             self._cc_file_ops.append((msg_idx, "write", abs_path))
+
+    # ── 全局历史日志 + 文件修改历史 ───────────────────────────
+
+    # 写入类工具集合（用于 file-history 自动备份）
+    _FILE_WRITE_TOOLS = {"write_file", "replace_in_file"}
+
+    def _record_history(self, user_input: str, result) -> None:
+        """记录本轮交互到全局 history.jsonl"""
+        try:
+            from services.history_log import get_history_log
+            history = get_history_log()
+
+            # 提取工具使用列表
+            tools_used = []
+            if hasattr(self, '_cc_file_ops'):
+                for _, op_type, _ in self._cc_file_ops:
+                    if op_type == "write":
+                        tools_used.append("write_file")
+
+            # 提取助手摘要
+            assistant_summary = ""
+            if result and hasattr(result, 'text') and result.text:
+                assistant_summary = result.text
+
+            status = "success"
+            if result and hasattr(result, 'status'):
+                status = result.status or "success"
+
+            duration_ms = 0
+            if result and hasattr(result, 'duration_ms'):
+                duration_ms = result.duration_ms or 0
+
+            session_id = getattr(self, '_session_id', '') or str(id(self))[:8]
+
+            history.append(
+                session_id=session_id,
+                model=self.state.get_active_model(self.model) or self.model,
+                user_prompt=user_input,
+                assistant_summary=assistant_summary,
+                turn_count=self.state.turn_count,
+                status=status,
+                tokens_used=result.total_tokens if result and hasattr(result, 'total_tokens') else 0,
+                duration_ms=duration_ms,
+                tools_used=list(set(tools_used)),
+                work_dir=self.project_root,
+            )
+        except Exception as e:
+            logger.debug(f"History log record failed: {e}")
+
+    def _track_file_history(self, tool_name: str, arguments: Dict[str, Any]) -> None:
+        """在文件写入前自动备份（file-history）"""
+        if tool_name not in self._FILE_WRITE_TOOLS:
+            return
+        file_path = arguments.get("path") or arguments.get("file_path", "")
+        if not file_path:
+            return
+        try:
+            from services.file_history import get_file_history
+            fh = get_file_history()
+            fh.track_edit(
+                file_path=file_path,
+                message_index=len(self.state.messages),
+                turn=self.state.turn_count,
+            )
+        except Exception as e:
+            logger.debug(f"File history track failed: {e}")
 
     def _context_collapse(self) -> int:
         """
