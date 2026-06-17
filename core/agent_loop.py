@@ -92,7 +92,7 @@ class AgentLoop:
         )
 
         # 2. 配置参数
-        self.model = config.get("model", "glm-4-plus")
+        self.model = config.get("model", "glm-4.7")
         self.max_iterations = config.get("max_iterations", 20)
         self.max_tokens = config.get("max_tokens", 8192)
         # 工作目录：工具文件操作的基准路径（Bridge 模式下为用户指定的 work_dir）
