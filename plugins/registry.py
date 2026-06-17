@@ -41,13 +41,21 @@ class PluginManifest:
     requires: Dict[str, str] = field(default_factory=dict)  # 环境要求 (python>=3.9, etc)
     tags: List[str] = field(default_factory=list)
     enabled: bool = True
+    source: str = "user"  # 来源: builtin / project / user / marketplace
+
+    @property
+    def plugin_id(self) -> str:
+        """规范插件 ID: {name}@{source}"""
+        return f"{self.name}@{self.source}"
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "name": self.name,
+            "plugin_id": self.plugin_id,
             "version": self.version,
             "description": self.description,
             "author": self.author,
+            "source": self.source,
             "dependencies": self.dependencies,
             "provides": self.provides,
             "tags": self.tags,
@@ -61,6 +69,7 @@ class PluginManifest:
             name=getattr(plugin, 'name', 'unknown'),
             version=getattr(plugin, 'version', '0.0.1'),
             description=getattr(plugin, 'description', ''),
+            source=getattr(plugin, 'source', 'user'),
         )
         # 额外属性
         for attr in ('author', 'license', 'homepage', 'dependencies',
@@ -244,14 +253,16 @@ class PluginRegistry:
         return entry.plugin if entry else None
 
     def list_plugins(self) -> List[Dict[str, Any]]:
-        """列出所有插件信息"""
+        """列出所有插件信息（含 plugin_id 和 source）"""
         result = []
         with self._lock:
             for name, entry in self._entries.items():
                 result.append({
                     "name": name,
+                    "plugin_id": entry.manifest.plugin_id,
                     "version": entry.manifest.version,
                     "description": entry.manifest.description,
+                    "source": entry.manifest.source,
                     "status": entry.status,
                     "error": entry.error,
                     "load_time_ms": round(entry.load_time_ms, 2),
@@ -260,6 +271,20 @@ class PluginRegistry:
                     "registered_at": entry.registered_at,
                 })
         return result
+
+    def get_enabled_plugins(self) -> List[str]:
+        """获取已启用插件名列表（manifest.enabled=True 且状态为 active）"""
+        return [
+            n for n, e in self._entries.items()
+            if e.status == "active" and e.manifest.enabled
+        ]
+
+    def get_disabled_plugins(self) -> List[str]:
+        """获取已禁用插件名列表"""
+        return [
+            n for n, e in self._entries.items()
+            if not e.manifest.enabled or e.status == "disabled"
+        ]
 
     def get_active_plugins(self) -> List[str]:
         """获取活跃插件名列表"""

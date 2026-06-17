@@ -13,7 +13,12 @@ class ToolPlugin(ABC):
     """
     插件基类
     
-    所有插件必须继承此类并实现抽象方法
+    所有插件必须继承此类并实现抽象方法。
+    
+    可选属性（有默认值，子类可按需覆盖）：
+    - default_enabled: 默认启用状态（配合 builtin.py 三级回退链）
+    - source: 插件来源（builtin/project/user/marketplace）
+    - mcp_servers: 携带的 MCP Server 配置
     """
     
     @property
@@ -33,6 +38,45 @@ class ToolPlugin(ABC):
     def description(self) -> str:
         """插件描述"""
         pass
+
+    # ── 可选属性（子类可覆盖）──────────────────────────────────
+
+    @property
+    def default_enabled(self) -> bool:
+        """
+        默认启用状态（三级回退链的第二级）
+
+        回退优先级: 用户设置 > default_enabled > True
+        内置插件设为 False 则默认禁用，需用户手动开启。
+        """
+        return True
+
+    @property
+    def source(self) -> str:
+        """
+        插件来源标识
+
+        可选值: builtin / project / user / marketplace
+        用于生成规范 plugin_id: {name}@{source}
+        """
+        return "user"
+
+    @property
+    def mcp_servers(self) -> List[Dict[str, Any]]:
+        """
+        插件携带的 MCP Server 配置列表
+
+        格式示例:
+        [
+            {
+                "name": "my-server",
+                "command": "node",
+                "args": ["server.js"],
+                "env": {"KEY": "value"}
+            }
+        ]
+        """
+        return []
     
     @abstractmethod
     def get_tools(self) -> List[Dict[str, Any]]:
@@ -66,6 +110,10 @@ class ToolPlugin(ABC):
         """
         检查插件是否可用
         
+        返回 False 时:
+        - loader.py: 不加载该插件
+        - builtin.py: 完全隐藏（不出现在 enabled/disabled 列表）
+        
         Returns:
             True 如果插件可用,False 否则
         """
@@ -83,6 +131,11 @@ class ToolPlugin(ABC):
     def cleanup(self):
         """清理插件资源(可选实现)"""
         pass
+
+    @property
+    def plugin_id(self) -> str:
+        """规范插件 ID: {name}@{source}"""
+        return f"{self.name}@{self.source}"
     
     def __repr__(self) -> str:
-        return f"<Plugin {self.name} v{self.version}>"
+        return f"<Plugin {self.plugin_id} v{self.version}>"

@@ -3,34 +3,66 @@
 
 基于 code.md Phase 4 实现
 参考: 第 6.1 节
+
+v2.0 增强:
+- 集成 builtin.py 内置插件注册表
+- 区分插件来源 (builtin/project/user)
+- 生成规范 plugin_id: {name}@{source}
 """
 
 import os
 import importlib
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from .base import ToolPlugin
+from .builtin import (
+    get_enabled_builtin_plugins,
+    BUILTIN_MARKETPLACE_NAME,
+)
 
 logger = logging.getLogger(__name__)
 
+# 插件来源常量
+SOURCE_BUILTIN = "builtin"
+SOURCE_PROJECT = "project"
+SOURCE_USER = "user"
+
 
 class PluginLoader:
-    """插件加载器"""
+    """
+    插件加载器
+
+    加载来源:
+    1. 内置插件 — builtin.py 注册表（程序化注册，对应 Claude Code builtinPlugins.ts）
+    2. 目录插件 — plugins/ 目录下 .py 文件（动态扫描）
+    3. 项目级插件 — .opencode/plugins/ 目录
+    4. 用户级插件 — ~/.opencode/plugins/ 目录
+
+    每个插件都有规范 plugin_id: {name}@{source}
+    """
     
-    def __init__(self, plugins_dir: str = None):
+    def __init__(self, plugins_dir: str = None, project_root: str = "."):
         """
         初始化插件加载器
         
         Args:
-            plugins_dir: 插件目录路径,默认为 plugins/
+            plugins_dir: 插件目录路径,默认为 opencode/plugins/
+            project_root: 项目根目录（用于查找项目级插件）
         """
         if plugins_dir is None:
             # 默认为 opencode/plugins/
             plugins_dir = os.path.dirname(__file__)
         
         self.plugins_dir = os.path.abspath(plugins_dir)
+        self.project_root = os.path.abspath(project_root)
+
+        # 项目级 / 用户级插件目录
+        self.project_plugins_dir = os.path.join(self.project_root, '.opencode', 'plugins')
+        self.user_plugins_dir = os.path.join(os.path.expanduser('~'), '.opencode', 'plugins')
+
         self.plugins: List[ToolPlugin] = []
         self.plugins_map: Dict[str, ToolPlugin] = {}
+        self._plugin_sources: Dict[str, str] = {}  # name -> source
     
     def scan_plugins(self) -> List[str]:
         """
@@ -46,28 +78,26 @@ class PluginLoader:
         plugin_files = []
         for filename in os.listdir(self.plugins_dir):
             # 只加载 plugins/ 目录下的 .py 文件
-            # 跳过 __init__.py, base.py, loader.py
+            # 跳过 __init__.py, base.py, loader.py, builtin.py
             # 跳过 example_ 开头的示例插件
             if (filename.endswith('.py') and 
                 not filename.startswith('_') and
-                filename not in ['base.py', 'loader.py']):
+                filename not in ['base.py', 'loader.py', 'builtin.py']):
                 plugin_files.append(filename)
         
         logger.info(f"扫描到 {len(plugin_files)} 个插件文件")
         return plugin_files
     
-    def load_plugin(self, module_name: str) -> ToolPlugin:
+    def load_plugin(self, module_name: str, source: str = SOURCE_USER) -> Optional[ToolPlugin]:
         """
         加载单个插件
         
         Args:
             module_name: 插件模块名(不含 .py)
+            source: 插件来源 (builtin/project/user)
         
         Returns:
-            插件实例
-        
-        Raises:
-            Exception: 如果加载失败
+            插件实例，失败返回 None
         """
         try:
             # 动态导入模块
@@ -89,7 +119,9 @@ class PluginLoader:
                     if plugin.is_available():
                         # 初始化插件
                         if plugin.initialize():
-                            logger.info(f"插件加载成功: {plugin.name} v{plugin.version}")
+                            # 记录来源
+                            self._plugin_sources[plugin.name] = source
+                            logger.info(f"插件加载成功: {plugin.plugin_id} v{plugin.version}")
                             return plugin
                         else:
                             logger.warning(f"插件初始化失败: {module_name}")
@@ -103,24 +135,112 @@ class PluginLoader:
             logger.error(f"加载插件 {module_name} 失败: {e}")
             return None
     
-    def load_all_plugins(self) -> List[ToolPlugin]:
+    def _load_from_dir(self, plugins_dir: str, source: str) -> int:
+        """
+        从指定目录加载插件
+
+        Args:
+            plugins_dir: 目录路径
+            source: 来源标识
+
+        Returns:
+            成功加载数量
+        """
+        if not os.path.exists(plugins_dir):
+            return 0
+
+        count = 0
+        # 将目录临时加入 sys.path 以便 importlib 找到
+        import sys
+        parent = os.path.dirname(plugins_dir)
+        pkg_name = os.path.basename(plugins_dir)
+        added = False
+        if parent not in sys.path:
+            sys.path.insert(0, parent)
+            added = True
+
+        try:
+            for filename in os.listdir(plugins_dir):
+                if (filename.endswith('.py') and
+                    not filename.startswith('_')):
+                    module_name = filename[:-3]
+                    full_module = f"{pkg_name}.{module_name}"
+                    try:
+                        module = importlib.import_module(full_module)
+                        for attr_name in dir(module):
+                            attr = getattr(module, attr_name)
+                            if (isinstance(attr, type) and
+                                issubclass(attr, ToolPlugin) and
+                                attr != ToolPlugin):
+                                plugin = attr()
+                                if plugin.is_available() and plugin.initialize():
+                                    if plugin.name not in self.plugins_map:
+                                        self._plugin_sources[plugin.name] = source
+                                        self.plugins.append(plugin)
+                                        self.plugins_map[plugin.name] = plugin
+                                        count += 1
+                                        logger.info(f"插件加载成功 [{source}]: {plugin.plugin_id}")
+                    except Exception as e:
+                        logger.warning(f"加载 {full_module} 失败: {e}")
+        finally:
+            if added:
+                sys.path.remove(parent)
+
+        return count
+
+    def load_all_plugins(self, include_builtin: bool = True) -> List[ToolPlugin]:
         """
         加载所有可用的插件
+
+        加载顺序（优先级由低到高，同名时后者覆盖前者）:
+        1. 内置插件（builtin.py 注册表）
+        2. opencode/plugins/ 目录扫描
+        3. 项目级插件 (.opencode/plugins/)
+        4. 用户级插件 (~/.opencode/plugins/)
         
+        Args:
+            include_builtin: 是否加载内置插件
+
         Returns:
             成功加载的插件列表
         """
+        # 1. 加载内置插件（来自 builtin.py 注册表）
+        builtin_count = 0
+        if include_builtin:
+            for loaded in get_enabled_builtin_plugins():
+                if loaded.plugin_instance is not None:
+                    plugin = loaded.plugin_instance
+                    if plugin.name not in self.plugins_map:
+                        self._plugin_sources[plugin.name] = SOURCE_BUILTIN
+                        self.plugins.append(plugin)
+                        self.plugins_map[plugin.name] = plugin
+                        builtin_count += 1
+            if builtin_count:
+                logger.info(f"从 builtin 注册表加载 {builtin_count} 个内置插件")
+
+        # 2. 扫描 opencode/plugins/ 目录
         plugin_files = self.scan_plugins()
-        
+        dir_count = 0
         for filename in plugin_files:
-            module_name = filename[:-3]  # 去掉 .py
-            plugin = self.load_plugin(module_name)
-            
-            if plugin:
+            module_name = filename[:-3]
+            plugin = self.load_plugin(module_name, source=SOURCE_USER)
+            if plugin and plugin.name not in self.plugins_map:
                 self.plugins.append(plugin)
                 self.plugins_map[plugin.name] = plugin
-        
-        logger.info(f"成功加载 {len(self.plugins)} 个插件")
+                dir_count += 1
+
+        # 3. 项目级插件
+        project_count = self._load_from_dir(self.project_plugins_dir, SOURCE_PROJECT)
+
+        # 4. 用户级插件
+        user_count = self._load_from_dir(self.user_plugins_dir, SOURCE_USER)
+
+        total = builtin_count + dir_count + project_count + user_count
+        logger.info(
+            f"成功加载 {total} 个插件 "
+            f"(builtin={builtin_count}, dir={dir_count}, "
+            f"project={project_count}, user={user_count})"
+        )
         return self.plugins
     
     def get_plugin(self, name: str) -> ToolPlugin:
@@ -170,19 +290,22 @@ class PluginLoader:
         logger.info(f"从 {len(self.plugins)} 个插件中获取 {len(all_hooks)} 个钩子")
         return all_hooks
     
-    def list_plugins(self) -> List[Dict[str, str]]:
+    def list_plugins(self) -> List[Dict[str, Any]]:
         """
         列出所有已加载的插件信息
         
         Returns:
-            插件信息列表
+            插件信息列表（含 plugin_id 和 source）
         """
         return [
             {
                 'name': plugin.name,
+                'plugin_id': plugin.plugin_id,
                 'version': plugin.version,
                 'description': plugin.description,
-                'available': plugin.is_available()
+                'source': self._plugin_sources.get(plugin.name, SOURCE_USER),
+                'available': plugin.is_available(),
+                'default_enabled': plugin.default_enabled,
             }
             for plugin in self.plugins
         ]
