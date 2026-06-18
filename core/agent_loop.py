@@ -53,6 +53,7 @@ from hooks.manager import HookManager, HookResult
 from skills.loader import SkillManager
 from skills.context import SkillContext
 from core.tool_enhancer import get_tool_enhancer
+from core.auto_memory import AutoMemoryExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +137,20 @@ class AgentLoop:
             except Exception as e:
                 logger.warning(f"Memory system initialization failed: {e}")
                 self.memory_enabled = False
+
+        # 7.5 自动记忆提取器（对标 Claude Code extractMemories.ts）
+        self.auto_memory_extractor = None
+        if self.memory_enabled and self.memory_manager:
+            try:
+                self.auto_memory_extractor = AutoMemoryExtractor(
+                    memory_manager=self.memory_manager,
+                    llm_client=self.client,
+                    llm_model=self.model,
+                    min_turns_between=config.get("auto_memory_min_turns", 1),
+                )
+                logger.info("Auto-memory extractor enabled")
+            except Exception as e:
+                logger.warning(f"Auto-memory extractor init failed: {e}")
 
         # 8. 事件回调（供 Bridge 等外部系统订阅）
         self.event_callback = None
@@ -417,6 +432,8 @@ class AgentLoop:
 
                     # 任务完成
                     logger.info("No tool calls, task completed")
+                    # 自动记忆提取（对标 Claude Code handleStopHooks → extractMemories）
+                    self._trigger_auto_memory_extraction()
                     return self.state.to_result(
                         status="success",
                         text=last_assistant_text,
@@ -547,6 +564,8 @@ class AgentLoop:
 
         # 达到最大迭代次数
         logger.warning("Reached max iterations")
+        # 即使未完成任务，也尝试提取记忆（对话中可能有值得记录的信息）
+        self._trigger_auto_memory_extraction()
         result = self.state.to_result(
             status="error_max_turns",
             text=last_assistant_text,
@@ -646,7 +665,6 @@ class AgentLoop:
         """
         构建记忆上下文。
         注入记忆行为指导 + MEMORY.md 索引内容。
-        迁移自 memdir.ts 的 loadMemoryPrompt()。
         """
         try:
             from core.memory import build_memory_prompt_section
@@ -2085,6 +2103,26 @@ class AgentLoop:
             loop.close()
         except Exception as e:
             logger.warning(f"Lifecycle hook {event} failed: {e}")
+
+    # ========== 自动记忆提取 ==========
+
+    def _trigger_auto_memory_extraction(self):
+        """
+        触发后台自动记忆提取（对标 Claude Code handleStopHooks → extractMemories）。
+
+        在 query loop 结束时调用（任务完成 / 达到最大轮次），
+        后台线程分析对话记录并提取值得跨会话保留的信息。
+        """
+        if not self.auto_memory_extractor:
+            return
+        try:
+            self.auto_memory_extractor.request_extraction(
+                messages=list(self.state.messages),
+                is_background=True,
+            )
+        except Exception as e:
+            # 记忆提取是 best-effort，不影响主流程
+            logger.warning(f"Auto-memory extraction request failed: {e}")
 
     # ========== 中断控制 ==========
 
