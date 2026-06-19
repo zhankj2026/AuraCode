@@ -256,18 +256,17 @@ def run_command_handler(
             if os.path.isdir(new_dir):
                 _set_cwd(new_dir)
 
-        # 格式化输出
+        # 格式化输出（精简：去掉工作目录信息）
         output_parts = []
         if stdout.strip():
             output_parts.append(stdout.rstrip())
         if stderr.strip():
-            output_parts.append(f"--- STDERR ---\n{stderr.rstrip()}")
+            output_parts.append(f"STDERR:\n{stderr.rstrip()}")
         if result.returncode != 0:
-            output_parts.append(f"--- EXIT CODE: {result.returncode} ---")
+            output_parts.append(f"Exit code: {result.returncode}")
         if not output_parts:
-            output_parts.append("(命令执行成功，无输出)")
+            output_parts.append("(success, no output)")
 
-        output_parts.append(f"\n工作目录: {_get_cwd()}")
         return "\n".join(output_parts)
 
     except subprocess.TimeoutExpired:

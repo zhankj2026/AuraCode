@@ -11,6 +11,7 @@ import logging
 import asyncio
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 from openai import OpenAI, APIError, APIConnectionError, APITimeoutError, RateLimitError, APIStatusError
@@ -29,6 +30,7 @@ class StreamResult:
     tool_calls: List[Any] = field(default_factory=list)
     finish_reason: Optional[str] = None
     usage: Any = None
+    reasoning_content: str = ""  # Thinking/Reasoning block (DeepSeek-R1, GLM-4 等)
 
 
 class _StreamToolCall:
@@ -467,38 +469,107 @@ class AgentLoop:
                 # 重置截断计数器（有工具调用说明输出正常结束）
                 self.state.output_truncation_count = 0
 
-                # Step 4: 执行所有工具调用
-                for tool_call in stream_result.tool_calls:
+                # Step 4: 执行所有工具调用（并行优化）
+                tool_calls_list = stream_result.tool_calls
+                parallel_safe = {
+                    "read_file", "list_directory", "grep", "find",
+                    "glob_tool", "search_code", "web_fetch", "web_search",
+                    "tool_search", "sleep", "get_relevant_memories",
+                    "list_memories", "lsp_tool", "brief_tool",
+                    "task_get", "task_list",
+                }
+
+                # 将工具调用分组: 连续的只读工具批量化并行，其他顺序执行
+                batches = []
+                current_batch = []
+                for tc in tool_calls_list:
+                    if tc.function.name in parallel_safe:
+                        current_batch.append(tc)
+                    else:
+                        if current_batch:
+                            batches.append(("parallel", current_batch))
+                            current_batch = []
+                        batches.append(("sequential", [tc]))
+                if current_batch:
+                    batches.append(("parallel", current_batch))
+
+                for batch_type, batch_calls in batches:
                     if self.state.is_aborted():
                         break
 
-                    self._emit_event("tool_execute", {
-                        "tool_name": tool_call.function.name,
-                    })
-                    tool_result = self._execute_tool(tool_call)
-                    self._emit_event("tool_complete", {
-                        "tool_name": tool_call.function.name,
-                        "success": tool_result.get("success", False),
-                    })
+                    if batch_type == "parallel" and len(batch_calls) > 1:
+                        # ── 并行执行多个只读工具 ──
+                        print(f"⚡ 并行执行 {len(batch_calls)} 个工具...")
+                        results_map = {}
+                        with ThreadPoolExecutor(max_workers=min(len(batch_calls), 8)) as executor:
+                            futures = {
+                                executor.submit(self._execute_tool, tc): tc
+                                for tc in batch_calls
+                            }
+                            for future in as_completed(futures):
+                                tc = futures[future]
+                                try:
+                                    result = future.result()
+                                except Exception as ex:
+                                    result = {"success": False, "error": str(ex)}
+                                results_map[tc.id] = (tc, result)
 
-                    # Step 5: 工具结果以 role=tool 返回（OpenAI 规范）
-                    if tool_result.get("success"):
-                        result_content = tool_result.get("result")
+                        # 按原始顺序写入消息（保证 OpenAI 规范）
+                        for tc in batch_calls:
+                            if tc.id in results_map:
+                                tc_obj, tool_result = results_map[tc.id]
+                            else:
+                                tc_obj, tool_result = tc, {"success": False, "error": "并行执行超时"}
+
+                            self._emit_event("tool_complete", {
+                                "tool_name": tc_obj.function.name,
+                                "success": tool_result.get("success", False),
+                            })
+                            if tool_result.get("success"):
+                                result_content = tool_result.get("result")
+                            else:
+                                result_content = f"Error: {tool_result.get('error')}"
+                            self.state.messages.append({
+                                "role": "tool",
+                                "tool_call_id": tc_obj.id,
+                                "content": str(result_content),
+                            })
+                            status_icon = "✅" if tool_result.get("success") else "❌"
+                            print(f"{status_icon} [{tc_obj.function.name}] {str(result_content)[:200]}")
+
                     else:
-                        result_content = f"Error: {tool_result.get('error')}"
-                        # StopHook 恢复: 附加恢复提示让 LLM 尝试替代方案
-                        recovery = tool_result.get("recovery_hint")
-                        if recovery:
-                            result_content += f"\n\nHint: {recovery}"
-                    self.state.messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "content": str(result_content),
-                    })
+                        # ── 顺序执行（写入/执行类工具或单个工具）──
+                        for tool_call in batch_calls:
+                            if self.state.is_aborted():
+                                break
 
-                    # 打印工具执行结果
-                    status_icon = "✅" if tool_result.get("success") else "❌"
-                    print(f"{status_icon} [{tool_call.function.name}] {str(result_content)[:200]}")
+                            self._emit_event("tool_execute", {
+                                "tool_name": tool_call.function.name,
+                            })
+                            tool_result = self._execute_tool(tool_call)
+                            self._emit_event("tool_complete", {
+                                "tool_name": tool_call.function.name,
+                                "success": tool_result.get("success", False),
+                            })
+
+                            # Step 5: 工具结果以 role=tool 返回（OpenAI 规范）
+                            if tool_result.get("success"):
+                                result_content = tool_result.get("result")
+                            else:
+                                result_content = f"Error: {tool_result.get('error')}"
+                                # StopHook 恢复: 附加恢复提示让 LLM 尝试替代方案
+                                recovery = tool_result.get("recovery_hint")
+                                if recovery:
+                                    result_content += f"\n\nHint: {recovery}"
+                            self.state.messages.append({
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "content": str(result_content),
+                            })
+
+                            # 打印工具执行结果
+                            status_icon = "✅" if tool_result.get("success") else "❌"
+                            print(f"{status_icon} [{tool_call.function.name}] {str(result_content)[:200]}")
 
                 # Step 6: 继续循环
 
@@ -857,12 +928,49 @@ class AgentLoop:
 """
     
     def _tools_description(self) -> str:
-        """生成工具说明"""
-        tools_desc = "可用工具:\n"
-        for name, info in TOOL_REGISTRY.items():
-            tools_desc += f"- **{name}**: {info['description']}\n"
-        
-        tools_desc += "\n使用方法: 直接描述你要执行的操作,我会自动选择合适的工具。"
+        """生成工具说明（增强版：分类 + 使用策略）"""
+        # 工具分类
+        categories = {
+            "文件读取": ["read_file", "list_directory", "grep", "find", "glob_tool"],
+            "文件编辑": ["write_file", "replace_in_file", "undo_edit"],
+            "命令执行": ["run_command", "run_powershell"],
+            "网络信息": ["web_fetch", "web_search"],
+            "记忆系统": ["get_relevant_memories", "list_memories", "search_memories", "save_memory"],
+            "任务管理": ["task_create", "task_get", "task_list", "todo_write"],
+            "代码智能": ["lsp_tool", "search_code"],
+            "子代理": ["spawn_subagent"],
+            "其他": ["ask_user", "sleep", "brief_tool", "config_tool", "tool_search"],
+        }
+
+        tools_desc = "## 可用工具\n\n"
+        uncategorized = set(TOOL_REGISTRY.keys())
+
+        for cat_name, tool_names in categories.items():
+            cat_tools = []
+            for name in tool_names:
+                if name in TOOL_REGISTRY:
+                    info = TOOL_REGISTRY[name]
+                    cat_tools.append(f"  - **{name}**: {info['description'].split(chr(10))[0]}")
+                    uncategorized.discard(name)
+            if cat_tools:
+                tools_desc += f"### {cat_name}\n"
+                tools_desc += "\n".join(cat_tools) + "\n\n"
+
+        # 未分类工具
+        if uncategorized:
+            tools_desc += "### 其他工具\n"
+            for name in sorted(uncategorized):
+                info = TOOL_REGISTRY[name]
+                tools_desc += f"  - **{name}**: {info['description'].split(chr(10))[0]}\n"
+            tools_desc += "\n"
+
+        tools_desc += (
+            "## 工具使用策略\n\n"
+            "1. **并行调用**: 多个独立只读工具调用应并行进行（如同时读取多个文件）\n"
+            "2. **精确匹配**: replace_in_file 的 old_text 必须精确匹配文件内容（包括空格和缩进）\n"
+            "3. **先读后写**: 修改文件前必须先 read_file 理解现有代码\n"
+            "4. **专用工具优先**: 不要用 run_command 执行 cat/sed/awk/ls，使用对应的专用工具\n"
+        )
         return tools_desc
     
     def _security_rules(self) -> str:
@@ -1094,10 +1202,12 @@ class AgentLoop:
 
                 # 流式处理
                 full_content = ""
+                reasoning_content = ""  # Thinking/Reasoning block 累积
                 tool_calls_map: Dict[int, Dict] = {}  # index -> accumulated data
                 finish_reason = None
                 usage = None
                 first_chunk = True
+                reasoning_started = False
 
                 try:
                     for chunk in response:
@@ -1120,8 +1230,27 @@ class AgentLoop:
                         if choice.finish_reason:
                             finish_reason = choice.finish_reason
 
+                        # ── Thinking/Reasoning block（DeepSeek-R1, GLM-4 等）──
+                        # 部分模型通过 delta.reasoning_content 或 delta.reasoning 传递思维链
+                        delta_reasoning = None
+                        if delta:
+                            delta_reasoning = (
+                                getattr(delta, 'reasoning_content', None)
+                                or getattr(delta, 'reasoning', None)
+                            )
+                        if delta_reasoning:
+                            if not reasoning_started:
+                                reasoning_started = True
+                                print("\n💭 [Thinking] ", end="", flush=True)
+                            print(delta_reasoning, end="", flush=True)
+                            reasoning_content += delta_reasoning
+
                         # 文本增量 — 实时输出
                         if delta and delta.content:
+                            if reasoning_started:
+                                # Thinking 结束，正文开始，换行分隔
+                                print("\n", end="", flush=True)
+                                reasoning_started = False
                             if first_chunk:
                                 print("\n🤖 Assistant: ", end="", flush=True)
                                 first_chunk = False
@@ -1162,6 +1291,8 @@ class AgentLoop:
                         pass
 
                 # 流式结束
+                if reasoning_started:
+                    print("\n")  # Thinking 块结束换行
                 if not first_chunk:
                     print()  # 换行
 
@@ -1180,11 +1311,16 @@ class AgentLoop:
                           f"输出={getattr(usage, 'completion_tokens', '?')}, "
                           f"总计={getattr(usage, 'total_tokens', '?')}")
 
+                # 记录 reasoning_content 到日志（用于调试/审计）
+                if reasoning_content:
+                    logger.debug(f"Reasoning block ({len(reasoning_content)} chars): {reasoning_content[:300]}...")
+
                 return StreamResult(
                     content=full_content,
                     tool_calls=tool_calls_list,
                     finish_reason=finish_reason,
                     usage=usage,
+                    reasoning_content=reasoning_content,
                 )
 
             except Exception as e:

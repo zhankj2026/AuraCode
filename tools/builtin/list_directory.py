@@ -1,47 +1,31 @@
-"""列出目录工具"""
+"""列出目录工具 — 精简返回值"""
 import os
 from tools.registry import register_tool
 
 
 def list_directory_handler(path: str = ".") -> str:
-    """列出目录内容"""
+    """列出目录内容，返回精简格式"""
     if not os.path.exists(path):
-        raise FileNotFoundError(f"目录不存在: {path}")
+        raise FileNotFoundError(f"Directory not found: {path}")
     if not os.path.isdir(path):
-        raise NotADirectoryError(f"路径不是目录: {path}")
-    
+        raise NotADirectoryError(f"Path is not a directory: {path}")
+
     items = os.listdir(path)
-    files = []
-    dirs = []
-    
-    for item in items:
-        full_path = os.path.join(path, item)
-        if os.path.isdir(full_path):
-            dirs.append(item + "/")
-        else:
-            files.append(item)
-    
-    files.sort()
-    dirs.sort()
-    
-    output = f"目录: {os.path.abspath(path)}\n\n"
-    
+    dirs = sorted([i + "/" for i in items if os.path.isdir(os.path.join(path, i))])
+    files = sorted([i for i in items if not os.path.isdir(os.path.join(path, i))])
+
+    parts = []
     if dirs:
-        output += "📁 子目录:\n"
-        for d in dirs:
-            output += f"  {d}\n"
-        output += "\n"
-    
+        parts.extend(dirs)
     if files:
-        output += "📄 文件:\n"
-        for f in files:
-            output += f"  {f}\n"
-    
-    max_items = 50
-    if len(items) > max_items:
-        output += f"\n... (共 {len(items)} 项,显示前 {max_items} 项)"
-    
-    return output
+        parts.extend(files)
+
+    max_items = 100
+    result = "\n".join(parts[:max_items])
+    if len(parts) > max_items:
+        result += f"\n... ({len(parts)} total, showing first {max_items})"
+
+    return result
 
 
 register_tool("list_directory", {
