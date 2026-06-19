@@ -88,10 +88,22 @@ class AgentLoop:
         if not api_key:
             raise ValueError("未设置 API Key,请设置 OPENAI_API_KEY 环境变量")
 
+        # ── 超时配置（对标 Claude Code 600s）──
+        # OpenAI SDK timeout = httpx 连接+首字节等待时间。
+        # LLM streaming 场景下，复杂任务首 token 延迟可能 > 60s，
+        # Claude Code 设置 600s (10min)，我们默认 300s (5min)。
+        # 优先级: config > 环境变量 API_TIMEOUT_MS > 默认 300s
+        if "api_timeout" in config:
+            api_timeout = float(config["api_timeout"])
+        else:
+            env_timeout = os.environ.get("API_TIMEOUT_MS")
+            api_timeout = float(env_timeout) / 1000.0 if env_timeout else 300.0
+
         self.client = OpenAI(
             api_key=api_key,
             base_url=base_url,
-            timeout=60.0  # 60秒超时
+            timeout=api_timeout,
+            max_retries=0,  # 禁用 SDK 内置重试，由 withRetry 外层控制
         )
 
         # 2. 配置参数
@@ -985,7 +997,7 @@ class AgentLoop:
     # ── 错误分类与重试策略 ──────────────────────────────────────────
     # 参考 Claude Code withRetry.ts 的分层错误处理设计
 
-    _MAX_API_RETRIES = 8          # API 级最大重试次数（参考 withRetry.ts 的 10 次）
+    _MAX_API_RETRIES = 10         # API 级最大重试次数（对标 withRetry.ts DEFAULT_MAX_RETRIES=10）
     _MAX_BACKOFF_S = 32           # 非速率限制退避上限（秒）
     _RATE_LIMIT_FLOOR_S = 8      # 速率限制最低等待（秒），参考 withRetry.ts BASE_DELAY_MS=500ms
     _RATE_LIMIT_CAP_S = 60       # 速率限制最大等待（秒），避免过度等待

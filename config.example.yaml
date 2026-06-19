@@ -17,6 +17,10 @@ llm:
   
   max_tokens: 4096
   temperature: 0.2
+  # API 超时（秒），对标 Claude Code 600s。默认 300s (5min)
+  # LLM streaming 场景下复杂任务首 token 延迟可能 > 60s
+  # 也可通过环境变量 API_TIMEOUT_MS 设置（单位毫秒）
+  api_timeout: 300
 
 # 权限配置
 permissions:
