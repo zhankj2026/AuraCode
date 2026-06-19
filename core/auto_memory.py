@@ -301,7 +301,7 @@ class AutoMemoryExtractor:
         self, messages: List[Dict[str, Any]]
     ) -> Optional[Dict[str, Any]]:
         """
-        执行记忆提取（对应 extractMemories.ts runExtraction）。
+        执行记忆提取。
 
         流程:
         1. 检查主 Agent 是否已在本轮写入记忆（互斥）
@@ -391,7 +391,11 @@ class AutoMemoryExtractor:
                 self._turns_since_extraction = 0
                 return {"saved": 0, "duration_ms": 0}
 
-            parsed = json.loads(text)
+            parsed = self._parse_llm_json(text)
+            if parsed is None:
+                logger.warning(f"Auto-memory: failed to parse LLM response as JSON (first 200 chars): {text[:200]!r}")
+                # 不推进游标，下次重试
+                return None
             memory_actions = parsed.get("memories", [])
 
         except Exception as e:
@@ -482,6 +486,53 @@ class AutoMemoryExtractor:
                     return True
 
         return False
+
+    @staticmethod
+    def _parse_llm_json(text: str) -> Optional[Dict[str, Any]]:
+        """
+        容错解析 LLM 返回的 JSON。
+
+        LLM 可能返回以下格式：
+        1. 纯 JSON: {"memories": [...]}
+        2. Markdown包裹: ```json\n{"memories": [...]}\n```
+        3. 文本+JSON混合: ...some text... {"memories": [...]} ...more text...
+
+        Returns:
+            解析后的字典，或 None（解析失败时）
+        """
+        import re
+
+        text = text.strip()
+        if not text:
+            return None
+
+        # 尝试 1: 直接解析
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass
+
+        # 尝试 2: 剥离 markdown 代码块
+        md_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', text, re.DOTALL)
+        if md_match:
+            try:
+                return json.loads(md_match.group(1).strip())
+            except json.JSONDecodeError:
+                pass
+
+        # 尝试 3: 查找第一个 { ... } 块
+        brace_start = text.find('{')
+        if brace_start >= 0:
+            # 从后向前找最后一个 }
+            brace_end = text.rfind('}')
+            if brace_end > brace_start:
+                candidate = text[brace_start:brace_end + 1]
+                try:
+                    return json.loads(candidate)
+                except json.JSONDecodeError:
+                    pass
+
+        return None
 
     def get_stats(self) -> Dict[str, Any]:
         """获取提取器统计信息"""
