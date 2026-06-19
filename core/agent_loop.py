@@ -402,6 +402,13 @@ class AgentLoop:
                     # ContextCollapse: 折叠过时文件读取
                     self._context_collapse()
 
+                # 计划模式轮次递增（用于周期性提醒判断）
+                try:
+                    from tools.builtin.plan_mode import increment_plan_turn
+                    increment_plan_turn()
+                except ImportError:
+                    pass
+
                 # Step 1: 调用 LLM（流式输出）
                 stream_result = self._call_llm_streaming()
                 assistant_content = stream_result.content
@@ -739,20 +746,36 @@ class AgentLoop:
         # 第 5 层: 工具说明
         parts.append(self._tools_description())
 
-        # 第 5.5 层: 计划模式指示
+        # 第 5.5 层: 计划模式指示（对标 Claude Code plan_mode attachment）
         try:
-            from tools.builtin.plan_mode import is_plan_mode_active, get_plan_mode_reason
+            from tools.builtin.plan_mode import (
+                is_plan_mode_active, get_plan_mode_reason,
+                get_plan_file_path, should_inject_reminder,
+                build_plan_mode_reminder,
+            )
             if is_plan_mode_active():
+                plan_file = get_plan_file_path()
                 reason = get_plan_mode_reason()
-                plan_msg = (
-                    "\n## ⚠️ 当前处于计划模式\n\n"
-                    "你只能使用只读工具（read_file、grep、find、glob、list_directory 等）。\n"
-                    "**禁止**使用 write_file、replace_in_file、run_command 等写入/执行工具。\n"
-                    "请使用只读工具探索代码库，设计方案后调用 exit_plan_mode 退出计划模式。\n"
-                )
-                if reason:
-                    plan_msg += f"\n规划原因: {reason}\n"
-                parts.append(plan_msg)
+
+                if should_inject_reminder():
+                    # 周期性提醒（每 N 轮注入一次，防止模型“忘记”在计划模式）
+                    parts.append(build_plan_mode_reminder())
+                else:
+                    # 首次进入或不需要提醒时的完整指示
+                    plan_msg = (
+                        "\n## ⚠️ Plan Mode Active\n\n"
+                        "You are in plan mode. You can ONLY use read-only tools "
+                        "(read_file, grep, find, glob, list_directory, etc.) "
+                        "and write_file to the plan file below.\n\n"
+                        "**DO NOT** use replace_in_file, run_command, or any other "
+                        "write/execute tools on project files.\n\n"
+                        f"**Plan file**: `{plan_file}`\n"
+                        "Write your implementation plan to this file using write_file.\n"
+                        "When ready, call exit_plan_mode to present for user approval.\n"
+                    )
+                    if reason:
+                        plan_msg += f"\nReason: {reason}\n"
+                    parts.append(plan_msg)
         except ImportError:
             pass
 
@@ -1535,17 +1558,37 @@ class AgentLoop:
 
             return {"success": False, "error": error_msg}
 
-        # 3.5 计划模式检查：禁止写入/执行类工具
+        # 3.5 计划模式检查：禁止写入/执行类工具（仅允许 write_file 写入 plan 文件）
         try:
-            from tools.builtin.plan_mode import is_plan_mode_active, is_tool_allowed_in_plan_mode
-            if is_plan_mode_active() and not is_tool_allowed_in_plan_mode(tool_name):
-                error_msg = (
-                    f"计划模式下禁止使用工具 '{tool_name}'。"
-                    f"当前只能使用只读工具（read_file、grep、find、glob 等）。"
-                    f"如需执行写入/命令操作，请先使用 exit_plan_mode 退出计划模式。"
-                )
-                logger.warning(error_msg)
-                return {"success": False, "error": error_msg}
+            from tools.builtin.plan_mode import (
+                is_plan_mode_active, is_tool_allowed_in_plan_mode,
+                is_write_allowed_for_plan, get_plan_file_path,
+            )
+            if is_plan_mode_active():
+                if not is_tool_allowed_in_plan_mode(tool_name):
+                    plan_path = get_plan_file_path()
+                    error_msg = (
+                        f"Plan mode: tool '{tool_name}' is not allowed. "
+                        f"Only read-only tools and write_file to the plan file "
+                        f"(`{plan_path}`) are permitted. "
+                        f"Use exit_plan_mode when your plan is ready for approval."
+                    )
+                    logger.warning(error_msg)
+                    return {"success": False, "error": error_msg}
+
+                # write_file 特殊检查：只允许写入 plan 文件
+                if tool_name == "write_file":
+                    write_path = arguments.get("path", "")
+                    if not is_write_allowed_for_plan(write_path):
+                        plan_path = get_plan_file_path()
+                        error_msg = (
+                            f"Plan mode: write_file is only allowed for the plan file.\n"
+                            f"Allowed path: `{plan_path}`\n"
+                            f"Your path: `{write_path}`\n"
+                            f"Please write your plan to the plan file instead."
+                        )
+                        logger.warning(error_msg)
+                        return {"success": False, "error": error_msg}
         except ImportError:
             pass  # plan_mode 模块未加载，跳过检查
 
