@@ -121,8 +121,11 @@ PLAN_MODE_ALLOWED_TOOLS = frozenset({
     # 网络读取
     "web_fetch",
     "web_search",
-    # 任务管理（允许在计划模式中更新任务列表）
+    # 任务管理（允许在计划模式中预建任务骨架 + 规划期间更新进度）
     "todo_write",
+    "task_create",
+    "task_update",
+    "task_list",
     # 交互（允许向用户提问）
     "ask_user",
     # 子代理（探索/规划类）
@@ -259,8 +262,12 @@ def exit_plan_mode_handler(plan_summary: str = "") -> str:
             "## Approved Plan:\n\n"
             f"{plan_content}\n\n"
             "---\n"
-            "User has approved your plan. You can now start coding.\n"
-            "Start with updating your task list if applicable.\n"
+            "User has approved your plan. You can now start coding.\n\n"
+            "**Next steps:**\n"
+            "1. Use task_create to break the plan into implementation tasks "
+            "(one per major phase/step)\n"
+            "2. Start with the first task — set it to in_progress via task_update\n"
+            "3. Work through tasks sequentially, marking each done before starting the next\n"
         )
     else:
         msg = (
