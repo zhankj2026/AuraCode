@@ -152,6 +152,28 @@ class AgentLoop:
             except Exception as e:
                 logger.warning(f"Auto-memory extractor init failed: {e}")
 
+        # 7.6 会话持久化存储（对标 Claude Code sessionStorage / session-env / tasks）
+        self._session_transcript = None
+        self._session_memory = None
+        self._session_env = None
+        self._project_store = None
+        try:
+            session_id = getattr(self, '_session_id', '') or str(id(self))[:8]
+            cwd = config.get('project_root', '') or config.get('work_dir', '') or os.getcwd()
+
+            from services.session_transcript import init_transcript
+            from services.session_memory import init_session_memory
+            from services.session_env import init_session_env
+            from services.project_store import get_project_store
+
+            self._session_transcript = init_transcript(session_id=session_id, cwd=cwd)
+            self._session_memory = init_session_memory(session_id=session_id, cwd=cwd)
+            self._session_env = init_session_env(session_id=session_id)
+            self._project_store = get_project_store(cwd=cwd)
+            logger.info(f"Session persistence initialized: transcript + memory + env + project ({session_id})")
+        except Exception as e:
+            logger.warning(f"Session persistence init failed: {e}")
+
         # 8. 事件回调（供 Bridge 等外部系统订阅）
         self.event_callback = None
 
@@ -434,6 +456,8 @@ class AgentLoop:
                     logger.info("No tool calls, task completed")
                     # 自动记忆提取（对标 Claude Code handleStopHooks → extractMemories）
                     self._trigger_auto_memory_extraction()
+                    # 关闭会话持久化存储
+                    self._close_session_persistence()
                     return self.state.to_result(
                         status="success",
                         text=last_assistant_text,
@@ -566,6 +590,8 @@ class AgentLoop:
         logger.warning("Reached max iterations")
         # 即使未完成任务，也尝试提取记忆（对话中可能有值得记录的信息）
         self._trigger_auto_memory_extraction()
+        # 关闭会话持久化存储
+        self._close_session_persistence()
         result = self.state.to_result(
             status="error_max_turns",
             text=last_assistant_text,
@@ -2123,6 +2149,38 @@ class AgentLoop:
         except Exception as e:
             # 记忆提取是 best-effort，不影响主流程
             logger.warning(f"Auto-memory extraction request failed: {e}")
+
+    def _close_session_persistence(self):
+        """关闭会话持久化存储（flush + cleanup）"""
+        # 转录: flush 并关闭
+        if self._session_transcript:
+            try:
+                self._session_transcript.close()
+            except Exception as e:
+                logger.debug(f"Transcript close failed: {e}")
+        # 会话记忆: 尝试更新
+        if self._session_memory and self.state.messages:
+            try:
+                since = self._session_memory.last_summarized_index + 1
+                if since < len(self.state.messages):
+                    self._session_memory.update_with_summary(
+                        messages=self.state.messages,
+                        since_index=since,
+                        llm_client=self.client,
+                        llm_model=self.model,
+                    )
+            except Exception as e:
+                logger.debug(f"Session memory update on close failed: {e}")
+        # 全局单例清理
+        try:
+            from services.session_transcript import close_transcript
+            from services.session_memory import close_session_memory
+            from services.session_env import close_session_env
+            close_transcript()
+            close_session_memory()
+            close_session_env()
+        except Exception:
+            pass
 
     # ========== 中断控制 ==========
 
