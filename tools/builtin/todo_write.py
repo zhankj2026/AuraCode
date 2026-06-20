@@ -192,11 +192,11 @@ def todo_write_handler(
 
 register_tool("todo_write", {
     "description": (
-        "创建和管理会话级任务列表，用于跟踪复杂编码任务的进度。\n"
-        "适用于多步骤任务（3步以上）、用户提供多个任务、"
-        "或需要向用户展示工作进展时使用。\n"
-        "每次调用时，LLM 传入完整任务列表进行替换（replace 模式）。\n"
-        "注意：不应在只有1-2个简单任务时使用此工具。"
+        "Create and manage a session-level task list for tracking complex multi-step work. "
+        "Use for tasks with 3+ steps, multiple user requests, or when you need to show progress. "
+        "Each call replaces the full list (replace mode). "
+        "Requires subject (imperative form) and activeForm (present tense). "
+        "Only one task should be in_progress at a time."
     ),
     "parameters": {
         "type": "object",

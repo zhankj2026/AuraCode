@@ -465,16 +465,15 @@ def lsp_handler(
 
 register_tool("lsp", {
     "description": (
-        "通过 Language Server Protocol (LSP) 与语言服务器交互，获取代码智能功能。\n"
-        "支持操作:\n"
-        "- goToDefinition: 跳转到符号定义\n"
-        "- findReferences: 查找所有引用\n"
-        "- hover: 获取类型/文档信息\n"
-        "- documentSymbol: 列出文件所有符号（函数、类等）\n"
-        "- workspaceSymbol: 在工作区搜索符号\n"
-        "- goToImplementation: 跳转到接口/抽象方法实现\n"
-        "支持语言: Python（pylsp/pyright）、TypeScript/JavaScript。\n"
-        "需要先安装对应的 LSP 服务器。"
+        "Interact with language servers via LSP for code intelligence.\n"
+        "Operations:\n"
+        "- goToDefinition: jump to symbol definition\n"
+        "- findReferences: find all references\n"
+        "- hover: get type/docs info\n"
+        "- documentSymbol: list all symbols in a file\n"
+        "- workspaceSymbol: search symbols in workspace\n"
+        "- goToImplementation: jump to interface/abstract implementations\n"
+        "Languages: Python (pylsp/pyright), TypeScript/JavaScript."
     ),
     "parameters": {
         "type": "object",
@@ -485,30 +484,30 @@ register_tool("lsp", {
                     "goToDefinition", "findReferences", "hover",
                     "documentSymbol", "workspaceSymbol", "goToImplementation"
                 ],
-                "description": "操作类型"
+                "description": "LSP operation type"
             },
             "file_path": {
                 "type": "string",
-                "description": "目标文件路径（workspaceSymbol 可省略）"
+                "description": "Target file path (optional for workspaceSymbol)"
             },
             "line": {
                 "type": "integer",
-                "description": "行号（1-based，如编辑器显示）",
+                "description": "Line number (1-based, as shown in editor)",
                 "default": 1
             },
             "character": {
                 "type": "integer",
-                "description": "列号（1-based）",
+                "description": "Column number (1-based)",
                 "default": 1
             },
             "query": {
                 "type": "string",
-                "description": "搜索关键词（仅 workspaceSymbol 使用）",
+                "description": "Search keyword (workspaceSymbol only)",
                 "default": ""
             },
             "workspace_root": {
                 "type": "string",
-                "description": "工作区根目录",
+                "description": "Workspace root directory",
                 "default": "."
             }
         },

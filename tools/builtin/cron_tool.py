@@ -677,34 +677,69 @@ def cron_handler(args: list, loop=None) -> str:
 # ── 注册 ─────────────────────────────────────────────────
 
 register_tool("cron_create", {
-    "description": "Schedule a prompt to run at a future time — recurring cron or one-shot",
-    "handler": cron_create,
+    "description": (
+        "Schedule a prompt to run at a future time — recurring cron or one-shot. "
+        "Supports standard 5-field cron expressions, durable persistence across sessions, "
+        "and automatic jitter to avoid thundering herd."
+    ),
     "parameters": {
-        "cron": {"type": "string", "description": "Standard 5-field cron expression"},
-        "prompt": {"type": "string", "description": "The prompt/command to execute"},
-        "recurring": {"type": "boolean", "description": "True=recurring, False=one-shot"},
-        "durable": {"type": "boolean", "description": "True=persist to disk, False=session-only"},
-        "label": {"type": "string", "description": "Optional label"},
+        "type": "object",
+        "properties": {
+            "cron": {
+                "type": "string",
+                "description": "Standard 5-field cron expression (e.g. '0 9 * * 1' for Mon 9am)",
+            },
+            "prompt": {
+                "type": "string",
+                "description": "The prompt/command to execute when triggered",
+            },
+            "recurring": {
+                "type": "boolean",
+                "description": "True=recurring (default), False=one-shot",
+                "default": True,
+            },
+            "durable": {
+                "type": "boolean",
+                "description": "True=persist to disk across sessions, False=session-only",
+                "default": False,
+            },
+            "label": {
+                "type": "string",
+                "description": "Optional human-readable label",
+                "default": "",
+            },
+        },
+        "required": ["cron", "prompt"],
     },
-    "category": "scheduling",
+    "handler": cron_create,
     "permission_level": "write",
 })
 
 register_tool("cron_delete", {
-    "description": "Cancel a scheduled cron job by ID",
-    "handler": cron_delete,
+    "description": "Cancel a scheduled cron job by ID. Removes it from the scheduler.",
     "parameters": {
-        "job_id": {"type": "string", "description": "Job ID to cancel"},
+        "type": "object",
+        "properties": {
+            "job_id": {
+                "type": "string",
+                "description": "Job ID to cancel",
+            },
+        },
+        "required": ["job_id"],
     },
-    "category": "scheduling",
+    "handler": cron_delete,
     "permission_level": "write",
 })
 
 register_tool("cron_list", {
-    "description": "List all scheduled cron jobs",
+    "description": (
+        "List all scheduled cron jobs with status, next fire time, and execution count."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {},
+    },
     "handler": cron_list,
-    "parameters": {},
-    "category": "scheduling",
     "permission_level": "read",
 })
 

@@ -127,6 +127,7 @@ PLAN_MODE_ALLOWED_TOOLS = frozenset({
     "task_get",
     "task_update",
     "task_list",
+    "task_stop",
     # 交互（允许向用户提问）
     "ask_user",
     # 子代理（探索/规划类）

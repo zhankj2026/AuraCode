@@ -188,10 +188,10 @@ def glob_handler(
 
 register_tool("glob", {
     "description": (
-        "快速文件模式匹配工具，支持任意代码库规模。\n"
-        "支持 glob 模式如 '**/*.py' 或 'src/**/*.ts'。\n"
-        "返回结果按修改时间排序（最新优先）。\n"
-        "适用于需要按文件名模式查找文件的场景。"
+        "Fast file pattern matching for any codebase size. "
+        "Supports glob patterns like '**/*.py' or 'src/**/*.ts'. "
+        "Results sorted by modification time (newest first). "
+        "Use for finding files by name pattern."
     ),
     "parameters": {
         "type": "object",
@@ -199,28 +199,28 @@ register_tool("glob", {
             "pattern": {
                 "type": "string",
                 "description": (
-                    "Glob 模式，如 '**/*.py', 'src/**/*.ts', '*.json'。"
-                    "支持 ** (任意层目录), * (通配), ? (单字符), [] (字符集)。"
+                    "Glob pattern, e.g. '**/*.py', 'src/**/*.ts', '*.json'. "
+                    "Supports ** (any depth), * (wildcard), ? (single char), [] (char set)."
                 )
             },
             "path": {
                 "type": "string",
-                "description": "搜索起始路径（默认为当前目录）",
+                "description": "Search start path (default: current directory)",
                 "default": "."
             },
             "max_depth": {
                 "type": "integer",
-                "description": "最大搜索深度",
+                "description": "Max search depth",
                 "default": 10
             },
             "max_results": {
                 "type": "integer",
-                "description": "最大返回结果数",
+                "description": "Max results to return",
                 "default": 200
             },
             "include_dirs": {
                 "type": "boolean",
-                "description": "是否包含目录（默认只返回文件）",
+                "description": "Include directories (default: files only)",
                 "default": False
             }
         },

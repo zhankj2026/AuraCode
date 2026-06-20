@@ -185,35 +185,35 @@ def ask_user_handler(
 
 register_tool("ask_user", {
     "description": (
-        "向用户提出多项选择题以收集信息。\n"
-        "适用于：\n"
-        "1. 收集用户偏好或需求\n"
-        "2. 澄清模糊指令\n"
-        "3. 在工作过程中获取实现决策\n"
-        "4. 向用户提供方向选择\n"
-        "用户始终可以选择'其他'来输入自定义文本。\n"
-        "如果有推荐选项，将其放在第一位并在标签末尾加 '(推荐)'。"
+        "Ask the user a multiple-choice question to gather information.\n"
+        "Use for:\n"
+        "1. Collecting user preferences or requirements\n"
+        "2. Clarifying ambiguous instructions\n"
+        "3. Getting implementation decisions during work\n"
+        "4. Offering directional choices to the user\n"
+        "Users can always select 'Other' for custom input.\n"
+        "Put recommended option first with '(Recommended)' suffix in the label."
     ),
     "parameters": {
         "type": "object",
         "properties": {
             "question": {
                 "type": "string",
-                "description": "清晰、具体的问题（以问号结尾）"
+                "description": "Clear, specific question (end with '?')"
             },
             "options": {
                 "type": "array",
-                "description": "选项列表（2-4 个选项）",
+                "description": "Option list (2-4 options)",
                 "items": {
                     "type": "object",
                     "properties": {
                         "label": {
                             "type": "string",
-                            "description": "选项标签（简短，1-5 词）"
+                            "description": "Option label (concise, 1-5 words)"
                         },
                         "description": {
                             "type": "string",
-                            "description": "选项说明（可选）"
+                            "description": "Option explanation (optional)"
                         }
                     },
                     "required": ["label"]
@@ -223,7 +223,7 @@ register_tool("ask_user", {
             },
             "multi_select": {
                 "type": "boolean",
-                "description": "是否允许多选（默认 false）",
+                "description": "Allow multiple selections (default: false)",
                 "default": False
             }
         },

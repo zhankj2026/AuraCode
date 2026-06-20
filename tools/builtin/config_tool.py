@@ -144,37 +144,37 @@ def config_handler(
 
 register_tool("config", {
     "description": (
-        "读写项目配置。支持 YAML 配置文件和环境变量。"
-        "action='get' 读取键值，'set' 写入键值，'list' 列出所有配置，"
-        "'env' 查看环境变量。支持点分路径如 'model.name'。"
+        "Read/write project configuration. Supports YAML config files and environment variables. "
+        "Use action='get' to read a key, 'set' to write, 'list' to show all, "
+        "'env' to view environment variables. Supports dot-path notation (e.g. 'model.name')."
     ),
     "parameters": {
         "type": "object",
         "properties": {
             "action": {
                 "type": "string",
-                "description": "操作类型: get/set/list/env",
+                "description": "Operation: get/set/list/env",
                 "default": "get",
                 "enum": ["get", "set", "list", "env"],
             },
             "key": {
                 "type": "string",
-                "description": "配置键名（支持点分路径如 'model.name'）",
+                "description": "Config key (supports dot-path like 'model.name')",
                 "default": "",
             },
             "value": {
                 "type": "string",
-                "description": "要设置的值（action='set' 时必填）",
+                "description": "Value to set (required for action='set')",
                 "default": "",
             },
             "file": {
                 "type": "string",
-                "description": "配置文件路径（默认 config.yaml）",
+                "description": "Config file path (default: config.yaml)",
                 "default": "",
             },
             "scope": {
                 "type": "string",
-                "description": "作用域: project/user/env",
+                "description": "Scope: project/user/env",
                 "default": "project",
                 "enum": ["project", "user", "env"],
             },

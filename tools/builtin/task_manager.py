@@ -1,8 +1,8 @@
 """
-TaskManager — 结构化任务管理五件套（对标 Claude Code TaskCreate/Get/List/Update/Stop）
+TaskManager — 结构化任务管理六件套（对标 Claude Code TaskCreate/Get/List/Update/Stop）
 
 提供 task_create / task_get / task_update / task_list / task_stop 五个工具，
-支持层级任务、依赖关系、进度追踪、activeForm 进行时描述。
+支持层级任务、依赖关系(blocks/blockedBy)、进度追踪、activeForm 进行时描述。
 """
 import time
 import uuid
@@ -64,6 +64,8 @@ def task_create_handler(
         "status": "pending",
         "tags": [t.strip() for t in tags.split(",") if t.strip()] if tags else [],
         "subtasks": [],
+        "blocks": [],       # tasks this one blocks
+        "blocked_by": [],   # tasks that block this one
         "created_at": time.time(),
         "updated_at": time.time(),
         "progress": 0,  # 0-100
@@ -126,6 +128,10 @@ def task_get_handler(task_id: str) -> str:
         lines.append(f"  Tags: {', '.join(t['tags'])}")
     if t.get("parent_id"):
         lines.append(f"  Parent: {t['parent_id']}")
+    if t.get("blocked_by"):
+        lines.append(f"  BlockedBy: {', '.join(t['blocked_by'])}")
+    if t.get("blocks"):
+        lines.append(f"  Blocks: {', '.join(t['blocks'])}")
     if t.get("subtasks"):
         sub_list = [f"{sid} ({_TASKS[sid]['status']})" for sid in t["subtasks"] if sid in _TASKS]
         lines.append(f"  Subtasks: {', '.join(sub_list)}")
@@ -145,6 +151,8 @@ def task_update_handler(
     progress: int = -1,
     note: str = "",
     add_tag: str = "",
+    add_blocks: str = "",
+    add_blocked_by: str = "",
 ) -> str:
     """
     更新任务状态/内容（对标 Claude Code TaskUpdateTool）。
@@ -222,6 +230,25 @@ def task_update_handler(
             task["tags"].append(add_tag)
             changes.append(f"tag: +{add_tag}")
 
+    # Dependency tracking (blocks / blockedBy)
+    if add_blocks:
+        resolved_block = _resolve_task(add_blocks)
+        if not resolved_block:
+            return f"Error: blocks target task '{add_blocks}' not found"
+        if resolved_block not in task.get("blocks", []):
+            task.setdefault("blocks", []).append(resolved_block)
+            _TASKS[resolved_block].setdefault("blocked_by", []).append(task_id)
+            changes.append(f"blocks: +{resolved_block}")
+
+    if add_blocked_by:
+        resolved_dep = _resolve_task(add_blocked_by)
+        if not resolved_dep:
+            return f"Error: blockedBy target task '{add_blocked_by}' not found"
+        if resolved_dep not in task.get("blocked_by", []):
+            task.setdefault("blocked_by", []).append(resolved_dep)
+            _TASKS[resolved_dep].setdefault("blocks", []).append(task_id)
+            changes.append(f"blocked_by: +{resolved_dep}")
+
     task["updated_at"] = time.time()
 
     if not changes:
@@ -229,6 +256,43 @@ def task_update_handler(
 
     se = {"pending": "⏳", "in_progress": "🔄", "done": "✅", "cancelled": "❌"}.get(task["status"], "⚪")
     return f"{se} Task [{task_id}] updated:\n" + "\n".join(f"  • {c}" for c in changes)
+
+
+def task_stop_handler(task_id: str) -> str:
+    """
+    Stop a running task (cancel background work).
+
+    Args:
+        task_id: Task ID (supports prefix matching)
+
+    Returns:
+        Stop result
+    """
+    resolved = _resolve_task(task_id)
+    if not resolved:
+        return f"Error: task '{task_id}' not found"
+
+    task = _TASKS[resolved]
+    if task["status"] in ("done", "cancelled"):
+        return f"Task [{resolved}] is already {task['status']}."
+
+    old_status = task["status"]
+    task["status"] = "cancelled"
+    task["updated_at"] = time.time()
+
+    # Cancel subtasks too
+    cancelled_subs = []
+    for sid in task.get("subtasks", []):
+        sub = _TASKS.get(sid)
+        if sub and sub["status"] not in ("done", "cancelled"):
+            sub["status"] = "cancelled"
+            sub["updated_at"] = time.time()
+            cancelled_subs.append(sid)
+
+    result = f"❌ Task [{resolved}] stopped ({old_status} → cancelled)"
+    if cancelled_subs:
+        result += f"\n  Also cancelled {len(cancelled_subs)} subtask(s): {', '.join(cancelled_subs)}"
+    return result
 
 
 def task_list_handler(
@@ -438,6 +502,16 @@ register_tool("task_update", {
                 "description": "Append a tag",
                 "default": "",
             },
+            "add_blocks": {
+                "type": "string",
+                "description": "Task ID that this task blocks",
+                "default": "",
+            },
+            "add_blocked_by": {
+                "type": "string",
+                "description": "Task ID that blocks this task",
+                "default": "",
+            },
         },
         "required": ["task_id"],
     },
@@ -477,5 +551,25 @@ register_tool("task_list", {
         },
     },
     "handler": task_list_handler,
+    "permission_level": "read",
+})
+
+register_tool("task_stop", {
+    "description": (
+        "Stop a running task by ID. "
+        "Cancels the task and all in-progress subtasks. "
+        "Use when a task is no longer needed or was started by mistake."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "task_id": {
+                "type": "string",
+                "description": "Task ID to stop (supports prefix matching)",
+            },
+        },
+        "required": ["task_id"],
+    },
+    "handler": task_stop_handler,
     "permission_level": "read",
 })

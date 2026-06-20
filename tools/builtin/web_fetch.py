@@ -207,31 +207,31 @@ def web_fetch_handler(
 
 register_tool("web_fetch", {
     "description": (
-        "获取网页内容并用 AI 分析。\n"
-        "获取指定 URL 的网页内容，将 HTML 转换为文本，"
-        "可选用 AI 模型根据提示词对内容进行摘要或分析。\n"
-        "内置 15 分钟缓存，重复访问同一 URL 更快。\n"
-        "适用于：读取在线文档、API 参考、Issue、博客文章等。"
+        "Fetch and analyze web page content. "
+        "Retrieves URL content, converts HTML to markdown, "
+        "and optionally uses AI to summarize or extract information. "
+        "Built-in 15-minute cache for repeated URLs. "
+        "Use for: reading docs, API references, issues, blog posts."
     ),
     "parameters": {
         "type": "object",
         "properties": {
             "url": {
                 "type": "string",
-                "description": "目标网页 URL（http 自动升级为 https）"
+                "description": "Target URL (http auto-upgrades to https)"
             },
             "prompt": {
                 "type": "string",
                 "description": (
-                    "对网页内容的分析提示。"
-                    "例如：'提取这个函数的用法示例' 或 '这个 API 的认证方式是什么'。"
-                    "留空则返回原始内容摘要。"
+                    "Analysis prompt for the content. "
+                    "E.g. 'Extract function usage examples' or 'What is the auth method'. "
+                    "Leave empty for raw content summary."
                 ),
                 "default": ""
             },
             "timeout": {
                 "type": "integer",
-                "description": "HTTP 请求超时（秒）",
+                "description": "HTTP request timeout in seconds",
                 "default": 30
             }
         },

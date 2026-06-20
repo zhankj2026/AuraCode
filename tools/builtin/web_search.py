@@ -251,37 +251,34 @@ def web_search_handler(
 
 register_tool("web_search", {
     "description": (
-        "搜索互联网获取实时信息。\n"
-        "返回搜索结果（标题 + URL + 摘要），支持 DuckDuckGo（免费）、Tavily、SerpAPI。\n"
-        "适用于：查询最新文档、API 参考、Bug 解决方案、技术趋势等。\n"
-        "搜索后应引用来源 URL。"
+        "Search the internet for real-time information.\n"
+        "Returns results (title + URL + snippet) via DuckDuckGo (free), Tavily, or SerpAPI.\n"
+        "Use for: latest docs, API references, bug solutions, tech trends.\n"
+        "Always cite source URLs in your response."
     ),
     "parameters": {
         "type": "object",
         "properties": {
             "query": {
                 "type": "string",
-                "description": "搜索关键词（建议包含具体技术名词和年份）"
+                "description": "Search query (include specific tech terms and year)"
             },
             "max_results": {
                 "type": "integer",
-                "description": "最大结果数（默认 8）",
+                "description": "Max results (default 8)",
                 "default": 8
             },
             "timeout": {
                 "type": "integer",
-                "description": "请求超时（秒）",
+                "description": "Request timeout in seconds",
                 "default": 20
             },
             "search_backend": {
                 "type": "string",
                 "enum": ["auto", "duckduckgo", "tavily", "serpapi"],
                 "description": (
-                    "搜索后端：\n"
-                    "auto - 自动选择（优先付费API→免费）\n"
-                    "duckduckgo - 免费，无需 Key\n"
-                    "tavily - 需 TAVILY_API_KEY\n"
-                    "serpapi - 需 SERPAPI_API_KEY"
+                    "Search backend: auto (preferred->free), duckduckgo (no key), "
+                    "tavily (needs TAVILY_API_KEY), serpapi (needs SERPAPI_API_KEY)"
                 ),
                 "default": "auto"
             }

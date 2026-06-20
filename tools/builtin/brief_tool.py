@@ -98,18 +98,22 @@ def build_brief_system_hint() -> str:
 
 
 register_tool("brief", {
-    "description": "切换输出详细程度（brief=简洁/normal=标准/verbose=详细）",
+    "description": (
+        "Toggle output verbosity level. "
+        "Modes: brief (concise, skip explanations), normal (default), verbose (detailed with reasoning). "
+        "Use 'toggle' to quickly switch between brief and normal."
+    ),
     "parameters": {
         "type": "object",
         "properties": {
             "mode": {
                 "type": "string",
-                "description": "目标模式: brief/normal/verbose",
+                "description": "Target mode: brief/normal/verbose",
                 "default": "",
             },
             "toggle": {
                 "type": "boolean",
-                "description": "在 brief 和 normal 之间快速切换",
+                "description": "Quick toggle between brief and normal",
                 "default": False,
             },
         },

@@ -279,45 +279,45 @@ def run_command_handler(
 
 register_tool("run_command", {
     "description": (
-        "执行 Shell 命令（增强版）。\n"
-        "支持：\n"
-        "- 超时控制（默认 60 秒）\n"
-        "- 后台执行（不阻塞 Agent 循环）\n"
-        "- 工作目录会话级持久化\n"
-        "- 危险命令自动警告\n"
-        "- 查看后台任务状态\n"
-        "Windows 下建议使用 run_powershell 替代。"
+        "Execute shell commands with enhanced features.\n"
+        "Supports:\n"
+        "- Timeout control (default 60s)\n"
+        "- Background execution (non-blocking)\n"
+        "- Working directory persistence across commands\n"
+        "- Dangerous command warnings\n"
+        "- Background task status checking\n"
+        "Use run_powershell on Windows instead."
     ),
     "parameters": {
         "type": "object",
         "properties": {
             "command": {
                 "type": "string",
-                "description": "Shell 命令"
+                "description": "Shell command to execute"
             },
             "timeout": {
                 "type": "integer",
-                "description": "超时时间（秒，默认 60，最大 600）",
+                "description": "Timeout in seconds (default 60, max 600)",
                 "default": 60
             },
             "run_in_background": {
                 "type": "boolean",
-                "description": "是否后台执行（不阻塞 Agent 循环）",
+                "description": "Run in background (non-blocking)",
                 "default": False
             },
             "working_directory": {
                 "type": "string",
-                "description": "工作目录（留空使用上次的工作目录）",
+                "description": "Working directory (empty = use last working directory)",
                 "default": None
             },
             "ignore_danger_warning": {
                 "type": "boolean",
-                "description": "忽略危险命令警告，强制执行",
+                "description": "Suppress danger warnings and force execute",
                 "default": False
             },
             "check_task_id": {
                 "type": "integer",
-                "description": "查看指定后台任务的状态和输出（传入任务 ID）",
+                "description": "Check status/output of a background task by task ID",
                 "default": None
             }
         },

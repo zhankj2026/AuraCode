@@ -11,28 +11,35 @@ from tools.registry import register_tool, TOOL_REGISTRY
 
 # 工具类别标签
 TOOL_CATEGORIES = {
-    # 文件操作
+    # File operations
     "read_file": "file", "write_file": "file", "replace_in_file": "file",
     "list_directory": "file", "find": "file", "glob": "file",
     "undo_edit": "file", "notebook_edit": "file",
-    # 代码分析
-    "grep": "code", "analyze_file": "code", "lint": "code", "lsp_tool": "code",
-    # 执行
+    # Code analysis
+    "grep": "code", "analyze_file": "code", "lint": "code", "lsp": "code",
+    # Execution
     "run_command": "execute", "run_powershell": "execute", "run_tests": "execute",
     "repl": "execute",
-    # 网络
+    # Web
     "web_fetch": "web", "web_search": "web",
-    # 辅助
+    # Utility
     "todo_write": "aux", "ask_user": "aux", "tool_search": "aux",
     "sleep": "aux", "config": "aux", "brief": "aux",
-    # 任务管理
-    "task_create": "task", "task_update": "task", "task_list": "task",
-    # 规划
-    "plan_mode": "plan", "plan_agent": "plan", "subagent": "plan",
-    # 记忆
+    # Task management
+    "task_create": "task", "task_get": "task", "task_update": "task",
+    "task_list": "task", "task_stop": "task",
+    # Planning
+    "enter_plan_mode": "plan", "exit_plan_mode": "plan",
+    "plan_agent": "plan", "subagent": "plan",
+    # Memory
     "get_memory": "memory", "save_memory": "memory", "list_memories": "memory",
-    # 技能
+    "search_memory": "memory",
+    # Skills
     "activate_skill": "skill", "deactivate_skill": "skill", "list_skills": "skill",
+    # Scheduling
+    "cron_create": "scheduling", "cron_delete": "scheduling", "cron_list": "scheduling",
+    # Worktree
+    "enter_worktree": "worktree", "exit_worktree": "worktree",
 }
 
 
@@ -103,26 +110,27 @@ def tool_search_handler(
 
 register_tool("tool_search", {
     "description": (
-        "搜索可用的工具。当不确定应该使用哪个工具时，"
-        "用此工具按关键词或类别查找。"
-        "例如: query='file' 查找文件相关工具, category='code' 查找代码分析工具。"
+        "Discover available tools by keyword or category. "
+        "Use when unsure which tool to use for a task. "
+        "Supports keyword search (query='file') and category filter (category='code'). "
+        "Available categories: file, code, execute, web, aux, task, plan, memory, skill, scheduling, worktree."
     ),
     "parameters": {
         "type": "object",
         "properties": {
             "query": {
                 "type": "string",
-                "description": "搜索关键词（匹配工具名或描述）",
+                "description": "Search keyword (matches tool name or description)",
                 "default": "",
             },
             "category": {
                 "type": "string",
-                "description": "按类别过滤: file/code/execute/web/aux/task/plan/memory/skill",
+                "description": "Filter by category: file/code/execute/web/aux/task/plan/memory/skill/scheduling/worktree",
                 "default": "",
             },
             "limit": {
                 "type": "integer",
-                "description": "最大返回数量",
+                "description": "Max results to return",
                 "default": 20,
             },
         },

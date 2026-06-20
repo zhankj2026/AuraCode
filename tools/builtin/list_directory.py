@@ -29,13 +29,13 @@ def list_directory_handler(path: str = ".") -> str:
 
 
 register_tool("list_directory", {
-    "description": "列出目录内容",
+    "description": "List directory contents with compact format (dirs first, then files)",
     "parameters": {
         "type": "object",
         "properties": {
             "path": {
                 "type": "string",
-                "description": "目录路径,默认为当前目录",
+                "description": "Directory path (default: current directory)",
                 "default": "."
             }
         },

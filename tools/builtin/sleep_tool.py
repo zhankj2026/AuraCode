@@ -42,12 +42,12 @@ register_tool("sleep", {
         "properties": {
             "seconds": {
                 "type": "number",
-                "description": "等待秒数（0.1 ~ 60.0）",
+                "description": "Duration in seconds (0.1 ~ 60.0)",
                 "default": 1.0,
             },
             "reason": {
                 "type": "string",
-                "description": "等待原因（可选）",
+                "description": "Reason for waiting (optional, for logging)",
                 "default": "",
             },
         },

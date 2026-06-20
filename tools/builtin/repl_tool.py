@@ -95,22 +95,22 @@ def repl_handler(
 
 
 register_tool("repl", {
-    "description": "在 Python REPL 沙箱中执行代码片段（变量跨调用保留）",
+    "description": "Execute Python code snippets in a sandboxed REPL (variables persist across calls)",
     "parameters": {
         "type": "object",
         "properties": {
             "code": {
                 "type": "string",
-                "description": "要执行的 Python 代码",
+                "description": "Python code to execute",
             },
             "timeout": {
                 "type": "integer",
-                "description": "超时秒数（1-30，默认 10）",
+                "description": "Timeout in seconds (1-30, default 10)",
                 "default": 10,
             },
             "clear": {
                 "type": "boolean",
-                "description": "是否清除之前的命名空间",
+                "description": "Clear previous namespace before execution",
                 "default": False,
             },
         },

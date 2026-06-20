@@ -176,42 +176,42 @@ def notebook_edit_handler(
 
 register_tool("notebook_edit", {
     "description": (
-        "编辑 Jupyter Notebook (.ipynb) 文件。"
-        "支持列出单元格、读取内容、编辑/插入/删除单元格、清除输出。"
-        "单元格索引从 0 开始。"
+        "Edit Jupyter Notebook (.ipynb) files. "
+        "Supports list/read/edit/insert/delete/clear_output operations. "
+        "Cell indices start from 0."
     ),
     "parameters": {
         "type": "object",
         "properties": {
             "file_path": {
                 "type": "string",
-                "description": ".ipynb 文件路径",
+                "description": ".ipynb file path",
             },
             "action": {
                 "type": "string",
-                "description": "操作: list/read/edit/insert/delete/clear_output",
+                "description": "Operation: list/read/edit/insert/delete/clear_output",
                 "default": "list",
                 "enum": ["list", "read", "edit", "insert", "delete", "clear_output"],
             },
             "cell_index": {
                 "type": "integer",
-                "description": "单元格索引（0-based）",
+                "description": "Cell index (0-based)",
                 "default": -1,
             },
             "cell_type": {
                 "type": "string",
-                "description": "单元格类型: code/markdown/raw（用于 insert）",
+                "description": "Cell type: code/markdown/raw (for insert)",
                 "default": "code",
                 "enum": ["code", "markdown", "raw"],
             },
             "content": {
                 "type": "string",
-                "description": "新内容（用于 edit/insert）",
+                "description": "New content (for edit/insert)",
                 "default": "",
             },
             "insert_after": {
                 "type": "integer",
-                "description": "在此单元格之后插入（-1 表示末尾）",
+                "description": "Insert after this cell (-1 for end)",
                 "default": -1,
             },
         },
