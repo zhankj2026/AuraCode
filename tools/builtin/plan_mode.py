@@ -30,6 +30,20 @@ _plan_mode_entry_time: float = 0   # 进入计划模式的时间戳
 # 周期性提醒配置: 每隔 N 轮注入一次提醒
 PLAN_REMINDER_INTERVAL = 3
 
+# ── 项目工作目录（由 AgentLoop 注入，替代 os.getcwd()）───────────────────
+_project_root: str = ""
+
+
+def set_project_root(root: str):
+    """设置项目工作目录（由 AgentLoop.__init__ 调用）"""
+    global _project_root
+    _project_root = root
+
+
+def get_project_root() -> str:
+    """获取项目工作目录，未设置时降级为 os.getcwd()"""
+    return _project_root or os.getcwd()
+
 
 def is_plan_mode_active() -> bool:
     with _plan_mode_lock:
@@ -203,8 +217,8 @@ def enter_plan_mode_handler(reason: str = "") -> str:
     if is_plan_mode_active():
         return "Already in plan mode."
 
-    # 生成 plan 文件路径
-    cwd = os.getcwd()
+    # 生成 plan 文件路径（使用 AgentLoop 注入的 project_root，而非 os.getcwd()）
+    cwd = get_project_root()
     plan_file = _generate_plan_file_path(cwd)
     set_plan_mode(True, reason=reason, plan_file=plan_file)
     logger.info(f"进入计划模式: reason={reason}, plan_file={plan_file}")

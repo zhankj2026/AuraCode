@@ -112,6 +112,12 @@ class AgentLoop:
         self.max_tokens = config.get("max_tokens", 8192)
         # 工作目录：工具文件操作的基准路径（Bridge 模式下为用户指定的 work_dir）
         self.project_root = os.path.abspath(config.get("project_root", "."))
+        # 注入 project_root 到 plan_mode 模块（替代 os.getcwd()）
+        try:
+            from tools.builtin.plan_mode import set_project_root
+            set_project_root(self.project_root)
+        except ImportError:
+            pass
         self.max_output_recovery_limit = config.get("max_output_recovery_limit", 3)
         self.context_compact_threshold = config.get("context_compact_threshold", None)
         if self.context_compact_threshold is None:
@@ -1656,6 +1662,14 @@ class AgentLoop:
                         p = arguments[pk]
                         if not os.path.isabs(p):
                             arguments[pk] = os.path.join(self.project_root, p)
+
+                # plan_mode: 每次执行前刷新 project_root（多线程 Bridge 安全）
+                if tool_name in ("enter_plan_mode", "exit_plan_mode"):
+                    try:
+                        from tools.builtin.plan_mode import set_project_root
+                        set_project_root(self.project_root)
+                    except ImportError:
+                        pass
 
                 # file-history: 在写入前自动备份
                 self._track_file_history(tool_name, arguments)
