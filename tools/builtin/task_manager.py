@@ -1,9 +1,8 @@
 """
-TaskManager — 结构化任务管理三件套
+TaskManager — 结构化任务管理五件套（对标 Claude Code TaskCreate/Get/List/Update/Stop）
 
-提供 task_create / task_update / task_list 三个工具，
-支持层级任务、依赖关系、进度追踪。
-参考 Task 系统 (TaskCreate/Get/List)。
+提供 task_create / task_get / task_update / task_list / task_stop 五个工具，
+支持层级任务、依赖关系、进度追踪、activeForm 进行时描述。
 """
 import time
 import uuid
@@ -21,18 +20,22 @@ def _short_id() -> str:
 
 
 def task_create_handler(
-    title: str,
+    subject: str = "",
+    title: str = "",
     description: str = "",
+    active_form: str = "",
     parent_id: str = "",
     priority: str = "medium",
     tags: str = "",
 ) -> str:
     """
-    创建新任务。
+    创建新任务（对标 Claude Code TaskCreateTool）。
 
     Args:
-        title: 任务标题
-        description: 任务描述
+        subject: 任务标题（推荐，祈使句式如 'Implement X'）
+        title: 任务标题（兼容旧参数，等同 subject）
+        description: 任务详细描述
+        active_form: 进行时描述（如 'Implementing X'），用于 UI 显示
         parent_id: 父任务 ID（创建子任务时使用）
         priority: 优先级（high/medium/low）
         tags: 标签（逗号分隔）
@@ -40,16 +43,22 @@ def task_create_handler(
     Returns:
         任务创建结果
     """
+    # 兼容: subject 和 title 二选一
+    actual_title = subject or title
+    if not actual_title:
+        return "Error: subject (or title) is required"
+
     task_id = _short_id()
 
     # 验证父任务
     if parent_id and parent_id not in _TASKS:
-        return f"错误: 父任务 {parent_id} 不存在"
+        return f"Error: parent task {parent_id} not found"
 
     task = {
         "id": task_id,
-        "title": title,
+        "title": actual_title,
         "description": description,
+        "active_form": active_form,
         "parent_id": parent_id,
         "priority": priority if priority in ("high", "medium", "low") else "medium",
         "status": "pending",
@@ -67,25 +76,85 @@ def task_create_handler(
         _TASKS[parent_id]["subtasks"].append(task_id)
 
     priority_emoji = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(task["priority"], "⚪")
-    result = f"✅ 任务已创建: {priority_emoji} [{task_id}] {title}"
+    result = f"✅ Created: {priority_emoji} [{task_id}] {actual_title}"
+    if active_form:
+        result += f" ({active_form})"
     if parent_id:
-        result += f" (子任务 → {parent_id})"
+        result += f" (subtask of {parent_id})"
     return result
+
+
+def _resolve_task(task_id: str) -> Optional[str]:
+    """解析任务 ID（精确匹配 + 前缀模糊匹配）"""
+    if task_id in _TASKS:
+        return task_id
+    matches = [t for t in _TASKS if task_id in t or t.startswith(task_id)]
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
+def task_get_handler(task_id: str) -> str:
+    """
+    按 ID 获取任务完整详情（对标 Claude Code TaskGetTool）。
+
+    Args:
+        task_id: 任务 ID（支持前缀匹配）
+
+    Returns:
+        任务完整信息
+    """
+    resolved = _resolve_task(task_id)
+    if not resolved:
+        return f"Error: task '{task_id}' not found"
+
+    t = _TASKS[resolved]
+    se = {"pending": "⏳", "in_progress": "🔄", "done": "✅", "cancelled": "❌"}.get(t["status"], "⚪")
+    pe = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(t["priority"], "⚪")
+
+    lines = [
+        f"{se}{pe} Task [{t['id']}]",
+        f"  Title: {t['title']}",
+    ]
+    if t.get("active_form"):
+        lines.append(f"  Active: {t['active_form']}")
+    if t.get("description"):
+        lines.append(f"  Description: {t['description']}")
+    lines.append(f"  Status: {t['status']} ({t['progress']}%)")
+    lines.append(f"  Priority: {t['priority']}")
+    if t.get("tags"):
+        lines.append(f"  Tags: {', '.join(t['tags'])}")
+    if t.get("parent_id"):
+        lines.append(f"  Parent: {t['parent_id']}")
+    if t.get("subtasks"):
+        sub_list = [f"{sid} ({_TASKS[sid]['status']})" for sid in t["subtasks"] if sid in _TASKS]
+        lines.append(f"  Subtasks: {', '.join(sub_list)}")
+    if t.get("notes"):
+        for n in t["notes"][-3:]:
+            lines.append(f"  Note: {n['text'][:80]}")
+
+    return "\n".join(lines)
 
 
 def task_update_handler(
     task_id: str,
     status: str = "",
+    subject: str = "",
+    description: str = "",
+    active_form: str = "",
     progress: int = -1,
     note: str = "",
     add_tag: str = "",
 ) -> str:
     """
-    更新任务状态。
+    更新任务状态/内容（对标 Claude Code TaskUpdateTool）。
 
     Args:
-        task_id: 任务 ID
+        task_id: 任务 ID（支持前缀匹配）
         status: 新状态（pending/in_progress/done/cancelled）
+        subject: 新标题（替换原 subject）
+        description: 新描述（替换原 description）
+        active_form: 新进行时描述
         progress: 进度百分比（0-100）
         note: 追加备注
         add_tag: 追加标签
@@ -93,30 +162,25 @@ def task_update_handler(
     Returns:
         更新结果
     """
-    if task_id not in _TASKS:
-        # 模糊匹配
-        matches = [t for t in _TASKS if task_id in t or t.startswith(task_id)]
-        if len(matches) == 1:
-            task_id = matches[0]
-        elif len(matches) > 1:
-            return f"错误: 任务 ID '{task_id}' 模糊匹配到多个: {matches}"
-        else:
-            return f"错误: 任务 {task_id} 不存在"
+    resolved = _resolve_task(task_id)
+    if not resolved:
+        return f"Error: task '{task_id}' not found"
+    task_id = resolved
 
     task = _TASKS[task_id]
     changes = []
 
+    # 状态更新
     if status and status in ("pending", "in_progress", "done", "cancelled"):
         old_status = task["status"]
         task["status"] = status
-        changes.append(f"状态: {old_status} → {status}")
+        changes.append(f"status: {old_status} → {status}")
 
-        # 完成时自动设置 100% 进度
         if status == "done":
             task["progress"] = 100
-            changes.append("进度: → 100%")
+            changes.append("progress: → 100%")
 
-            # 检查父任务是否所有子任务已完成
+            # 检查父任务
             if task.get("parent_id") and task["parent_id"] in _TASKS:
                 parent = _TASKS[task["parent_id"]]
                 all_done = all(
@@ -126,34 +190,45 @@ def task_update_handler(
                 if all_done and parent.get("subtasks"):
                     parent["status"] = "done"
                     parent["progress"] = 100
-                    changes.append(f"父任务 [{task['parent_id']}] 自动完成")
+                    changes.append(f"parent [{task['parent_id']}] auto-completed")
+
+    # 内容更新（对标 Claude Code TaskUpdateTool 的 subject/description 参数）
+    if subject:
+        old_title = task["title"]
+        task["title"] = subject
+        changes.append(f"title: {old_title} → {subject}")
+
+    if description:
+        task["description"] = description
+        changes.append(f"description: updated ({len(description)} chars)")
+
+    if active_form:
+        task["active_form"] = active_form
+        changes.append(f"active_form: {active_form}")
 
     if progress >= 0:
         task["progress"] = max(0, min(100, progress))
-        changes.append(f"进度: → {task['progress']}%")
+        changes.append(f"progress: → {task['progress']}%")
 
     if note:
         task.setdefault("notes", []).append({
             "text": note,
             "time": time.time(),
         })
-        changes.append(f"备注: {note[:50]}")
+        changes.append(f"note: {note[:50]}")
 
     if add_tag:
         if add_tag not in task["tags"]:
             task["tags"].append(add_tag)
-            changes.append(f"标签: +{add_tag}")
+            changes.append(f"tag: +{add_tag}")
 
     task["updated_at"] = time.time()
 
     if not changes:
-        return f"任务 [{task_id}] {task['title']} — 无变更"
+        return f"Task [{task_id}] {task['title']} — no changes"
 
-    status_emoji = {
-        "pending": "⏳", "in_progress": "🔄", "done": "✅", "cancelled": "❌"
-    }.get(task["status"], "⚪")
-
-    return f"{status_emoji} 任务 [{task_id}] 已更新:\n" + "\n".join(f"  • {c}" for c in changes)
+    se = {"pending": "⏳", "in_progress": "🔄", "done": "✅", "cancelled": "❌"}.get(task["status"], "⚪")
+    return f"{se} Task [{task_id}] updated:\n" + "\n".join(f"  • {c}" for c in changes)
 
 
 def task_list_handler(
@@ -251,44 +326,118 @@ def _render_tree(lines: List[str], tasks: List[Dict], depth: int):
 
 
 register_tool("task_create", {
-    "description": "创建新任务（支持层级、优先级、标签）",
+    "description": (
+        "Create a new task to track implementation work. "
+        "Use subject (imperative form like 'Implement X') and activeForm "
+        "(present tense like 'Implementing X') for best results. "
+        "Supports hierarchy via parent_id, priorities, and tags."
+    ),
     "parameters": {
         "type": "object",
         "properties": {
-            "title": {"type": "string", "description": "任务标题"},
-            "description": {"type": "string", "description": "任务详细描述", "default": ""},
-            "parent_id": {"type": "string", "description": "父任务 ID（子任务时使用）", "default": ""},
+            "subject": {
+                "type": "string",
+                "description": "Task title in imperative form (e.g. 'Implement login flow')",
+            },
+            "description": {
+                "type": "string",
+                "description": "Detailed task description",
+                "default": "",
+            },
+            "active_form": {
+                "type": "string",
+                "description": "Present-tense description for UI (e.g. 'Implementing login flow')",
+                "default": "",
+            },
+            "parent_id": {
+                "type": "string",
+                "description": "Parent task ID (for subtasks)",
+                "default": "",
+            },
             "priority": {
                 "type": "string",
-                "description": "优先级: high/medium/low",
+                "description": "Priority: high/medium/low",
                 "default": "medium",
             },
-            "tags": {"type": "string", "description": "标签（逗号分隔）", "default": ""},
+            "tags": {
+                "type": "string",
+                "description": "Comma-separated tags",
+                "default": "",
+            },
         },
-        "required": ["title"],
+        "required": ["subject"],
     },
     "handler": task_create_handler,
     "permission_level": "read",
 })
 
-register_tool("task_update", {
-    "description": "更新任务状态/进度/备注",
+register_tool("task_get", {
+    "description": (
+        "Get full details of a task by ID. "
+        "Use this to review task description and check blockedBy before starting work."
+    ),
     "parameters": {
         "type": "object",
         "properties": {
-            "task_id": {"type": "string", "description": "任务 ID"},
+            "task_id": {
+                "type": "string",
+                "description": "Task ID (supports prefix matching)",
+            },
+        },
+        "required": ["task_id"],
+    },
+    "handler": task_get_handler,
+    "permission_level": "read",
+})
+
+register_tool("task_update", {
+    "description": (
+        "Update task status, content, or progress. "
+        "Supports status changes (pending/in_progress/done/cancelled), "
+        "subject/description/activeForm updates, and notes."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "task_id": {
+                "type": "string",
+                "description": "Task ID (supports prefix matching)",
+            },
             "status": {
                 "type": "string",
-                "description": "新状态: pending/in_progress/done/cancelled",
+                "description": "New status: pending/in_progress/done/cancelled",
+                "default": "",
+            },
+            "subject": {
+                "type": "string",
+                "description": "New title (replaces current)",
+                "default": "",
+            },
+            "description": {
+                "type": "string",
+                "description": "New description (replaces current)",
+                "default": "",
+            },
+            "active_form": {
+                "type": "string",
+                "description": "New present-tense description",
                 "default": "",
             },
             "progress": {
                 "type": "integer",
-                "description": "进度百分比（0-100）",
+                "description": "Progress percentage (0-100)",
                 "default": -1,
             },
-            "note": {"type": "string", "description": "追加备注", "default": ""},
-            "add_tag": {"type": "string", "description": "追加标签", "default": ""},
+            "note": {
+                "type": "string",
+                "description": "Append a note",
+                "default": "",
+            },
+            "add_tag": {
+                "type": "string",
+                "description": "Append a tag",
+                "default": "",
+            },
         },
         "required": ["task_id"],
     },
@@ -297,24 +446,32 @@ register_tool("task_update", {
 })
 
 register_tool("task_list", {
-    "description": "列出所有任务（支持过滤和树形显示）",
+    "description": (
+        "List all tasks with optional filtering. "
+        "Shows id, subject, status, owner, and blockedBy. "
+        "Use to see available work or project progress."
+    ),
     "parameters": {
         "type": "object",
         "properties": {
             "filter_status": {
                 "type": "string",
-                "description": "按状态过滤: pending/in_progress/done/cancelled",
+                "description": "Filter by status: pending/in_progress/done/cancelled",
                 "default": "",
             },
             "filter_priority": {
                 "type": "string",
-                "description": "按优先级过滤: high/medium/low",
+                "description": "Filter by priority: high/medium/low",
                 "default": "",
             },
-            "filter_tag": {"type": "string", "description": "按标签过滤", "default": ""},
+            "filter_tag": {
+                "type": "string",
+                "description": "Filter by tag",
+                "default": "",
+            },
             "show_tree": {
                 "type": "boolean",
-                "description": "是否树形显示",
+                "description": "Show as tree (default: true)",
                 "default": True,
             },
         },

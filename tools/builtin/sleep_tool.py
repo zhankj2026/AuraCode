@@ -33,9 +33,9 @@ def sleep_handler(seconds: float = 1.0, reason: str = "") -> str:
 
 register_tool("sleep", {
     "description": (
-        "暂停执行指定的时间。用于等待异步操作完成，"
-        "如等待服务器启动、后台进程结束、文件生成等。"
-        "最大等待 60 秒。"
+        "Wait for a specified duration. Can run concurrently with other tool calls. "
+        "Use for waiting on async operations (server startup, file generation, "
+        "background processes). User can interrupt at any time."
     ),
     "parameters": {
         "type": "object",

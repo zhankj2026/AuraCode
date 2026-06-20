@@ -124,6 +124,7 @@ PLAN_MODE_ALLOWED_TOOLS = frozenset({
     # 任务管理（允许在计划模式中预建任务骨架 + 规划期间更新进度）
     "todo_write",
     "task_create",
+    "task_get",
     "task_update",
     "task_list",
     # 交互（允许向用户提问）
