@@ -8,6 +8,7 @@ REST API 用于会话管理和消息发送，WebSocket 用于实时事件推送�
 import asyncio
 import json
 import logging
+import os
 import time
 from contextlib import asynccontextmanager
 from dataclasses import asdict
@@ -424,6 +425,87 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
         if events is None:
             raise HTTPException(status_code=404, detail="Session not found")
         return events
+
+    # ── 文件浏览 API（右侧面板）──────────────────────────────────────────
+
+    @app.get("/api/sessions/{session_id}/files")
+    async def list_files(
+        session_id: str,
+        path: str = Query("."),
+        auth: bool = Depends(_auth.verify),
+    ):
+        """列出会话工作目录下的文件/子目录"""
+        session = _manager.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        work_dir = session.config.work_dir or "."
+        # 解析相对路径
+        target = os.path.normpath(os.path.join(work_dir, path))
+        if not os.path.isdir(target):
+            raise HTTPException(status_code=404, detail=f"Not a directory: {path}")
+        # 安全检查：防止路径遍历
+        if not os.path.abspath(target).startswith(os.path.abspath(work_dir)):
+            raise HTTPException(status_code=403, detail="Path traversal denied")
+        try:
+            entries = []
+            for name in sorted(os.listdir(target)):
+                full = os.path.join(target, name)
+                try:
+                    st = os.stat(full)
+                    entries.append({
+                        "name": name,
+                        "type": "dir" if os.path.isdir(full) else "file",
+                        "size": st.st_size,
+                        "modified": st.st_mtime,
+                    })
+                except OSError:
+                    entries.append({"name": name, "type": "unknown", "size": 0, "modified": 0})
+            # 目录排前，文件排后
+            entries.sort(key=lambda e: (0 if e["type"] == "dir" else 1, e["name"].lower()))
+            rel = os.path.relpath(target, work_dir)
+            return {"path": rel if rel != "." else "", "entries": entries}
+        except PermissionError:
+            raise HTTPException(status_code=403, detail="Permission denied")
+
+    @app.get("/api/sessions/{session_id}/files/content")
+    async def read_file_content(
+        session_id: str,
+        path: str = Query(...),
+        max_lines: int = Query(200, ge=1, le=2000),
+        auth: bool = Depends(_auth.verify),
+    ):
+        """读取会话工作目录下的文件内容"""
+        session = _manager.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        work_dir = session.config.work_dir or "."
+        target = os.path.normpath(os.path.join(work_dir, path))
+        if not os.path.isfile(target):
+            raise HTTPException(status_code=404, detail=f"Not a file: {path}")
+        if not os.path.abspath(target).startswith(os.path.abspath(work_dir)):
+            raise HTTPException(status_code=403, detail="Path traversal denied")
+        try:
+            with open(target, "r", encoding="utf-8", errors="replace") as f:
+                lines = []
+                for i, line in enumerate(f):
+                    if i >= max_lines:
+                        break
+                    lines.append(line.rstrip("\n"))
+                total_lines = i + 1
+                truncated = f.readline() != ""
+            ext = os.path.splitext(target)[1].lstrip(".")
+            return {
+                "path": path,
+                "content": "\n".join(lines),
+                "lines": total_lines,
+                "truncated": truncated,
+                "ext": ext,
+                "size": os.path.getsize(target),
+            }
+        except PermissionError:
+            raise HTTPException(status_code=403, detail="Permission denied")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
     # ── WebSocket 端点 ────────────────────────────────────────────────
 
