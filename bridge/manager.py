@@ -6,6 +6,7 @@ Bridge 多会话管理器
 
 import logging
 import threading
+import time
 from typing import Callable, Dict, List, Optional
 
 from bridge.types import (
@@ -184,6 +185,69 @@ class BridgeSessionManager:
                 1 for s in self._sessions.values()
                 if s.state not in (SessionState.COMPLETED, SessionState.FAILED)
             )
+
+    # ── 会话中断 ─────────────────────────────────────────────
+
+    def interrupt_session(self, session_id: str) -> bool:
+        """
+        中断会话当前正在执行的 turn（不终止会话）。
+
+        对标 Claude Code 的 interrupt control_request。
+        """
+        with self._lock:
+            session = self._sessions.get(session_id)
+        if session:
+            return session.interrupt()
+        return False
+
+    # ── 模型热切换 ─────────────────────────────────────────────
+
+    def switch_model(self, session_id: str, new_model: str) -> bool:
+        """
+        热切换会话模型（仅在空闲时生效）。
+
+        对标 Claude Code 的 set_model control_request。
+        """
+        with self._lock:
+            session = self._sessions.get(session_id)
+        if session:
+            return session.switch_model(new_model)
+        return False
+
+    # ── 过期会话清理 ─────────────────────────────────────────────
+
+    def cleanup_stale_sessions(self, max_idle_seconds: int = 7200) -> int:
+        """
+        清理过期会话（由 lifespan 定时任务调用）。
+
+        - 已完成的会话直接移除
+        - 空闲超过 max_idle_seconds 的会话自动停止
+
+        Returns:
+            清理的会话数量
+        """
+        cleaned = 0
+        now = time.time()
+
+        with self._lock:
+            stale_ids = []
+            for sid, session in self._sessions.items():
+                # 已完成/失败的会话
+                if session.state in (SessionState.COMPLETED, SessionState.FAILED):
+                    stale_ids.append(sid)
+                    continue
+                # 长时间空闲的会话
+                if session.state == SessionState.IDLE:
+                    idle = now - session.last_activity
+                    if idle > max_idle_seconds:
+                        stale_ids.append(sid)
+
+        for sid in stale_ids:
+            self.remove_session(sid)
+            cleaned += 1
+            logger.info(f"Stale session cleaned up: {sid}")
+
+        return cleaned
 
     # ── 会话迁移 ─────────────────────────────────────────────────────
 

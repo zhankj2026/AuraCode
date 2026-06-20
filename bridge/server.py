@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from bridge.auth import SimpleTokenAuth
 from bridge.config import BridgeServerConfig
 from bridge.manager import BridgeSessionManager
-from bridge.types import BridgeEvent, SessionConfig
+from bridge.types import BridgeEvent, BridgeEventType, SessionConfig
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +71,8 @@ class SessionInfoResponse(BaseModel):
     event_count: int
     last_activity: float
     title: str
+    current_activity: Optional[Dict[str, Any]] = None
+    round_count: int = 0
 
 
 class EventResponse(BaseModel):
@@ -79,6 +81,22 @@ class EventResponse(BaseModel):
     session_id: str
     data: Dict[str, Any]
     timestamp: float
+
+
+class ModelSwitchRequest(BaseModel):
+    model: str
+
+
+class InterruptResponse(BaseModel):
+    status: str
+    session_id: str
+
+
+class ModelSwitchResponse(BaseModel):
+    status: str
+    session_id: str
+    old_model: str
+    new_model: str
 
 
 # ── 全局状态 ─────────────────────────────────────────────────────────────────
@@ -158,6 +176,9 @@ async def lifespan(app: FastAPI):
         event_callback=_on_event,
     )
 
+    # 启动过期会话清理定时任务
+    cleanup_task = asyncio.create_task(_periodic_cleanup())
+
     logger.info(
         f"Bridge server started on {_server_config.host}:{_server_config.port}"
     )
@@ -165,10 +186,39 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # 关闭：停止所有会话
+    # ── 优雅关闭（对标 Claude Code teardown 流程）──
+    # 1. 广播 server_shutting_down 事件，让 WS 客户端提前感知
+    shutdown_event = BridgeEvent(
+        type=BridgeEventType.SERVER_SHUTTING_DOWN.value,
+        session_id="",
+        data={"message": "Server is shutting down"},
+    )
+    await _broadcast_event(shutdown_event)
+
+    # 2. 等待 2s 让客户端收到关闭通知
+    await asyncio.sleep(2.0)
+
+    # 3. 取消清理任务
+    cleanup_task.cancel()
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        pass
+
+    # 4. 停止所有会话
     if _manager:
         _manager.stop_all()
     logger.info("Bridge server stopped")
+
+
+async def _periodic_cleanup():
+    """定期清理过期会话（每 5 分钟）"""
+    while True:
+        await asyncio.sleep(300)
+        if _manager:
+            cleaned = _manager.cleanup_stale_sessions()
+            if cleaned > 0:
+                logger.info(f"Periodic cleanup: {cleaned} sessions removed")
 
 
 def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
@@ -297,6 +347,59 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Session not found")
         return {"status": "stopped", "session_id": session_id}
 
+    @app.post(
+        "/api/sessions/{session_id}/interrupt",
+        response_model=InterruptResponse,
+    )
+    async def interrupt_session(
+        session_id: str,
+        auth: bool = Depends(_auth.verify),
+    ):
+        """
+        中断当前 turn（不终止会话）。
+
+        对标 Claude Code 的 interrupt control_request。
+        """
+        session = _manager.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        ok = _manager.interrupt_session(session_id)
+        return InterruptResponse(
+            status="interrupted" if ok else "not_running",
+            session_id=session_id,
+        )
+
+    @app.post(
+        "/api/sessions/{session_id}/model",
+        response_model=ModelSwitchResponse,
+    )
+    async def switch_model(
+        session_id: str,
+        req: ModelSwitchRequest,
+        auth: bool = Depends(_auth.verify),
+    ):
+        """
+        热切换模型（仅空闲时生效）。
+
+        对标 Claude Code 的 set_model control_request。
+        """
+        session = _manager.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        old_model = session.config.model
+        ok = _manager.switch_model(session_id, req.model)
+        if not ok:
+            raise HTTPException(
+                status_code=409,
+                detail="Cannot switch model: session is running or model unchanged",
+            )
+        return ModelSwitchResponse(
+            status="switched",
+            session_id=session_id,
+            old_model=old_model,
+            new_model=req.model,
+        )
+
     @app.delete("/api/sessions/{session_id}")
     async def delete_session(
         session_id: str,
@@ -357,8 +460,14 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
         websocket: WebSocket,
         session_id: str,
         token: Optional[str] = Query(None),
+        last_seq: int = Query(0, ge=0),
     ):
-        """单会话事件流 WebSocket"""
+        """
+        单会话事件流 WebSocket。
+
+        支持断线重连：通过 last_seq 参数只推送断线期间的新事件，
+        避免全量重放（对标 Claude Code BoundedUUIDSet echo 去重）。
+        """
         # Token 验证
         if not token or token != _auth.get_token():
             await websocket.close(code=4001, reason="Unauthorized")
@@ -377,11 +486,21 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
         _ws_session_clients[session_id].append(websocket)
         logger.info(
             f"Session WS client connected: {session_id} "
-            f"({len(_ws_session_clients[session_id])} total)"
+            f"(last_seq={last_seq}, "
+            f"{len(_ws_session_clients[session_id])} total)"
         )
 
-        # 先发送已有事件历史
-        events = session.get_events()
+        # 重放缺失事件（仅推送 last_seq 之后的新事件）
+        if last_seq > 0:
+            events = session.replay_events(last_seq)
+            logger.info(
+                f"WS reconnect replay: {len(events)} events "
+                f"from seq {last_seq} for {session_id}"
+            )
+        else:
+            # 首次连接：推送全量历史
+            events = session.get_events()
+
         for ev in events:
             try:
                 await websocket.send_text(json.dumps(ev, ensure_ascii=False))

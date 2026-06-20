@@ -18,7 +18,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from bridge.types import (
     BridgeEvent, BridgeEventType, SessionConfig, SessionInfo,
-    SessionState, PermissionRequest, PermissionResponse,
+    SessionState, PermissionRequest, PermissionResponse, SessionActivity,
 )
 from core.session_store import SessionStore, auto_save_session
 
@@ -74,6 +74,93 @@ class ThreadLocalWriter(io.TextIOBase):
 
     def writable(self):
         return True
+
+
+# ── Thread-safe stderr 捕获 ──────────────────────────────────────────────────
+
+class ThreadLocalErrWriter(io.TextIOBase):
+    """线程感知的 stderr 替换：捕获 stderr 并维护 ring buffer"""
+
+    MAX_LINES = 10  # ring buffer 大小
+
+    def __init__(self, original_stderr):
+        super().__init__()
+        self._original = original_stderr
+        self._local = threading.local()
+        self._ring_lock = threading.Lock()
+        self._ring: List[str] = []
+
+    def enable_capture(self):
+        self._local.buffer = io.StringIO()
+
+    def get_captured(self) -> str:
+        buf = getattr(self._local, "buffer", None)
+        if buf is None:
+            return ""
+        text = buf.getvalue()
+        buf.truncate(0)
+        buf.seek(0)
+        return text
+
+    def write(self, s: str) -> int:
+        buf = getattr(self._local, "buffer", None)
+        if buf is not None:
+            buf.write(s)
+        ret = self._original.write(s)
+        if s.strip():
+            with self._ring_lock:
+                self._ring.append(s.rstrip())
+                if len(self._ring) > self.MAX_LINES:
+                    self._ring = self._ring[-self.MAX_LINES:]
+        return ret
+
+    def flush(self):
+        buf = getattr(self._local, "buffer", None)
+        if buf is not None:
+            buf.flush()
+        self._original.flush()
+
+    def fileno(self):
+        return self._original.fileno()
+
+    @property
+    def encoding(self):
+        return getattr(self._original, "encoding", "utf-8")
+
+    def isatty(self):
+        return False
+
+    def get_ring_buffer(self) -> List[str]:
+        """获取最近 stderr 行"""
+        with self._ring_lock:
+            return list(self._ring)
+
+
+# ── 工具摘要映射（对标 Claude Code sessionRunner.ts TOOL_VERBS）──────────
+
+TOOL_VERBS = {
+    "read_file": "Reading", "write_file": "Writing",
+    "replace_in_file": "Editing", "run_command": "Running",
+    "run_powershell": "Running", "glob": "Searching",
+    "grep": "Searching", "find": "Searching",
+    "web_fetch": "Fetching", "web_search": "Searching",
+    "notebook_edit": "Editing notebook", "lsp": "LSP",
+    "todo_write": "Planning", "task_create": "Creating task",
+    "task_update": "Updating task",
+}
+
+
+def _tool_summary(tool_name: str, arguments: Dict[str, Any]) -> str:
+    """生成工具执行摘要"""
+    verb = TOOL_VERBS.get(tool_name, tool_name)
+    target = (
+        arguments.get("file_path") or arguments.get("path")
+        or arguments.get("pattern") or arguments.get("url")
+        or arguments.get("query")
+        or (arguments.get("command", "")[:60] if arguments.get("command") else "")
+        or ""
+    )
+    return f"{verb} {target}".strip() if target else verb
 
 
 # ── BridgePermissionManager ──────────────────────────────────────────────────
@@ -250,6 +337,17 @@ class BridgeSession:
         self._round_count = 0  # 已处理的消息轮次数
         self._session_store = SessionStore()  # 会话持久化
 
+        # 活动追踪（对标 Claude Code SessionActivity ring buffer）
+        self.current_activity: Optional[Dict[str, Any]] = None
+        self._recent_activities: List[SessionActivity] = []  # ring buffer, max 10
+        self._activities_lock = threading.Lock()
+
+        # stderr 捕获（ring buffer）
+        self._err_writer: Optional[ThreadLocalErrWriter] = None
+
+        # 超时看门狗
+        self._watchdog_thread: Optional[threading.Thread] = None
+
     # ── 公共方法 ─────────────────────────────────────────────────────
 
     def start(self):
@@ -287,8 +385,55 @@ class BridgeSession:
             data={"reason": "stopped"},
         ))
 
+    def interrupt(self) -> bool:
+        """
+        中断当前正在执行的 turn（不终止会话线程）。
+
+        对标 Claude Code 的 interrupt control_request。
+        如果 AgentLoop 正在运行 run()，会触发 abort；
+        run() 返回后清除 abort 标志，会话保持 IDLE 等待下一条消息。
+        """
+        if self._stop_flag.is_set():
+            return False
+        if self.state != SessionState.RUNNING:
+            return False  # 空闲中无需中断
+        if self._agent_loop and not self._agent_loop.is_aborted():
+            self._agent_loop.abort()
+            self._emit(BridgeEvent(
+                type=BridgeEventType.INTERRUPTED.value,
+                session_id=self.session_id,
+                data={"message": "Current turn interrupted"},
+            ))
+            return True
+        return False
+
+    def switch_model(self, new_model: str) -> bool:
+        """
+        热切换模型（仅在会话空闲时生效）。
+
+        对标 Claude Code 的 set_model control_request。
+        """
+        if self.state != SessionState.IDLE:
+            return False  # 正在运行中不能切换
+        if not self._agent_loop:
+            return False
+        old_model = self._agent_loop.model
+        if old_model == new_model:
+            return False
+        self._agent_loop.model = new_model
+        self.config.model = new_model  # 同步配置
+        self._emit(BridgeEvent(
+            type=BridgeEventType.MODEL_CHANGED.value,
+            session_id=self.session_id,
+            data={"old_model": old_model, "new_model": new_model},
+        ))
+        logger.info(f"Model switched: {old_model} → {new_model}")
+        return True
+
     def get_info(self) -> SessionInfo:
         """获取会话摘要"""
+        with self._activities_lock:
+            activity = self.current_activity.copy() if self.current_activity else None
         return SessionInfo(
             session_id=self.session_id,
             state=self.state,
@@ -298,6 +443,8 @@ class BridgeSession:
             event_count=len(self._events),
             last_activity=self.last_activity,
             title=self.title,
+            current_activity=activity,
+            round_count=self._round_count,
         )
 
     def get_events(self, since: int = 0) -> List[Dict[str, Any]]:
@@ -402,6 +549,12 @@ class BridgeSession:
         old_stdout = sys.stdout
         sys.stdout = writer
 
+        # 安装 stderr 捕获（ring buffer）
+        err_writer = ThreadLocalErrWriter(sys.stderr)
+        old_stderr = sys.stderr
+        sys.stderr = err_writer
+        self._err_writer = err_writer
+
         try:
             # 初始化 AgentLoop
             self._init_agent_loop()
@@ -411,6 +564,13 @@ class BridgeSession:
                 session_id=self.session_id,
                 data={"model": self.config.model, "work_dir": self.config.work_dir},
             ))
+
+            # 启动超时看门狗
+            self._watchdog_thread = threading.Thread(
+                target=self._watchdog_loop, daemon=True,
+                name=f"watchdog-{self.session_id[:8]}",
+            )
+            self._watchdog_thread.start()
 
             # 消息处理循环
             while not self._stop_flag.is_set():
@@ -437,8 +597,31 @@ class BridgeSession:
             # 退出前持久化会话
             self._save_session_on_exit()
             sys.stdout = old_stdout
+            sys.stderr = old_stderr
             if self.state not in (SessionState.COMPLETED, SessionState.FAILED):
                 self.state = SessionState.COMPLETED
+
+    def _watchdog_loop(self):
+        """超时看门狗：定期检测空闲时间，超时自动停止会话"""
+        while not self._stop_flag.is_set():
+            # 每 60 秒检查一次
+            if not self._stop_flag.wait(timeout=60.0):
+                pass  # 超时继续检查
+            else:
+                break  # stop_flag 被设置
+
+            timeout = self.config.session_timeout
+            if timeout <= 0:
+                continue  # 0 = 不超时
+
+            idle_seconds = time.time() - self.last_activity
+            if idle_seconds > timeout:
+                logger.warning(
+                    f"Session {self.session_id} timed out after "
+                    f"{idle_seconds:.0f}s idle (timeout={timeout}s)"
+                )
+                self.stop()
+                break
 
     def _save_session_on_exit(self):
         """退出时持久化会话到 ~/.opencode/sessions/"""
@@ -466,6 +649,16 @@ class BridgeSession:
                     f"Bridge session saved: {self.session_id} "
                     f"({meta.message_count} msgs, {self._round_count} rounds)"
                 )
+                # 发射会话归档事件（对标 Claude Code archiveSession）
+                self._emit(BridgeEvent(
+                    type=BridgeEventType.SESSION_ARCHIVED.value,
+                    session_id=self.session_id,
+                    data={
+                        "message_count": meta.message_count,
+                        "total_tokens": state.total_usage.total_tokens,
+                        "status": status,
+                    },
+                ))
         except Exception as e:
             logger.warning(f"Bridge session save failed: {e}")
 
@@ -495,6 +688,10 @@ class BridgeSession:
             result = self._agent_loop.run(content)
             self._round_count += 1
 
+            # 清除中断标志（如果有），为下一轮 run 做准备
+            if self._agent_loop.is_aborted():
+                self._agent_loop.state.clear_abort()
+
             # 提取新增的消息并生成事件
             new_messages = self._agent_loop.messages[pre_msg_count:]
             self._extract_events(new_messages)
@@ -507,6 +704,16 @@ class BridgeSession:
                     session_id=self.session_id,
                     data={"text": output.strip()},
                 ))
+
+            # stderr 捕获
+            if self._err_writer:
+                stderr_lines = self._err_writer.get_ring_buffer()
+                if stderr_lines:
+                    self._emit(BridgeEvent(
+                        type=BridgeEventType.OUTPUT.value,
+                        session_id=self.session_id,
+                        data={"text": "\n".join(stderr_lines), "stream": "stderr"},
+                    ))
 
             # 提取 QueryResult 结构化信息
             result_data = {"success": True}
@@ -522,6 +729,7 @@ class BridgeSession:
             # 轮次完成事件（= Claude Code 的 result 消息）
             # 注意：一轮完成 ≠ 会话结束。会话保持 IDLE 等待下一条用户消息。
             self.state = SessionState.IDLE
+            self._clear_activity()
             self._emit(BridgeEvent(
                 type=BridgeEventType.RESULT.value,
                 session_id=self.session_id,
@@ -537,7 +745,11 @@ class BridgeSession:
                     session_id=self.session_id,
                     data={"text": output.strip()},
                 ))
+            # 清除中断标志
+            if self._agent_loop and self._agent_loop.is_aborted():
+                self._agent_loop.state.clear_abort()
             self.state = SessionState.IDLE
+            self._clear_activity()
             self._emit(BridgeEvent(
                 type=BridgeEventType.RESULT.value,
                 session_id=self.session_id,
@@ -550,6 +762,7 @@ class BridgeSession:
 
         将 AgentLoop._emit_event() 发出的事件转换为 BridgeEvent 并推送到 WebSocket。
         事件在 run() 执行过程中实时触发，无需等待整轮完成。
+        同时维护活动追踪 ring buffer（对标 Claude Code SessionActivity）。
         """
         event_type = event.get("type", "")
         event_data = event.get("data", {})
@@ -577,6 +790,44 @@ class BridgeSession:
                 },
             ))
             logger.debug(f"Agent event → Bridge: {event_type} turn={event.get('turn')}")
+
+        # ── 活动追踪（对标 Claude Code sessionRunner.ts extractActivities）──
+        if event_type == "tool_execute":
+            tool_name = event_data.get("tool_name", "")
+            arguments = event_data.get("arguments", {})
+            if isinstance(arguments, str):
+                try:
+                    arguments = json.loads(arguments)
+                except (json.JSONDecodeError, TypeError):
+                    arguments = {}
+            summary = _tool_summary(tool_name, arguments)
+            activity = SessionActivity(type="tool_start", summary=summary)
+            self._push_activity(activity)
+
+        elif event_type == "tool_complete":
+            tool_name = event_data.get("tool_name", "")
+            activity = SessionActivity(
+                type="result",
+                summary=f"{tool_name} completed",
+            )
+            self._push_activity(activity)
+            self._clear_activity()
+
+        elif event_type == "turn_complete":
+            self._clear_activity()
+
+    def _push_activity(self, activity: SessionActivity):
+        """推入活动 ring buffer 并更新 current_activity"""
+        with self._activities_lock:
+            self.current_activity = activity.to_dict()
+            self._recent_activities.append(activity)
+            if len(self._recent_activities) > 10:
+                self._recent_activities = self._recent_activities[-10:]
+
+    def _clear_activity(self):
+        """清除当前活动"""
+        with self._activities_lock:
+            self.current_activity = None
 
     def _extract_events(self, messages: List[Dict[str, Any]]):
         """从 AgentLoop 新增的消息中提取事件（后置补充，与实时回调互补）"""

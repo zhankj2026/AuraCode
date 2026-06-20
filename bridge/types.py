@@ -27,17 +27,22 @@ class BridgeEventType(str, Enum):
     SESSION_STARTED = "session_started"
     SESSION_STOPPED = "session_stopped"
     SESSION_ERROR = "session_error"
+    SESSION_ARCHIVED = "session_archived"       # 会话持久化完成
+    SERVER_SHUTTING_DOWN = "server_shutting_down"  # 服务器即将关闭
     # 对话
     USER_MESSAGE = "user_message"
     ASSISTANT_MESSAGE = "assistant_message"
     TOOL_CALL = "tool_call"
     TOOL_RESULT = "tool_result"
     RESULT = "result"
+    INTERRUPTED = "interrupted"                 # 当前 turn 被中断（会话仍存活）
     # 权限
     PERMISSION_REQUEST = "permission_request"
     PERMISSION_RESPONSE = "permission_response"
     # 输出
     OUTPUT = "output"
+    # 配置变更
+    MODEL_CHANGED = "model_changed"             # 模型热切换
     # AgentLoop 实时事件（由 event_callback 推送）
     TURN_START = "turn_start"
     TURN_COMPLETE = "turn_complete"
@@ -103,6 +108,18 @@ class SessionConfig:
     max_iterations: int = 20
     base_url: Optional[str] = None
     api_key: Optional[str] = None
+    session_timeout: int = 3600  # 秒（0=不超时）
+
+
+@dataclass
+class SessionActivity:
+    """会话活动（对标 Claude Code SessionActivity）"""
+    type: str           # "tool_start" | "text" | "result" | "error"
+    summary: str        # e.g. "Editing src/foo.py", "Running grep"
+    timestamp: float = field(default_factory=time.time)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"type": self.type, "summary": self.summary, "timestamp": self.timestamp}
 
 
 @dataclass
@@ -116,6 +133,8 @@ class SessionInfo:
     event_count: int = 0
     last_activity: float = 0.0
     title: str = ""
+    current_activity: Optional[Dict[str, Any]] = None  # 当前正在执行的工具摘要
+    round_count: int = 0  # 已处理的对话轮次数
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -127,4 +146,6 @@ class SessionInfo:
             "event_count": self.event_count,
             "last_activity": self.last_activity,
             "title": self.title,
+            "current_activity": self.current_activity,
+            "round_count": self.round_count,
         }
