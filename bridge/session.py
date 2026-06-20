@@ -777,6 +777,7 @@ class BridgeSession:
             "fallback_activated": BridgeEventType.FALLBACK_ACTIVATED,
             "prompt_too_long_recovery": BridgeEventType.PROMPT_TOO_LONG_RECOVERY,
             "aborted": BridgeEventType.ABORTED,
+            "llm_call": BridgeEventType.LLM_CALL,
         }
 
         bridge_type = type_map.get(event_type)

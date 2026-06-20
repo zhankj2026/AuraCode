@@ -1225,6 +1225,7 @@ class AgentLoop:
 
         for attempt in range(1, max_retries + 1):
             try:
+                _llm_call_start = time.time()
                 response = self.client.chat.completions.create(
                     model=active_model,
                     messages=self.messages,
@@ -1349,6 +1350,33 @@ class AgentLoop:
                 # 记录 reasoning_content 到日志（用于调试/审计）
                 if reasoning_content:
                     logger.debug(f"Reasoning block ({len(reasoning_content)} chars): {reasoning_content[:300]}...")
+
+                # 发射 LLM API 调用详情事件（网络报文）
+                _llm_duration = round((time.time() - _llm_call_start) * 1000)
+                self._emit_event("llm_call", {
+                    "turn": self.state.turn_count,
+                    "attempt": attempt,
+                    "duration_ms": _llm_duration,
+                    "request": {
+                        "model": active_model,
+                        "message_count": len(self.messages),
+                        "tool_count": len(self.tools) if self.tools else 0,
+                        "temperature": 0.2,
+                        "max_tokens": self.max_tokens,
+                    },
+                    "response": {
+                        "finish_reason": finish_reason,
+                        "content_length": len(full_content),
+                        "content_preview": full_content[:500] if full_content else "",
+                        "tool_calls": len(tool_calls_list),
+                        "tool_names": [tc.function.name for tc in tool_calls_list],
+                        "prompt_tokens": getattr(usage, 'prompt_tokens', 0) or 0 if usage else 0,
+                        "completion_tokens": getattr(usage, 'completion_tokens', 0) or 0 if usage else 0,
+                        "total_tokens": getattr(usage, 'total_tokens', 0) or 0 if usage else 0,
+                        "has_reasoning": bool(reasoning_content),
+                        "reasoning_length": len(reasoning_content),
+                    },
+                })
 
                 return StreamResult(
                     content=full_content,

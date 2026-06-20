@@ -52,6 +52,7 @@ class BridgeEventType(str, Enum):
     FALLBACK_ACTIVATED = "fallback_activated"
     PROMPT_TOO_LONG_RECOVERY = "prompt_too_long_recovery"
     ABORTED = "aborted"
+    LLM_CALL = "llm_call"                       # LLM API 调用详情（网络报文）
 
 
 @dataclass

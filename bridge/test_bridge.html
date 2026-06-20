@@ -85,9 +85,27 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .pdlg .inf{background:var(--bg);padding:10px;border-radius:6px;margin-bottom:14px;font-size:12px}
 .pdlg .inf .rw{display:flex;gap:6px;margin-bottom:3px}.pdlg .inf .k{color:var(--tx2);min-width:55px}
 .pdlg .act{display:flex;gap:8px;justify-content:flex-end}
+/* Network tab */
+.net-wrap{flex:1;overflow-y:auto;padding:8px 12px;font-size:12px}
+.net-summary{display:flex;gap:16px;padding:8px 12px;border-bottom:1px solid var(--bd);background:var(--s1);font-size:11px;color:var(--tx2);flex-shrink:0}
+.net-summary .ns{display:flex;align-items:center;gap:4px}
+.net-summary .ns b{color:var(--tx);font-size:12px}
+.net-tbl{width:100%;border-collapse:collapse;font-family:'Cascadia Code','Fira Code',monospace;font-size:11px}
+.net-tbl th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--bd);color:var(--tx2);font-weight:600;position:sticky;top:0;background:var(--bg);z-index:1}
+.net-tbl td{padding:5px 8px;border-bottom:1px solid rgba(48,54,61,.5);cursor:pointer;vertical-align:top}
+.net-tbl tr:hover td{background:rgba(88,166,255,.06)}
+.net-tbl .num{text-align:right;font-variant-numeric:tabular-nums}
+.net-tbl .ok{color:var(--gn)}.net-tbl .warn{color:var(--yl)}.net-tbl .err{color:var(--rd)}
+.net-detail{display:none;background:var(--s2);border:1px solid var(--bd);border-radius:6px;margin:4px 8px;padding:10px;font-size:11px;line-height:1.6}
+.net-detail.show{display:block}
+.net-detail .lbl{color:var(--tx2);min-width:120px;display:inline-block}
+.net-detail pre{background:var(--bg);padding:8px;border-radius:4px;overflow-x:auto;font-size:10px;margin:4px 0 8px;max-height:200px;overflow-y:auto;white-space:pre-wrap;word-break:break-word}
 /* Status */
 .sbar{display:flex;align-items:center;gap:14px;padding:5px 14px;background:var(--s1);border-top:1px solid var(--bd);font-size:10px;color:var(--tx2);flex-shrink:0}
 .ph{display:flex;align-items:center;justify-content:center;height:100%;color:var(--tx2);font-size:13px;flex-direction:column;gap:6px}
+.ctab{padding:8px 18px;font-size:12px;cursor:pointer;border-bottom:2px solid transparent;color:var(--tx2);transition:.15s}
+.ctab:hover{color:var(--tx)}.ctab.active{color:var(--acc);border-bottom-color:var(--acc)}
+.ctab .count{background:var(--bd);padding:0 5px;border-radius:8px;font-size:10px;margin-left:4px}
 </style>
 </head>
 <body>
@@ -113,14 +131,29 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
       </div>
     </div>
   </div>
-  <!-- Center: Terminal Chat -->
+  <!-- Center: Terminal + Network -->
   <div class="center">
-    <div class="term" id="term"><div class="ph">选择或创建会话开始对话</div></div>
-    <div class="ibar">
-      <textarea id="inp" placeholder="输入消息... (Enter发送, Shift+Enter换行)" rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"></textarea>
-      <button class="b p" onclick="send()">发送</button>
-      <button class="b" onclick="interrupt()">中断</button>
-      <button class="b d" onclick="stopSess()">停止</button>
+    <div class="tabs" style="display:flex;border-bottom:1px solid var(--bd);background:var(--s1);flex-shrink:0">
+      <div class="ctab active" data-ct="term" onclick="switchCTab('term')">💬 终端</div>
+      <div class="ctab" data-ct="net" onclick="switchCTab('net')">📡 网络<span class="count" id="netCount">0</span></div>
+    </div>
+    <div id="cpane-term" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+      <div class="term" id="term"><div class="ph">选择或创建会话开始对话</div></div>
+      <div class="ibar">
+        <textarea id="inp" placeholder="输入消息... (Enter发送, Shift+Enter换行)" rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"></textarea>
+        <button class="b p" onclick="send()">发送</button>
+        <button class="b" onclick="interrupt()">中断</button>
+        <button class="b d" onclick="stopSess()">停止</button>
+      </div>
+    </div>
+    <div id="cpane-net" style="flex:1;display:none;flex-direction:column;overflow:hidden">
+      <div class="net-summary">
+        <div class="ns">调用: <b id="netCalls">0</b></div>
+        <div class="ns">总Token: <b id="netTokens">0</b></div>
+        <div class="ns">总耗时: <b id="netTime">0s</b></div>
+        <div style="margin-left:auto"><button class="b s" onclick="clearNetwork()">清空</button></div>
+      </div>
+      <div class="net-wrap" id="netWrap"><div class="ph" style="font-size:12px">等待 LLM 请求...</div></div>
     </div>
   </div>
   <!-- Right: File Browser -->
@@ -152,6 +185,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 let ws=null,sess={},asid=null,evts=[],rnd=0,pPerm=null;
 let dedup=new Set(),tcDedup=new Set(),trDedup=new Set();
 let fileRoot='',filePath='';
+let netCalls=[],netTotalTokens=0,netTotalMs=0;
 const $=id=>document.getElementById(id),now=()=>new Date().toLocaleTimeString('zh-CN',{hour12:false}),short=s=>s.substring(0,8);
 function url(){return $('sUrl').value.replace(/\/$/,'')}
 function tok(){return $('sTok').value}
@@ -181,7 +215,7 @@ function tuser(text){
   d.innerHTML=`<span class="prompt">[${rnd+1}]&gt; </span>`+esc(text);
   el.appendChild(d);el.scrollTop=el.scrollHeight;
 }
-function tclear(){const el=$('term');el.innerHTML='';rnd=0;dedup.clear();tcDedup.clear();trDedup.clear()}
+function tclear(){const el=$('term');el.innerHTML='';rnd=0;dedup.clear();tcDedup.clear();trDedup.clear();clearNetwork()}
 // ── Sessions ──
 async function refreshSessions(){
   try{const l=await api('GET','/api/sessions');sess={};l.forEach(s=>sess[s.session_id]=s);renderSess();$('sb2').textContent=`会话: ${l.length}`}catch(e){console.error(e)}
@@ -202,7 +236,7 @@ function selSess(id){
       else if(e.type==='assistant_message')tln('ai',e.data.content||'');
       else if(e.type==='result'){rnd++;showResult(e)}
       else if(e.type==='output'&&e.data.text)tln('sys',e.data.text);
-      else if(['turn_start','turn_complete','tool_execute','tool_complete','context_compacted','fallback_activated','aborted'].includes(e.type))handle(e);
+      else if(['turn_start','turn_complete','tool_execute','tool_complete','context_compacted','fallback_activated','aborted','llm_call'].includes(e.type))handle(e);
       else if(e.type==='session_stopped')tln('sys','🏁 会话已停止');
     });
   }).catch(e=>console.error(e));
@@ -270,6 +304,7 @@ function handle(e){
     case'interrupted':tln('info','🛑 Turn 被中断（会话保持活跃）','info');break;
     case'model_changed':tln('info',`🔄 模型切换: ${e.data.old_model} → ${e.data.new_model}`,'info');break;
     case'session_archived':tln('sys',`📦 会话已归档 (${e.data.message_count} 条消息)`);break;
+    case'llm_call':addNetCall(e.data);break;
     case'server_shutting_down':tln('error','⚠️ 服务器正在关闭...','err');break;
     case'permission_request':showPerm(e);break;
   }
@@ -323,6 +358,59 @@ async function viewFile(path,name){
 function closeFileView(){$('fview').classList.remove('show');$('flist').style.display='';$('fnav').style.display='';browseTo(filePath)}
 function fileIcon(n){const ext=n.split('.').pop().toLowerCase();return{py:'🐍',js:'📜',ts:'📜',tsx:'📜',jsx:'📜',html:'🌐',css:'🎨',json:'📋',md:'📝',yml:'⚙️',yaml:'⚙️',toml:'⚙️',sh:'🖥️',bat:'🖥️',ps1:'🖥️',txt:'📄',log:'📄'}[ext]||'📄'}
 function fmtSize(b){if(b<1024)return b+'B';if(b<1048576)return(b/1024).toFixed(1)+'K';return(b/1048576).toFixed(1)+'M'}
+// ── Center Tabs ──
+function switchCTab(name){
+  document.querySelectorAll('.ctab').forEach(t=>t.classList.toggle('active',t.dataset.ct===name));
+  $('cpane-term').style.display=name==='term'?'flex':'none';
+  $('cpane-net').style.display=name==='net'?'flex':'none';
+}
+// ── Network ──
+function addNetCall(d){
+  netCalls.push(d);netTotalTokens+=(d.response?.total_tokens||0);netTotalMs+=(d.duration_ms||0);
+  $('netCalls').textContent=netCalls.length;$('netTokens').textContent=fmtNum(netTotalTokens);
+  $('netTime').textContent=(netTotalMs/1000).toFixed(1)+'s';$('netCount').textContent=netCalls.length;
+  const el=$('netWrap'),ph=el.querySelector('.ph');if(ph)ph.remove();
+  const idx=netCalls.length,rq=d.request||{},rs=d.response||{};
+  const dur=d.duration_ms||0,tk=rs.total_tokens||0;
+  const cls=rs.finish_reason==='stop'?'ok':(rs.finish_reason==='aborted'?'err':'warn');
+  const durCls=dur>10000?'err':(dur>5000?'warn':'ok');
+  // Build table if not exists
+  let tbl=el.querySelector('.net-tbl');
+  if(!tbl){tbl=document.createElement('table');tbl.className='net-tbl';
+    tbl.innerHTML='<thead><tr><th>#</th><th>模型</th><th>消息</th><th>工具</th><th>耗时</th><th>Token</th><th>状态</th></tr></thead><tbody></tbody>';
+    el.appendChild(tbl);}
+  const tbody=tbl.querySelector('tbody');
+  const tr=document.createElement('tr');
+  const toolNames=(rs.tool_names||[]).join(', ')||'-';
+  tr.innerHTML=`<td class="num">${idx}</td><td>${esc(rq.model||'?')}</td><td class="num">${rq.message_count||0}</td><td>${esc(toolNames)}</td><td class="num ${durCls}">${(dur/1000).toFixed(1)}s</td><td class="num">${fmtNum(tk)}</td><td class="${cls}">${rs.finish_reason||'?'}</td>`;
+  tr.onclick=function(){toggleDetail('nd-'+idx,this)};
+  tbody.appendChild(tr);
+  // Detail row
+  const detTr=document.createElement('tr');detTr.id='nd-'+idx;
+  detTr.innerHTML=`<td colspan="7"><div class="net-detail"><div><span class="lbl">轮次/尝试:</span> turn ${d.turn||'?'}, attempt ${d.attempt||1}</div><div><span class="lbl">请求参数:</span></div><pre>model: ${esc(rq.model||'')}
+messages: ${rq.message_count||0} 条
+tools: ${rq.tool_count||0} 个
+temperature: ${rq.temperature}
+max_tokens: ${rq.max_tokens}</pre><div><span class="lbl">响应数据:</span></div><pre>finish_reason: ${rs.finish_reason||'N/A'}
+content: ${rs.content_length||0} 字符
+tool_calls: ${rs.tool_calls||0}${rs.tool_names?' ('+rs.tool_names.join(', ')+')':''}
+prompt_tokens: ${fmtNum(rs.prompt_tokens||0)}
+completion_tokens: ${fmtNum(rs.completion_tokens||0)}
+total_tokens: ${fmtNum(rs.total_tokens||0)}${rs.has_reasoning?'\nreasoning: '+rs.reasoning_length+' 字符':''}</pre>${rs.content_preview?'<div><span class="lbl">内容预览:</span></div><pre>'+esc(rs.content_preview)+'</pre>':''}</div></td>`;
+  detTr.style.display='none';tbody.appendChild(detTr);
+  el.scrollTop=el.scrollHeight;
+}
+function toggleDetail(id,tr){
+  const det=document.getElementById(id);if(!det)return;
+  const show=det.style.display==='none';
+  // Hide all other details
+  document.querySelectorAll('.net-detail.show').forEach(d=>{d.classList.remove('show');d.parentElement.style.display='none'});
+  if(show){det.style.display='';det.querySelector('.net-detail').classList.add('show')}
+}
+function clearNetwork(){netCalls=[];netTotalTokens=0;netTotalMs=0;
+  $('netCalls').textContent='0';$('netTokens').textContent='0';$('netTime').textContent='0s';$('netCount').textContent='0';
+  $('netWrap').innerHTML='<div class="ph" style="font-size:12px">等待 LLM 请求...</div>';}
+function fmtNum(n){if(n>=1e6)return(n/1e6).toFixed(1)+'M';if(n>=1e3)return(n/1e3).toFixed(1)+'K';return String(n)}
 // ── Permission ──
 function showPerm(e){pPerm={session_id:e.session_id,request_id:e.data.request_id};
   $('pInf').innerHTML=`<div class="rw"><span class="k">会话:</span><span>${short(e.session_id)}</span></div><div class="rw"><span class="k">工具:</span><span>${esc(e.data.tool_name)}</span></div><div class="rw"><span class="k">描述:</span><span>${esc(e.data.description)}</span></div><pre style="background:var(--bg);padding:6px;border-radius:4px;font-size:10px;margin-top:4px;overflow-x:auto">${esc(JSON.stringify(e.data.tool_input,null,2))}</pre>`;
