@@ -158,6 +158,29 @@ def show_available_skills_handler() -> str:
         return f"获取可用技能失败: {str(e)}"
 
 
+def invoke_skill_handler(skill_name: str, args: str = "") -> str:
+    """
+    主动调用技能（模型根据 when_to_use 提示自动触发）
+
+    根据技能名称和可选参数，激活并执行技能的完整 prompt。
+    支持 Shell 命令执行和参数替换。
+
+    Args:
+        skill_name: 技能名称
+        args: 传递给技能的参数
+
+    Returns:
+        技能的 prompt 内容（已处理）
+    """
+    try:
+        sm = SkillContext._skill_manager
+        if sm is None:
+            return "❌ 技能系统未初始化"
+        return sm.invoke_skill(skill_name, args)
+    except Exception as e:
+        return f"调用技能失败: {str(e)}"
+
+
 # 注册工具
 register_tool("list_skills", {
     "description": "列出所有可用的技能及其状态",
@@ -241,5 +264,37 @@ register_tool("get_active_skills", {
         "required": []
     },
     "handler": get_active_skills_handler,
+    "permission_level": "read"
+})
+
+register_tool("invoke_skill", {
+    "description": """主动调用技能。当系统提示中的 when_to_use 条件满足时，使用此工具激活并执行技能。
+
+技能执行流程:
+1. 激活技能并加载完整 prompt
+2. 执行 prompt 中的 Shell 命令（!`...` 语法）
+3. 替换参数占位符（${1}, ${2} 等）
+4. 返回处理后的 prompt 内容
+
+示例:
+- invoke_skill(skill_name="simplify") — 代码审查
+- invoke_skill(skill_name="verify") — 验证变更
+- invoke_skill(skill_name="debug", args="error log content") — 调试问题""",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "skill_name": {
+                "type": "string",
+                "description": "要调用的技能名称"
+            },
+            "args": {
+                "type": "string",
+                "description": "传递给技能的参数（可选）",
+                "default": ""
+            }
+        },
+        "required": ["skill_name"]
+    },
+    "handler": invoke_skill_handler,
     "permission_level": "read"
 })

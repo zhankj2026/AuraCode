@@ -2,6 +2,7 @@
 name: simplify
 description: 审查变更代码的代码复用、质量和效率，发现并修复问题
 trigger: 当完成代码修改后需要审查时激活，或用户主动调用 /simplify
+when_to_use: 当完成代码修改后，需要审查代码质量、复用性和效率时主动激活
 ---
 
 # Simplify: 代码审查与清理

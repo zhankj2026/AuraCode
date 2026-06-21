@@ -17,18 +17,32 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Skill:
     """
-    Skill 数据结构
-    
+    Skill 数据结构（增强版，对标 Claude Code Command 类型）
+
     Attributes:
         name: Skill 名称
         description: Skill 描述
-        trigger: 触发条件描述
+        trigger: 触发条件描述（用户手动激活）
+        when_to_use: 模型主动触发的条件描述（注入系统提示）
+        allowed_tools: 激活时临时扩展的工具白名单
+        argument_hint: 参数提示（如 "[file] [--staged]"）
+        arguments: 命名参数列表（用于 ${1} ${2} 替换）
+        model: 指定模型（覆盖默认模型）
+        context: 执行上下文 'inline'(默认) | 'fork'(独立上下文)
+        user_invocable: 用户是否可通过斜杠命令调用
         prompt_content: 完整提示词内容(激活后加载)
         is_active: 是否已激活
     """
     name: str
     description: str
-    trigger: str
+    trigger: str = ""
+    when_to_use: str = ""
+    allowed_tools: List[str] = field(default_factory=list)
+    argument_hint: str = ""
+    arguments: List[str] = field(default_factory=list)
+    model: str = ""
+    context: str = "inline"
+    user_invocable: bool = True
     prompt_content: Optional[str] = None
     is_active: bool = False
     
@@ -38,7 +52,13 @@ class Skill:
             'name': self.name,
             'description': self.description,
             'trigger': self.trigger,
-            'is_active': self.is_active
+            'when_to_use': self.when_to_use,
+            'allowed_tools': self.allowed_tools,
+            'argument_hint': self.argument_hint,
+            'model': self.model,
+            'context': self.context,
+            'user_invocable': self.user_invocable,
+            'is_active': self.is_active,
         }
 
 
@@ -83,30 +103,61 @@ class SkillManager:
         # 加载所有 Skill 元数据（多源）
         self._load_all_skills()
     
-    def _parse_frontmatter(self, content: str) -> Dict[str, str]:
+    def _parse_frontmatter(self, content: str) -> Dict[str, Any]:
         """
-        解析 YAML frontmatter
-        
+        解析 YAML frontmatter（增强版）
+
+        支持字段:
+        - name, description, trigger (基础)
+        - when_to_use (模型主动触发)
+        - allowed-tools (工具白名单)
+        - argument-hint (参数提示)
+        - arguments (命名参数)
+        - model (指定模型)
+        - context (inline/fork)
+        - user-invocable (用户可调用性)
+
         Args:
             content: 文件内容
-        
+
         Returns:
             元数据字典
         """
-        metadata = {}
-        
+        metadata: Dict[str, Any] = {}
+
         # 匹配 frontmatter: --- ... ---
         match = re.match(r'^---\s*\n(.*?)\n---\s*\n(.*)$', content, re.DOTALL)
-        
+
         if match:
             frontmatter = match.group(1)
             # 解析 YAML 键值对
             for line in frontmatter.split('\n'):
                 line = line.strip()
-                if ':' in line:
-                    key, value = line.split(':', 1)
-                    metadata[key.strip()] = value.strip()
-        
+                if ':' not in line:
+                    continue
+                key, value = line.split(':', 1)
+                key = key.strip()
+                value = value.strip()
+
+                # 列表值: - item1, item2 或 [item1, item2]
+                if value.startswith('[') and value.endswith(']'):
+                    value = [v.strip().strip('"').strip("'")
+                             for v in value[1:-1].split(',') if v.strip()]
+                elif key in ('allowed-tools', 'allowed_tools', 'arguments'):
+                    # 逗号分隔的列表
+                    value = [v.strip() for v in value.split(',') if v.strip()]
+
+                # 布尔值
+                if isinstance(value, str):
+                    if value.lower() == 'true':
+                        value = True
+                    elif value.lower() == 'false':
+                        value = False
+
+                # 规范化键名 (kebab-case → snake_case)
+                norm_key = key.replace('-', '_')
+                metadata[norm_key] = value
+
         return metadata
     
     def _load_all_skills(self):
@@ -155,9 +206,18 @@ class SkillManager:
                     metadata['trigger'] = '手动激活'
 
                 skill = Skill(
-                    name=metadata['name'],
-                    description=metadata['description'],
-                    trigger=metadata['trigger']
+                    name=metadata.get('name', skill_name),
+                    description=metadata.get('description', '无描述'),
+                    trigger=metadata.get('trigger', '手动激活'),
+                    when_to_use=metadata.get('when_to_use', ''),
+                    allowed_tools=metadata.get('allowed_tools', []) or [],
+                    argument_hint=metadata.get('argument_hint', ''),
+                    arguments=metadata.get('arguments', []) or [],
+                    model=metadata.get('model', ''),
+                    context=metadata.get('context', 'inline'),
+                    user_invocable=metadata.get('user_invocable', True)
+                    if isinstance(metadata.get('user_invocable', True), bool)
+                    else True,
                 )
 
                 # 避免重复（内置优先）
@@ -502,3 +562,178 @@ class SkillManager:
         self.active_skills.clear()
         self._load_all_skills()
         return len(self.skills)
+
+    # ========== P0: 模型主动触发 (when_to_use) ==========
+
+    def get_when_to_use_hints(self) -> str:
+        """
+        获取所有 skill 的 when_to_use 提示，用于注入系统提示。
+
+        模型在推理时参考这些提示，决定是否主动调用 invoke_skill 工具。
+
+        Returns:
+            格式化的 when_to_use 提示文本，如果没有 skill 定义了 when_to_use 则返回空字符串
+        """
+        hints = []
+        for name, skill in self.skills.items():
+            if skill.when_to_use and skill.user_invocable:
+                hints.append(f"- **{name}**: {skill.when_to_use}")
+
+        if not hints:
+            return ""
+
+        header = (
+            "## 可用技能 (Skill) 触发指南\n\n"
+            "以下技能可在对应条件满足时通过 `invoke_skill` 工具主动激活：\n\n"
+        )
+        return header + "\n".join(hints)
+
+    # ========== P0: Shell 命令执行 ==========
+
+    def execute_shell_in_prompt(self, prompt: str, timeout: int = 10) -> str:
+        """
+        执行 prompt 中的 Shell 命令（!`...` 语法）。
+
+        对标 Claude Code 的 executeShellCommandsInPrompt。
+        将 !`command` 替换为命令输出。
+
+        Args:
+            prompt: 包含 !`...` 的提示文本
+            timeout: 命令超时秒数
+
+        Returns:
+            替换后的提示文本
+        """
+        import subprocess as sp
+
+        def _replace_shell(match):
+            cmd = match.group(1).strip()
+            try:
+                result = sp.run(
+                    cmd, shell=True, capture_output=True, text=True,
+                    timeout=timeout, encoding="utf-8", errors="replace",
+                )
+                output = result.stdout.strip()
+                if result.returncode != 0 and result.stderr:
+                    output += f"\n(stderr: {result.stderr.strip()[:200]})"
+                return output or "(no output)"
+            except sp.TimeoutExpired:
+                return f"(command timed out after {timeout}s)"
+            except Exception as e:
+                return f"(error: {e})"
+
+        # 匹配 !`command` 模式
+        return re.sub(r'!`([^`]+)`', _replace_shell, prompt)
+
+    # ========== P0: invoke_skill (模型主动调用) ==========
+
+    def invoke_skill(self, name: str, args: str = "") -> str:
+        """
+        模型主动调用 skill。
+
+        1. 激活 skill
+        2. 加载 prompt（含 shell 命令执行）
+        3. 替换参数占位符
+        4. 返回 prompt 内容供注入对话
+
+        Args:
+            name: skill 名称
+            args: 用户参数（传递给 ${1} ${2} 等）
+
+        Returns:
+            skill prompt 内容（已处理 shell 命令和参数替换）
+        """
+        if name not in self.skills:
+            return f"❌ Skill 不存在: {name}"
+
+        skill = self.skills[name]
+
+        # 激活（加载 prompt）
+        try:
+            self.activate_skill(name)
+        except ValueError as e:
+            return f"❌ 激活失败: {e}"
+
+        prompt = skill.prompt_content or ""
+        if not prompt:
+            return f"Skill '{name}' 已激活，但无 prompt 内容。"
+
+        # Shell 命令执行
+        prompt = self.execute_shell_in_prompt(prompt)
+
+        # 参数替换: ${1}, ${2}, ... 和 ${ARG_NAME}
+        if args:
+            arg_list = args.split()
+            for i, arg_val in enumerate(arg_list, 1):
+                prompt = prompt.replace(f"${{{i}}}", arg_val)
+
+            # 命名参数替换
+            for i, arg_name in enumerate(skill.arguments):
+                if i < len(arg_list):
+                    prompt = prompt.replace(f"${{{arg_name}}}", arg_list[i])
+
+        # 追加额外参数
+        if args:
+            prompt += f"\n\n## Additional Context\n\n{args}"
+
+        return prompt
+
+    # ========== P1: Git 安装 skill ==========
+
+    def install_skill(self, url: str, name: str = None, scope: str = "user") -> str:
+        """
+        从 Git 仓库安装 skill。
+
+        将仓库 clone 到 skills 目录，自动 reload。
+
+        Args:
+            url: Git 仓库 URL
+            name: skill 名称（默认从 URL 提取）
+            scope: 'user' (默认) 或 'project'
+
+        Returns:
+            安装结果信息
+        """
+        import subprocess as sp
+
+        if scope == "project":
+            base_dir = self.project_skills_dir
+        elif scope == "user":
+            base_dir = self.user_skills_dir
+        else:
+            return f"❌ 无效作用域: {scope}"
+
+        # 从 URL 提取名称
+        if not name:
+            name = url.rstrip('/').split('/')[-1]
+            if name.endswith('.git'):
+                name = name[:-4]
+
+        skill_dir = os.path.join(base_dir, name)
+        if os.path.exists(skill_dir):
+            return f"⚠️ Skill 已存在: {name} ({skill_dir})\n使用 /skills delete {name} 先删除"
+
+        os.makedirs(base_dir, exist_ok=True)
+
+        try:
+            result = sp.run(
+                ["git", "clone", "--depth", "1", url, skill_dir],
+                capture_output=True, text=True, timeout=60,
+            )
+            if result.returncode != 0:
+                return f"❌ Git clone 失败: {result.stderr.strip()[:300]}"
+
+            # Reload
+            count = self.reload_skills()
+            return (
+                f"✅ Skill 安装成功: {name}\n"
+                f"   路径: {skill_dir}\n"
+                f"   已重新加载 {count} 个 Skill"
+            )
+
+        except sp.TimeoutExpired:
+            return "❌ Git clone 超时"
+        except FileNotFoundError:
+            return "❌ git 命令不可用"
+        except Exception as e:
+            return f"❌ 安装失败: {e}"

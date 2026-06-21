@@ -723,7 +723,7 @@ class AgentLoop:
         # if project_context:
         #     parts.append(project_context)
 
-        # 第 4 层: 技能系统（改进版：元数据 + 激活内容）
+        # 第 4 层: 技能系统（改进版：元数据 + when_to_use + 激活内容）
         if self.skill_manager and self.skills_enabled:
             # 4.1 可用技能列表（元数据，轻量）
             available = self.skill_manager.get_available_skills()
@@ -736,10 +736,20 @@ class AgentLoop:
                     status = "[已激活]" if skill_info['is_active'] else "[未激活]"
                     skill_list.append(f"- **{skill_info['name']}**: {skill_info['description']}\n")
                     skill_list.append(f"  触发: {skill_info['trigger']}\n")
+                    if skill_info.get('when_to_use'):
+                        skill_list.append(f"  自动触发条件: {skill_info['when_to_use']}\n")
+                    if skill_info.get('argument_hint'):
+                        skill_list.append(f"  参数: {skill_info['argument_hint']}\n")
                     skill_list.append(f"  状态: {status}\n\n")
 
                 parts.append("".join(skill_list))
                 logger.debug(f"展示 {len(available)} 个可用技能的元数据")
+
+            # 4.1.5 when_to_use 触发指南（让模型知道何时主动调用 invoke_skill）
+            when_to_use_hints = self.skill_manager.get_when_to_use_hints()
+            if when_to_use_hints:
+                parts.append(when_to_use_hints)
+                logger.debug("注入 when_to_use 技能触发指南")
 
             # 4.2 已激活技能的完整内容（重量，按需加载）
             active_skills = self.skill_manager.get_active_skills()

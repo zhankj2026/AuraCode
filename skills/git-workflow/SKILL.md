@@ -2,6 +2,7 @@
 name: git-workflow
 description: Git 工作流和提交规范
 trigger: 当执行 Git 操作或提交代码时激活
+when_to_use: 当执行 Git 提交、分支管理、合并或创建 PR 时主动激活
 ---
 
 # Git 工作流规范

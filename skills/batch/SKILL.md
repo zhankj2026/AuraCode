@@ -2,6 +2,8 @@
 name: batch
 description: 大规模并行变更编排，将大型任务分解为多个独立单元并逐一实现
 trigger: 当需要跨多文件进行大规模重构、迁移或批量修改时激活，或用户主动调用 /batch
+when_to_use: 当需要跨多个文件进行大规模重构、迁移或批量修改时主动激活
+argument_hint: "<task description>"
 ---
 
 # Batch: 大规模并行变更编排

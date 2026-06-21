@@ -2,6 +2,8 @@
 name: update-config
 description: 管理 opencode 配置，包括 LLM 设置、权限规则、钩子、日志等
 trigger: 当用户需要修改项目配置、添加权限规则、配置钩子时激活，或用户主动调用 /update-config
+when_to_use: 当需要修改 config.yaml、权限规则、钩子配置或 LLM 设置时主动激活
+argument_hint: "<what to configure>"
 ---
 
 # Update Config: opencode 配置管理

@@ -45,9 +45,11 @@ def skills_handler(args: list) -> str:
         return _cmd_info(args[1:])
     elif subcommand == 'sources':
         return _cmd_sources()
+    elif subcommand == 'install':
+        return _cmd_install(args[1:])
     else:
         return f"错误: 未知子命令 '{subcommand}'\n" \
-               f"可用子命令: list, activate, deactivate, create, delete, search, reload, info, sources"
+               f"可用子命令: list, activate, deactivate, create, delete, search, reload, info, sources, install"
 
 
 def _cmd_create(args) -> str:
@@ -147,6 +149,36 @@ def _cmd_sources() -> str:
     return "\n".join(lines)
 
 
+def _cmd_install(args) -> str:
+    """从 Git 仓库安装 Skill"""
+    sm = _get_skill_manager()
+    if sm is None:
+        return "❌ 技能系统未初始化"
+    if not args:
+        return "用法: /skills install <git-url> [--name <name>] [--project]\n\n" \
+               "示例:\n" \
+               "  /skills install https://github.com/user/my-skill\n" \
+               "  /skills install https://github.com/user/my-skill --name custom-skill\n" \
+               "  /skills install https://github.com/user/my-skill --project"
+    url = args[0]
+    name = None
+    scope = "user"
+
+    # 解析可选参数
+    i = 1
+    while i < len(args):
+        if args[i] == '--name' and i + 1 < len(args):
+            name = args[i + 1]
+            i += 2
+        elif args[i] == '--project':
+            scope = "project"
+            i += 1
+        else:
+            i += 1
+
+    return sm.install_skill(url, name=name, scope=scope)
+
+
 def activate_handler(args: list) -> str:
     """激活技能（快捷方式）"""
     if not args:
@@ -170,7 +202,7 @@ register_command("skills", {
     "description": "技能管理 (激活/停用/创建/删除/搜索/重载)",
     "handler": skills_handler,
     "category": "skills",
-    "args_help": "[list|activate|deactivate|create|delete|search|reload|info|sources]"
+    "args_help": "[list|activate|deactivate|create|delete|search|reload|info|sources|install]"
 })
 
 register_command("activate", {
