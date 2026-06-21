@@ -1,11 +1,14 @@
 """
 插件系统
 
-三层架构:
+五层架构:
 - base.py: ToolPlugin 抽象基类（插件必须继承）
 - builtin.py: 内置插件注册表（对应 Claude Code builtinPlugins.ts）
-- loader.py: 目录扫描 + 多源加载器
+- loader.py: 目录扫描 + 多源加载器（含 marketplace）
 - registry.py: 插件注册中心 + 事件总线 + 依赖解析
+- marketplace.py: Marketplace 管理器 (Git clone 来源)
+- plugin_installer.py: 插件安装器 (install/uninstall/update)
+- zip_cache.py: Zip 缓存（离线/容器场景）
 """
 from .base import ToolPlugin
 from .loader import PluginLoader
@@ -30,4 +33,25 @@ from .registry import (
     PluginBus,
     DependencyResolver,
     PluginEntry,
+)
+from .marketplace import (
+    MarketplaceManager,
+    MarketplaceSource,
+    MarketplacePluginEntry,
+    MarketplaceManifest,
+)
+from .plugin_installer import (
+    PluginInstaller,
+    InstalledPlugin,
+    PluginJson,
+)
+from .zip_cache import (
+    is_zip_cache_enabled,
+    get_zip_cache_path,
+    ensure_zip_cache_dirs,
+    zip_plugin_directory,
+    unzip_plugin_to_session,
+    cleanup_session_plugins,
+    sync_installed_to_zip_cache,
+    list_zip_cache,
 )

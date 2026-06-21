@@ -197,6 +197,7 @@ class PluginLoader:
         2. opencode/plugins/ 目录扫描
         3. 项目级插件 (.opencode/plugins/)
         4. 用户级插件 (~/.opencode/plugins/)
+        5. Marketplace 安装的插件 (~/.opencode/plugins/cache/)
         
         Args:
             include_builtin: 是否加载内置插件
@@ -235,11 +236,18 @@ class PluginLoader:
         # 4. 用户级插件
         user_count = self._load_from_dir(self.user_plugins_dir, SOURCE_USER)
 
-        total = builtin_count + dir_count + project_count + user_count
+        # 4.5 Seed marketplace 注册（容器/部署预装，优先级最高）
+        self._register_seed_marketplaces()
+
+        # 5. Marketplace 安装的插件（从 cache 目录 + installed_plugins.json）
+        marketplace_count = self._load_marketplace_plugins()
+
+        total = builtin_count + dir_count + project_count + user_count + marketplace_count
         logger.info(
             f"成功加载 {total} 个插件 "
             f"(builtin={builtin_count}, dir={dir_count}, "
-            f"project={project_count}, user={user_count})"
+            f"project={project_count}, user={user_count}, "
+            f"marketplace={marketplace_count})"
         )
         return self.plugins
     
@@ -310,6 +318,97 @@ class PluginLoader:
             for plugin in self.plugins
         ]
     
+    # ── Marketplace 插件加载 + Skill 自动发现 ─────────────────
+
+    def _register_seed_marketplaces(self) -> None:
+        """
+        从 OPENCODE_PLUGIN_SEED_DIR 注册 seed marketplace。
+
+        容器/部署场景下，管理员在镜像中预装 marketplace，
+        启动时自动注册，seed 条目优先级最高。
+        """
+        try:
+            from plugins.marketplace import MarketplaceManager
+            mm = MarketplaceManager()
+            if mm.register_seed_marketplaces():
+                logger.info("Seed marketplace(s) registered from OPENCODE_PLUGIN_SEED_DIR")
+        except Exception as e:
+            logger.warning(f"Failed to register seed marketplaces: {e}")
+
+    def _load_marketplace_plugins(self) -> int:
+        """
+        从 marketplace 缓存目录加载插件
+
+        扫描 ~/.opencode/plugins/cache/ 下所有 marketplace/plugin 目录，
+        加载最新版本目录中的 ToolPlugin，并自动发现 skills/ 子目录。
+
+        Returns:
+            成功加载数量
+        """
+        try:
+            from plugins.plugin_installer import PluginInstaller
+            installer = PluginInstaller()
+            cache_dirs = installer.get_cache_dirs()
+        except Exception:
+            cache_dirs = []
+
+        if not cache_dirs:
+            return 0
+
+        count = 0
+        for plugin_dir in cache_dirs:
+            source = self._extract_marketplace_source(plugin_dir)
+            loaded = self._load_from_dir(plugin_dir, source)
+            count += loaded
+            # 自动发现 skills/
+            self._discover_plugin_skills(plugin_dir, source)
+
+        if count:
+            logger.info(f"从 marketplace 缓存加载 {count} 个插件")
+        return count
+
+    def _extract_marketplace_source(self, plugin_dir: str) -> str:
+        """从插件路径提取 marketplace 来源标识"""
+        # 路径格式: ~/.opencode/plugins/cache/{marketplace}/{plugin}/{version}/
+        parts = plugin_dir.replace("\\", "/").split("/")
+        try:
+            cache_idx = parts.index("cache")
+            if cache_idx + 1 < len(parts):
+                return f"marketplace:{parts[cache_idx + 1]}"
+        except ValueError:
+            pass
+        return "marketplace:unknown"
+
+    def _discover_plugin_skills(self, plugin_dir: str, source: str):
+        """
+        扫描插件目录下的 skills/ 子目录，自动注册到 SkillManager
+
+        对标 Claude Code loadPluginCommands.ts 中的 loadSkillsFromDirectory。
+        插件可以携带 skills/ 目录，其中每个子目录包含 SKILL.md。
+
+        Args:
+            plugin_dir: 插件安装目录
+            source: 来源标识 (如 "marketplace:official")
+        """
+        skills_dir = os.path.join(plugin_dir, "skills")
+        if not os.path.exists(skills_dir):
+            return
+
+        try:
+            from skills.context import SkillContext
+            sm = SkillContext._skill_manager
+            if sm is None:
+                logger.debug("SkillManager 未初始化，跳过 skill 自动发现")
+                return
+
+            loaded = sm._load_skills_from_dir(skills_dir, source)
+            if loaded:
+                logger.info(f"自动发现 {loaded} 个 skill from {source}")
+        except ImportError:
+            logger.debug("skills 模块不可用，跳过 skill 自动发现")
+        except Exception as e:
+            logger.warning(f"Skill 自动发现失败 ({source}): {e}")
+
     def unload_all(self):
         """卸载所有插件"""
         for plugin in self.plugins:

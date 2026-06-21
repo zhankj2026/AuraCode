@@ -152,9 +152,8 @@ def _list_backups(store) -> str:
     return "\n".join(lines)
 
 
-register_command(
-    name="settings",
-    handler=settings_handler,
-    description="全局用户设置管理 (~/.opencode/settings.json)",
-    category="system",
-)
+register_command("settings", {
+    "description": "全局用户设置管理 (~/.opencode/settings.json)",
+    "handler": settings_handler,
+    "category": "system",
+})

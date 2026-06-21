@@ -10,6 +10,13 @@
   /plugins bus         查看事件总线状态
   /plugins deps        查看依赖关系
   /plugins stats       插件统计
+  /plugins marketplace list/add/remove/update  Marketplace 管理
+  /plugins install <name@marketplace>   安装插件
+  /plugins uninstall <name@marketplace> 卸载插件
+  /plugins installed   列出已安装插件
+  /plugins search <keyword> 搜索可用插件
+  /plugins reconcile   对账（声明 vs 安装）
+  /plugins zip-cache   查看 zip 缓存
 """
 
 from commands.registry import register_command
@@ -223,6 +230,189 @@ def _cmd_stats() -> str:
     return "\n".join(lines)
 
 
+# ── Marketplace 子命令 ──────────────────────────────────────
+
+
+def _get_marketplace_manager():
+    """获取 MarketplaceManager 实例"""
+    try:
+        from plugins.marketplace import MarketplaceManager
+        return MarketplaceManager()
+    except ImportError:
+        return None
+
+
+def _get_plugin_installer():
+    """获取 PluginInstaller 实例"""
+    try:
+        from plugins.plugin_installer import PluginInstaller
+        return PluginInstaller()
+    except ImportError:
+        return None
+
+
+def _cmd_marketplace(args: list) -> str:
+    """Marketplace 管理子命令"""
+    mm = _get_marketplace_manager()
+    if mm is None:
+        return "Marketplace 模块不可用"
+
+    sub = args[0].lower() if args else "list"
+    rest = " ".join(args[1:]).strip() if len(args) > 1 else ""
+
+    if sub == "list":
+        return mm.list_marketplaces()
+    elif sub == "add":
+        if not rest:
+            return "用法: /plugins marketplace add <git-url> [--name <name>]"
+        # 解析 --name
+        name = None
+        url = rest
+        if "--name" in rest:
+            parts = rest.split("--name")
+            url = parts[0].strip()
+            name = parts[1].strip() if len(parts) > 1 else None
+        return mm.add_marketplace(url, name=name)
+    elif sub == "remove":
+        if not rest:
+            return "用法: /plugins marketplace remove <name>"
+        return mm.remove_marketplace(rest)
+    elif sub == "update":
+        return mm.update_marketplace(rest if rest else None)
+    else:
+        return (
+            "Marketplace 子命令:\n"
+            "  list            列出已注册 marketplace\n"
+            "  add <url>       添加 marketplace (git clone)\n"
+            "  remove <name>   移除 marketplace\n"
+            "  update [name]   更新 marketplace (git pull)"
+        )
+
+
+def _cmd_install(target: str) -> str:
+    """安装插件: /plugins install <name>@<marketplace>"""
+    installer = _get_plugin_installer()
+    mm = _get_marketplace_manager()
+    if installer is None or mm is None:
+        return "插件安装模块不可用"
+
+    if not target:
+        return "用法: /plugins install <name>@<marketplace>"
+
+    # 解析 name@marketplace
+    if "@" in target:
+        name, marketplace = target.split("@", 1)
+    else:
+        # 尝试在第一个 marketplace 中查找
+        names = mm.get_marketplace_names()
+        if not names:
+            return "无已注册的 marketplace，请先 /plugins marketplace add <url>"
+        name = target
+        marketplace = names[0]
+
+    # 从 marketplace 查找插件源码 URL
+    plugins = mm.get_marketplace_plugins(marketplace)
+    source_url = ""
+    version = "latest"
+    for p in plugins:
+        if p.name == name:
+            source_url = p.source
+            version = p.version
+            break
+
+    return installer.install_plugin(name, marketplace, source_url=source_url, version=version)
+
+
+def _cmd_uninstall(plugin_id: str) -> str:
+    """卸载插件: /plugins uninstall <name>@<marketplace>"""
+    installer = _get_plugin_installer()
+    if installer is None:
+        return "插件安装模块不可用"
+
+    if not plugin_id:
+        return "用法: /plugins uninstall <name>@<marketplace>"
+
+    return installer.uninstall_plugin(plugin_id)
+
+
+def _cmd_installed() -> str:
+    """列出已安装插件"""
+    installer = _get_plugin_installer()
+    if installer is None:
+        return "插件安装模块不可用"
+    return installer.list_installed_str()
+
+
+def _cmd_search(keyword: str) -> str:
+    """搜索可用插件"""
+    mm = _get_marketplace_manager()
+    if mm is None:
+        return "Marketplace 模块不可用"
+
+    if not keyword:
+        return "用法: /plugins search <keyword>"
+
+    installer = _get_plugin_installer()
+    results = mm.search_plugins(keyword)
+
+    if not results:
+        return f"未找到匹配 '{keyword}' 的插件"
+
+    lines = [f"搜索结果: '{keyword}' ({len(results)} 个匹配)\n"]
+    for r in results:
+        installed = ""
+        if installer and installer.is_installed(r["plugin_id"]):
+            installed = " (已安装)"
+        lines.append(f"  {r['plugin_id']}{installed}")
+        lines.append(f"     {r['description']}")
+        if r.get('tags'):
+            lines.append(f"     标签: {', '.join(r['tags'])}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _cmd_reconcile() -> str:
+    """对账: marketplace 声明 vs 实际安装"""
+    mm = _get_marketplace_manager()
+    installer = _get_plugin_installer()
+    if mm is None or installer is None:
+        return "模块不可用"
+
+    result = installer.reconcile(mm)
+    lines = ["Marketplace 对账:\n"]
+
+    if result["missing"]:
+        lines.append(f"  缺少 ({len(result['missing'])} 个, 未安装):")
+        for pid in result["missing"][:10]:
+            lines.append(f"    - {pid}")
+        if len(result["missing"]) > 10:
+            lines.append(f"    ... 及 {len(result['missing']) - 10} 个")
+
+    if result["extra"]:
+        lines.append(f"\n  多余 ({len(result['extra'])} 个, 不在 marketplace 中):")
+        for pid in result["extra"]:
+            lines.append(f"    - {pid}")
+
+    lines.append(f"\n  已同步: {len(result['up_to_date'])} 个")
+
+    if not result["missing"] and not result["extra"]:
+        lines.append("\n  ✅ 所有插件同步一致")
+
+    return "\n".join(lines)
+
+
+def _cmd_zip_cache() -> str:
+    """查看 zip 缓存"""
+    try:
+        from plugins.zip_cache import is_zip_cache_enabled, list_zip_cache
+        enabled = "✅ 启用" if is_zip_cache_enabled() else "⏸️ 未启用"
+        lines = [f"Zip 缓存: {enabled}\n"]
+        lines.append(list_zip_cache())
+        return "\n".join(lines)
+    except ImportError:
+        return "Zip 缓存模块不可用"
+
+
 def plugins_handler(args: list, loop=None) -> str:
     """执行 /plugins 命令"""
     sub = args[0].lower() if args else "list"
@@ -237,20 +427,35 @@ def plugins_handler(args: list, loop=None) -> str:
         "bus": lambda: _cmd_bus(),
         "deps": lambda: _cmd_deps(),
         "stats": lambda: _cmd_stats(),
+        # Marketplace 子命令
+        "marketplace": lambda: _cmd_marketplace(args[1:]) if len(args) > 1 else _cmd_marketplace([]),
+        "install": lambda: _cmd_install(rest) if rest else "用法: /plugins install <name>@<marketplace>",
+        "uninstall": lambda: _cmd_uninstall(rest) if rest else "用法: /plugins uninstall <name>@<marketplace>",
+        "installed": lambda: _cmd_installed(),
+        "search": lambda: _cmd_search(rest) if rest else "用法: /plugins search <keyword>",
+        "reconcile": lambda: _cmd_reconcile(),
+        "zip-cache": lambda: _cmd_zip_cache(),
     }
 
     handler = handlers.get(sub)
     if not handler:
         return (
             "可用子命令:\n"
-            "  /plugins list        列出所有插件\n"
-            "  /plugins info <name> 查看插件详情\n"
-            "  /plugins enable <n>  启用插件\n"
-            "  /plugins disable <n> 禁用插件\n"
-            "  /plugins reload      重新加载插件\n"
-            "  /plugins bus         事件总线状态\n"
-            "  /plugins deps        依赖关系\n"
-            "  /plugins stats       统计信息"
+            "  /plugins list                     列出所有插件\n"
+            "  /plugins info <name>              查看插件详情\n"
+            "  /plugins enable <n>               启用插件\n"
+            "  /plugins disable <n>              禁用插件\n"
+            "  /plugins reload                   重新加载插件\n"
+            "  /plugins bus                      事件总线状态\n"
+            "  /plugins deps                     依赖关系\n"
+            "  /plugins stats                    统计信息\n"
+            "  /plugins marketplace list/add/remove/update  Marketplace 管理\n"
+            "  /plugins install <name@marketplace>   安装插件\n"
+            "  /plugins uninstall <name@marketplace> 卸载插件\n"
+            "  /plugins installed                列出已安装插件\n"
+            "  /plugins search <keyword>         搜索可用插件\n"
+            "  /plugins reconcile                对账（声明 vs 安装）\n"
+            "  /plugins zip-cache                查看 zip 缓存"
         )
 
     return handler()
@@ -258,8 +463,8 @@ def plugins_handler(args: list, loop=None) -> str:
 
 # 注册命令
 register_command("plugins", {
-    "description": "插件生态管理 (注册/启用/禁用/依赖/事件总线)",
+    "description": "插件生态管理 (marketplace/install/enable/disable/search)",
     "handler": plugins_handler,
     "category": "system",
-    "args_help": "[list|info|enable|disable|reload|bus|deps|stats]",
+    "args_help": "[list|info|enable|disable|reload|bus|deps|stats|marketplace|install|uninstall|installed|search|reconcile|zip-cache]",
 })
