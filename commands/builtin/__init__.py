@@ -49,3 +49,7 @@ from . import security_review_command
 
 # New commands (Persistence: settings/history-log/file-history)
 from . import settings_command
+
+# Git workflow commands (commit-push-pr, branch)
+from . import commit_push_pr_command
+from . import branch_command

@@ -12,18 +12,33 @@ from commands.registry import register_command
 
 def review_handler(args: list, loop=None) -> str:
     """
-    审查当前工作区的未提交变更。
+    审查代码变更。
 
     用法:
-        /review           — 审查所有暂存+未暂存变更
+        /review           — 审查本地未提交变更
         /review --staged  — 仅审查暂存变更
         /review <file>    — 审查指定文件
+        /review #123      — 审查 GitHub PR #123（需要 gh CLI）
+        /review 123       — 同上
     """
-    # 解析参数
+    # 解析参数 — 检查是否为 PR 审查模式
+    pr_number = None
+    for a in args:
+        a = a.strip()
+        if a.startswith("#") and a[1:].isdigit():
+            pr_number = a[1:]
+            break
+        elif a.isdigit():
+            pr_number = a
+            break
+
+    if pr_number:
+        return _review_pr(pr_number, loop)
+
     staged_only = "--staged" in args
     target_file = None
     for a in args:
-        if not a.startswith("-"):
+        if not a.startswith("-") and not a.isdigit() and not a.startswith("#"):
             target_file = a
             break
 
@@ -242,9 +257,99 @@ def _ai_review(loop, diff: str, stats: dict) -> str:
         return f"AI 审查失败: {e}"
 
 
+def _review_pr(pr_number: str, loop) -> str:
+    """审查 GitHub PR（通过 gh CLI）"""
+    lines = ["=" * 60, f"🔍 PR #{pr_number} 代码审查", "=" * 60]
+
+    # 检查 gh 可用性
+    try:
+        result = subprocess.run(
+            ["gh", "auth", "status"], capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            return "❌ gh CLI 未认证，请先运行: gh auth login"
+    except FileNotFoundError:
+        return "❌ gh CLI 未安装: https://cli.github.com/"
+
+    # 获取 PR 详情
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "view", pr_number, "--json",
+             "title,author,state,additions,deletions,changedFiles"],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0:
+            return f"❌ 无法获取 PR #{pr_number}: {result.stderr.strip()}"
+        import json
+        pr = json.loads(result.stdout)
+        lines.append(f"标题: {pr.get('title', '?')}")
+        lines.append(f"作者: {pr.get('author', {}).get('login', '?')}")
+        lines.append(f"状态: {pr.get('state', '?')}")
+        lines.append(f"变更: +{pr.get('additions', 0)}/-{pr.get('deletions', 0)} "
+                     f"({pr.get('changedFiles', 0)} 文件)")
+    except Exception as e:
+        lines.append(f"⚠️ 获取 PR 详情失败: {e}")
+
+    # 获取 PR diff
+    lines.append("\n获取 diff...")
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "diff", pr_number],
+            capture_output=True, text=True, timeout=60,
+            encoding="utf-8", errors="replace",
+        )
+        if result.returncode != 0:
+            lines.append(f"❌ 获取 diff 失败: {result.stderr.strip()}")
+            return "\n".join(lines)
+        diff_output = result.stdout
+    except Exception as e:
+        lines.append(f"❌ 获取 diff 失败: {e}")
+        return "\n".join(lines)
+
+    if not diff_output.strip():
+        lines.append("✅ PR 无变更")
+        return "\n".join(lines)
+
+    # 解析统计
+    stats = _parse_diff_stats(diff_output)
+    lines.append(f"变更统计: {stats['files']} 文件, "
+                 f"+{stats['additions']}/-{stats['deletions']}")
+
+    # 本地规则审查
+    issues = _local_review(diff_output)
+    if issues:
+        critical = [i for i in issues if i["severity"] == "critical"]
+        warning = [i for i in issues if i["severity"] == "warning"]
+        info = [i for i in issues if i["severity"] == "info"]
+        if critical:
+            lines.append(f"\n🔴 严重问题 ({len(critical)}):")
+            for i in critical:
+                lines.append(f"  • [{i['category']}] {i['message']}")
+        if warning:
+            lines.append(f"\n🟡 警告 ({len(warning)}):")
+            for i in warning:
+                lines.append(f"  • [{i['category']}] {i['message']}")
+        if info:
+            lines.append(f"\n🔵 建议 ({len(info)}):")
+            for i in info:
+                lines.append(f"  • [{i['category']}] {i['message']}")
+    else:
+        lines.append("\n✅ 本地规则检查通过")
+
+    # AI 审查
+    if loop:
+        lines.append("\n" + "─" * 40)
+        lines.append("🤖 AI 深度审查:")
+        ai_review = _ai_review(loop, diff_output, stats)
+        lines.append(ai_review)
+
+    lines.append("\n" + "=" * 60)
+    return "\n".join(lines)
+
+
 register_command("review", {
-    "description": "AI 代码审查（审查 Git 变更中的问题）",
+    "description": "AI 代码审查 — 本地 Git 变更或 GitHub PR",
     "handler": review_handler,
     "category": "analysis",
-    "args_help": "[--staged] [file]  审查暂存变更或指定文件",
+    "args_help": "[--staged] [file] [#PR]  审查本地变更或 GitHub PR",
 })
