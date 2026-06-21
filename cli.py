@@ -199,7 +199,10 @@ class ChatMode:
             if parts:
                 cmd_name = parts[0]
                 cmd_args = parts[1:]
-                return self.executor.execute(cmd_name, cmd_args)
+                # 执行命令，但无论成功失败都继续对话
+                # （未知命令/执行失败不应终止会话）
+                self.executor.execute(cmd_name, cmd_args)
+                return True
 
         # 普通对话
         return self.process_round(user_input)
