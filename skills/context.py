@@ -35,13 +35,13 @@ class SkillContext:
         return cls._skill_manager.get_available_skills()
 
     @classmethod
-    def activate_skill(cls, name: str) -> str:
+    def activate_skill(cls, name: str, args: str = "") -> str:
         """激活技能"""
         if cls._skill_manager is None:
             return "错误: 技能系统未初始化"
 
         try:
-            cls._skill_manager.activate_skill(name)
+            cls._skill_manager.activate_skill(name, args=args)
             return f"技能 '{name}' 已激活"
         except ValueError as e:
             return f"激活失败: {str(e)}"

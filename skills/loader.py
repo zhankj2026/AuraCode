@@ -8,7 +8,7 @@ Skill 管理器 - 领域知识注入系统
 import os
 import re
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
@@ -99,6 +99,7 @@ class SkillManager:
         self.skills: Dict[str, Skill] = {}
         self.active_skills: List[str] = []
         self._skill_sources: Dict[str, str] = {}  # name -> source_dir 映射
+        self._prompt_generators: Dict[str, Callable] = {}  # name -> prompt_fn 映射（编程式 skill）
         
         # 加载所有 Skill 元数据（多源）
         self._load_all_skills()
@@ -161,7 +162,7 @@ class SkillManager:
         return metadata
     
     def _load_all_skills(self):
-        """加载所有 Skill 元数据（多源: 内置 + 项目级 + 用户级）"""
+        """加载所有 Skill 元数据（多源: 内置 + 项目级 + 用户级 + 编程式）"""
         total = 0
         # 1. 内置 skills
         total += self._load_skills_from_dir(self.builtin_skills_dir, 'builtin')
@@ -169,7 +170,9 @@ class SkillManager:
         total += self._load_skills_from_dir(self.project_skills_dir, 'project')
         # 3. 用户级自定义 skills
         total += self._load_skills_from_dir(self.user_skills_dir, 'user')
-        logger.info(f"成功加载 {total} 个 Skill (builtin + project + user)")
+        # 4. 编程式内置 skills（动态注册）
+        total += self._load_programmatic_skills()
+        logger.info(f"成功加载 {total} 个 Skill (builtin + project + user + programmatic)")
 
     def _load_skills_from_dir(self, skills_dir: str, source: str) -> int:
         """从指定目录加载 Skill"""
@@ -232,6 +235,81 @@ class SkillManager:
 
         return skill_count
     
+    # ========== 编程式 Skill 注册 ==========
+
+    def register_programmatic_skill(
+        self,
+        name: str,
+        description: str,
+        prompt_fn: Callable[[str], str],
+        trigger: str = "",
+        when_to_use: str = "",
+        allowed_tools: List[str] = None,
+        argument_hint: str = "",
+        user_invocable: bool = True,
+        context: str = "inline",
+        is_enabled_fn: Callable[[], bool] = None,
+    ) -> str:
+        """
+        注册编程式 Skill（Python 函数动态生成 prompt）。
+
+        与声明式 SKILL.md 并存，适用于需要运行时环境检测、
+        动态内容拼接、懒加载等场景。
+
+        Args:
+            name: Skill 名称
+            description: Skill 描述
+            prompt_fn: prompt 生成函数，接收 args(str)，返回 prompt(str)
+            trigger: 触发条件（用户手动激活）
+            when_to_use: 模型主动触发条件
+            allowed_tools: 工具白名单
+            argument_hint: 参数提示
+            user_invocable: 用户可调用性
+            context: 执行上下文 'inline' | 'fork'
+            is_enabled_fn: 启用条件函数（返回 False 则不注册）
+
+        Returns:
+            注册结果信息
+        """
+        if is_enabled_fn and not is_enabled_fn():
+            logger.debug(f"编程式 Skill '{name}' 未满足启用条件，跳过")
+            return f"⏭️ Skill '{name}' 未满足启用条件"
+
+        skill = Skill(
+            name=name,
+            description=description,
+            trigger=trigger or f"用户主动调用 /{name}",
+            when_to_use=when_to_use,
+            allowed_tools=allowed_tools or [],
+            argument_hint=argument_hint,
+            context=context,
+            user_invocable=user_invocable,
+        )
+
+        self.skills[name] = skill
+        self._skill_sources[name] = 'programmatic'
+        self._prompt_generators[name] = prompt_fn
+        logger.info(f"注册编程式 Skill: {name} - {description}")
+        return f"✅ 编程式 Skill 已注册: {name}"
+
+    def _load_programmatic_skills(self) -> int:
+        """
+        加载编程式内置 Skill。
+
+        导入 skills.builtin_skills 模块并调用其 register_all() 函数。
+        """
+        try:
+            from skills.builtin_skills import register_all
+            count_before = len(self.skills)
+            register_all(self)
+            return len(self.skills) - count_before
+        except ImportError:
+            logger.debug("skills.builtin_skills 模块不存在，跳过编程式 Skill")
+            return 0
+        except Exception as e:
+            logger.warning(f"加载编程式 Skill 失败: {e}")
+            return 0
+
     def get_available_skills(self) -> List[Dict[str, str]]:
         """
         获取可用 Skill 列表(轻量,只返回元数据)
@@ -244,12 +322,13 @@ class SkillManager:
             for skill in self.skills.values()
         ]
     
-    def activate_skill(self, name: str) -> str:
+    def activate_skill(self, name: str, args: str = "") -> str:
         """
         激活 Skill,加载完整提示词
         
         Args:
             name: Skill 名称
+            args: 用户参数（编程式 Skill 需要）
         
         Returns:
             完整提示词内容
@@ -267,11 +346,25 @@ class SkillManager:
         if not skill:
             raise ValueError(f"Skill 不存在: {name}")
         
-        # 如果已激活,直接返回
-        if skill.is_active and skill.prompt_content:
+        # 如果已激活,直接返回（编程式 Skill 每次都重新生成）
+        if skill.is_active and skill.prompt_content and name not in self._prompt_generators:
             return skill.prompt_content
-        
-        # 根据来源查找目录
+
+        # 编程式 Skill: 调用 prompt_fn 动态生成
+        if name in self._prompt_generators:
+            try:
+                prompt_fn = self._prompt_generators[name]
+                skill.prompt_content = prompt_fn(args)
+            except Exception as e:
+                logger.error(f"编程式 Skill '{name}' prompt 生成失败: {e}")
+                skill.prompt_content = f"Skill '{name}' prompt 生成失败: {e}"
+            skill.is_active = True
+            if name not in self.active_skills:
+                self.active_skills.append(name)
+            logger.info(f"激活编程式 Skill: {skill.name}")
+            return skill.prompt_content
+
+        # 声明式 Skill: 从文件加载
         source = self._skill_sources.get(name, 'builtin')
         if source == 'project':
             skill_dir = os.path.join(self.project_skills_dir, name)
@@ -394,10 +487,11 @@ class SkillManager:
 
         source_labels = {
             'builtin': '📦 内置',
+            'programmatic': '⚡ 编程式',
             'project': '📁 项目级',
             'user': '👤 用户级',
         }
-        for src in ['builtin', 'project', 'user']:
+        for src in ['builtin', 'programmatic', 'project', 'user']:
             skills_list = by_source.get(src, [])
             if not skills_list:
                 continue
@@ -430,6 +524,7 @@ class SkillManager:
         skill = self.skills[name]
         info = skill.to_dict()
         info['source'] = self._skill_sources.get(name, 'builtin')
+        info['is_programmatic'] = name in self._prompt_generators
         
         if skill.is_active:
             info['prompt_length'] = len(skill.prompt_content) if skill.prompt_content else 0
@@ -506,10 +601,12 @@ class SkillManager:
             return f"❌ 创建失败: {e}"
 
     def delete_skill(self, name: str) -> str:
-        """删除用户自定义 Skill（不能删除内置 Skill）"""
+        """删除用户自定义 Skill（不能删除内置或编程式 Skill）"""
         source = self._skill_sources.get(name, 'builtin')
         if source == 'builtin':
             return f"❌ 不能删除内置 Skill: {name}"
+        if source == 'programmatic':
+            return f"❌ 不能删除编程式 Skill: {name}"
 
         if source == 'project':
             skill_dir = os.path.join(self.project_skills_dir, name)
@@ -556,10 +653,27 @@ class SkillManager:
         return results
 
     def reload_skills(self) -> int:
-        """重新加载所有 Skill"""
+        """重新加载所有 Skill（保留编程式 Skill）"""
+        # 保存编程式 Skill
+        prog_skills = {}
+        prog_generators = {}
+        for name, skill in self.skills.items():
+            if self._skill_sources.get(name) == 'programmatic':
+                prog_skills[name] = skill
+                prog_generators[name] = self._prompt_generators.get(name)
+
         self.skills.clear()
         self._skill_sources.clear()
         self.active_skills.clear()
+        self._prompt_generators.clear()
+
+        # 恢复编程式 Skill
+        for name, skill in prog_skills.items():
+            self.skills[name] = skill
+            self._skill_sources[name] = 'programmatic'
+            if prog_generators.get(name):
+                self._prompt_generators[name] = prog_generators[name]
+
         self._load_all_skills()
         return len(self.skills)
 
@@ -648,9 +762,9 @@ class SkillManager:
 
         skill = self.skills[name]
 
-        # 激活（加载 prompt）
+        # 激活（加载 prompt）— 编程式 Skill 直接传递 args
         try:
-            self.activate_skill(name)
+            self.activate_skill(name, args=args)
         except ValueError as e:
             return f"❌ 激活失败: {e}"
 
@@ -658,11 +772,16 @@ class SkillManager:
         if not prompt:
             return f"Skill '{name}' 已激活，但无 prompt 内容。"
 
+        # 编程式 Skill 已在 activate_skill 中生成完整 prompt，
+        # 只需执行 shell 命令和参数替换
+        is_programmatic = name in self._prompt_generators
+
         # Shell 命令执行
         prompt = self.execute_shell_in_prompt(prompt)
 
         # 参数替换: ${1}, ${2}, ... 和 ${ARG_NAME}
-        if args:
+        # 编程式 Skill 已在 prompt_fn 中处理参数，跳过替换
+        if args and not is_programmatic:
             arg_list = args.split()
             for i, arg_val in enumerate(arg_list, 1):
                 prompt = prompt.replace(f"${{{i}}}", arg_val)
@@ -672,8 +791,8 @@ class SkillManager:
                 if i < len(arg_list):
                     prompt = prompt.replace(f"${{{arg_name}}}", arg_list[i])
 
-        # 追加额外参数
-        if args:
+        # 追加额外参数（编程式 Skill 已处理，跳过）
+        if args and not is_programmatic:
             prompt += f"\n\n## Additional Context\n\n{args}"
 
         return prompt
