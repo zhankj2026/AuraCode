@@ -146,13 +146,19 @@ class MarketplacePluginEntry:
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> 'MarketplacePluginEntry':
+        # 兼容 Claude Code 格式: source 可以是对象 {source, url} 或字符串
+        source_val = data.get("source", "")
+        if isinstance(source_val, dict):
+            source_url = source_val.get("url", "")
+        else:
+            source_url = str(source_val) if source_val else ""
         return MarketplacePluginEntry(
             name=data.get("name", ""),
             description=data.get("description", ""),
             version=data.get("version", "0.0.0"),
             category=data.get("category", ""),
             tags=data.get("tags", []),
-            source=data.get("source", ""),
+            source=source_url,
             author=data.get("author", ""),
         )
 
@@ -179,10 +185,18 @@ class MarketplaceManifest:
             MarketplacePluginEntry.from_dict(p)
             for p in data.get("plugins", [])
         ]
+        # 兼容 Claude Code 格式: version/description 可能在 metadata 子对象中
+        metadata = data.get("metadata", {})
+        version = data.get("version", metadata.get("version", "1.0.0"))
+        description = data.get("description", metadata.get("description", ""))
+        # 兼容 owner 字段作为 author
+        author = data.get("author", "")
+        if not author and isinstance(data.get("owner"), dict):
+            author = data["owner"].get("name", "")
         return MarketplaceManifest(
             name=data.get("name", ""),
-            version=data.get("version", "1.0.0"),
-            description=data.get("description", ""),
+            version=version,
+            description=description,
             plugins=plugins,
         )
 
@@ -719,6 +733,7 @@ class MarketplaceManager:
 
         candidates = [
             os.path.join(install_dir, "marketplace.json"),
+            os.path.join(install_dir, ".claude-plugin", "marketplace.json"),
             os.path.join(install_dir, ".opencode-plugin", "marketplace.json"),
         ]
 
