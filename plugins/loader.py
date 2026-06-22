@@ -236,6 +236,9 @@ class PluginLoader:
         # 4. 用户级插件
         user_count = self._load_from_dir(self.user_plugins_dir, SOURCE_USER)
 
+        # 4.3 官方 marketplace 自动安装检查（首次启动自动 clone）
+        self._check_official_marketplace()
+
         # 4.5 Seed marketplace 注册（容器/部署预装，优先级最高）
         self._register_seed_marketplaces()
 
@@ -319,6 +322,26 @@ class PluginLoader:
         ]
     
     # ── Marketplace 插件加载 + Skill 自动发现 ─────────────────
+
+    def _check_official_marketplace(self) -> None:
+        """
+        启动时检查并自动安装官方 marketplace。
+
+        对标 Claude Code checkAndInstallOfficialMarketplace()。
+        首次启动自动 git clone 官方 marketplace，后续启动跳过。
+        失败时指数退避重试（1h → 1w，最多 10 次）。
+        """
+        try:
+            from plugins.marketplace import MarketplaceManager
+            mm = MarketplaceManager()
+            result = mm.check_and_install_official_marketplace()
+            if result.get("installed"):
+                logger.info("Official marketplace auto-installed successfully")
+            elif result.get("skipped"):
+                reason = result.get("reason", "unknown")
+                logger.debug(f"Official marketplace auto-install skipped: {reason}")
+        except Exception as e:
+            logger.warning(f"Failed to check/install official marketplace: {e}")
 
     def _register_seed_marketplaces(self) -> None:
         """

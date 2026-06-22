@@ -39,6 +39,10 @@ from .marketplace import (
     MarketplaceSource,
     MarketplacePluginEntry,
     MarketplaceManifest,
+    OFFICIAL_MARKETPLACE_NAME,
+    OFFICIAL_MARKETPLACE_SOURCE,
+    ENV_DISABLE_OFFICIAL_AUTOINSTALL,
+    RETRY_CONFIG,
 )
 from .plugin_installer import (
     PluginInstaller,

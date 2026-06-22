@@ -10,7 +10,7 @@
   /plugins bus         查看事件总线状态
   /plugins deps        查看依赖关系
   /plugins stats       插件统计
-  /plugins marketplace list/add/remove/update  Marketplace 管理
+  /plugins marketplace list/add/remove/update/official  Marketplace 管理
   /plugins install <name@marketplace>   安装插件
   /plugins uninstall <name@marketplace> 卸载插件
   /plugins installed   列出已安装插件
@@ -242,6 +242,13 @@ def _get_marketplace_manager():
         return None
 
 
+# 官方 marketplace 常量引用
+try:
+    from plugins.marketplace import ENV_DISABLE_OFFICIAL_AUTOINSTALL
+except ImportError:
+    ENV_DISABLE_OFFICIAL_AUTOINSTALL = "OPENCODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL"
+
+
 def _get_plugin_installer():
     """获取 PluginInstaller 实例"""
     try:
@@ -279,14 +286,55 @@ def _cmd_marketplace(args: list) -> str:
         return mm.remove_marketplace(rest)
     elif sub == "update":
         return mm.update_marketplace(rest if rest else None)
+    elif sub == "official":
+        return _cmd_marketplace_official(mm)
     else:
         return (
             "Marketplace 子命令:\n"
             "  list            列出已注册 marketplace\n"
             "  add <url>       添加 marketplace (git clone)\n"
             "  remove <name>   移除 marketplace\n"
-            "  update [name]   更新 marketplace (git pull)"
+            "  update [name]   更新 marketplace (git pull)\n"
+            "  official        查看官方 marketplace 状态"
         )
+
+
+def _cmd_marketplace_official(mm) -> str:
+    """查看官方 marketplace 状态"""
+    status = mm.get_official_marketplace_status()
+    lines = [
+        "官方 Marketplace 状态:",
+        "",
+        f"  名称: {status['name']}",
+        f"  仓库: {status['source'].get('url', 'N/A')}",
+        f"  已注册: {'✅ 是' if status['registered'] else '❌ 否'}",
+    ]
+    if status['install_location']:
+        lines.append(f"  路径: {status['install_location']}")
+    if status['env_disabled']:
+        lines.append(f"  自动安装: ❌ 已禁用 (via {ENV_DISABLE_OFFICIAL_AUTOINSTALL})")
+    else:
+        lines.append(f"  自动安装: ✅ 启用")
+
+    state = status.get('state', {})
+    if state:
+        lines.append("")
+        lines.append("  安装状态:")
+        lines.append(f"    已尝试: {'是' if state.get('attempted') else '否'}")
+        lines.append(f"    已安装: {'是' if state.get('installed') else '否'}")
+        if state.get('fail_reason'):
+            lines.append(f"    失败原因: {state['fail_reason']}")
+        retry_count = state.get('retry_count', 0)
+        if retry_count > 0:
+            lines.append(f"    重试次数: {retry_count}")
+        if state.get('next_retry_time'):
+            import time
+            remaining = state['next_retry_time'] - time.time()
+            if remaining > 0:
+                hours = remaining / 3600
+                lines.append(f"    下次重试: {hours:.1f}h 后")
+
+    return "\n".join(lines)
 
 
 def _cmd_install(target: str) -> str:
@@ -510,7 +558,7 @@ def plugins_handler(args: list, loop=None) -> str:
             "  /plugins bus                      事件总线状态\n"
             "  /plugins deps                     依赖关系\n"
             "  /plugins stats                    统计信息\n"
-            "  /plugins marketplace list/add/remove/update  Marketplace 管理\n"
+            "  /plugins marketplace list/add/remove/update/official  Marketplace 管理\n"
             "  /plugins install <name@marketplace>   安装插件\n"
             "  /plugins uninstall <name@marketplace> 卸载插件\n"
             "  /plugins installed                列出已安装插件\n"

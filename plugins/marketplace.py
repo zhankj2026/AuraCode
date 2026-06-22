@@ -7,6 +7,7 @@ Marketplace 管理器 — 对标 Claude Code marketplaceManager.ts
 - 持久化 known_marketplaces.json
 - 支持多 marketplace 并存
 - Seed marketplace (预缓存目录)
+- 官方 marketplace 自动安装 (对标 officialMarketplaceStartupCheck.ts)
 
 目录结构:
   ~/.opencode/
@@ -15,16 +16,50 @@ Marketplace 管理器 — 对标 Claude Code marketplaceManager.ts
       {marketplace-name}/
         marketplace.json         # 插件清单
         ...
+    official_marketplace_state.json  # 官方 marketplace 安装状态/重试记录
 """
 
 import json
 import logging
 import os
+import shutil
 import subprocess
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+# ── 官方 Marketplace 常量 ────────────────────────────────────
+# 对标 Claude Code officialMarketplace.ts
+
+OFFICIAL_MARKETPLACE_NAME = "opencode-plugins-official"
+OFFICIAL_MARKETPLACE_SOURCE = {
+    "source": "github",
+    "url": "https://github.com/anthropics/claude-plugins-official",
+    "repo": "anthropics/claude-plugins-official",
+}
+
+# 环境变量: 设为 1/true/yes 禁用官方 marketplace 自动安装
+ENV_DISABLE_OFFICIAL_AUTOINSTALL = "OPENCODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL"
+
+# ── 重试配置 ──────────────────────────────────────────────────
+# 对标 Claude Code officialMarketplaceStartupCheck.ts RETRY_CONFIG
+
+RETRY_CONFIG = {
+    "max_attempts": 10,
+    "initial_delay_s": 3600,       # 1 hour
+    "backoff_multiplier": 2,
+    "max_delay_s": 7 * 86400,      # 1 week
+}
+
+# ── 跳过原因枚举 ──────────────────────────────────────────────
+
+SKIP_ALREADY_ATTEMPTED = "already_attempted"
+SKIP_ALREADY_INSTALLED = "already_installed"
+SKIP_POLICY_BLOCKED = "policy_blocked"
+SKIP_GIT_UNAVAILABLE = "git_unavailable"
+SKIP_UNKNOWN = "unknown"
 
 # ── 路径常量 ──────────────────────────────────────────────────
 
@@ -42,6 +77,17 @@ def _known_marketplaces_path() -> str:
 def _marketplaces_cache_dir() -> str:
     """marketplace clone 缓存目录"""
     return os.path.join(_opencode_dir(), "marketplaces")
+
+
+def _official_state_path() -> str:
+    """官方 marketplace 安装状态文件路径"""
+    return os.path.join(_opencode_dir(), "official_marketplace_state.json")
+
+
+def _is_env_truthy(name: str) -> bool:
+    """检查环境变量是否为真值"""
+    val = os.environ.get(name, "").strip().lower()
+    return val in ("1", "true", "yes", "on")
 
 
 # ── 数据模型 ──────────────────────────────────────────────────
@@ -207,7 +253,12 @@ class MarketplaceManager:
                 name = name[:-4]
 
         if name in self._known:
-            return f"⚠️ Marketplace '{name}' 已注册。先 remove 再重新添加。"
+            existing_loc = self._known[name].get("install_location", "")
+            if os.path.exists(existing_loc):
+                return f"⚠️ Marketplace '{name}' 已注册。先 remove 再重新添加。"
+            # 已注册但目录丢失，清理后重新添加
+            del self._known[name]
+            self._save_known()
 
         cache_dir = _marketplaces_cache_dir()
         install_dir = os.path.join(cache_dir, name)
@@ -245,7 +296,6 @@ class MarketplaceManager:
         manifest = self._read_manifest(install_dir)
         if manifest is None:
             # 清理失败的 clone
-            import shutil
             shutil.rmtree(install_dir, ignore_errors=True)
             return f"❌ marketplace.json 不存在或格式错误: {install_dir}"
 
@@ -277,7 +327,6 @@ class MarketplaceManager:
 
         # 删除目录
         if install_dir and os.path.exists(install_dir):
-            import shutil
             try:
                 # 如果是符号链接则 unlink
                 if os.path.islink(install_dir):
@@ -395,6 +444,220 @@ class MarketplaceManager:
         """获取 marketplace 的安装目录"""
         entry = self._known.get(name)
         return entry.get("install_location") if entry else None
+
+    # ── 官方 Marketplace 自动安装 ─────────────────────────────
+
+    def check_and_install_official_marketplace(self) -> Dict[str, Any]:
+        """
+        启动时检查并自动安装官方 marketplace。
+
+        对标 Claude Code checkAndInstallOfficialMarketplace()。
+        简化版: 无 GCS 镜像、无企业策略检查、无 analytics。
+
+        流程:
+        1. 检查重试状态（是否应该重试）
+        2. 检查环境变量禁用开关
+        3. 检查是否已安装
+        4. 检查 git 可用性
+        5. 执行 git clone
+        6. 记录安装状态
+
+        Returns:
+            {"installed": bool, "skipped": bool, "reason": str | None}
+        """
+        state = self._load_official_state()
+
+        # 1. 检查是否应该重试
+        if not self._should_retry_install(state):
+            reason = state.get("fail_reason", SKIP_ALREADY_ATTEMPTED)
+            logger.debug(f"Official marketplace auto-install skipped: {reason}")
+            return {"installed": False, "skipped": True, "reason": reason}
+
+        try:
+            # 2. 检查环境变量禁用开关
+            if _is_env_truthy(ENV_DISABLE_OFFICIAL_AUTOINSTALL):
+                logger.debug("Official marketplace auto-install disabled via env var")
+                self._save_official_state({
+                    **state,
+                    "attempted": True,
+                    "installed": False,
+                    "fail_reason": SKIP_POLICY_BLOCKED,
+                })
+                return {"installed": False, "skipped": True, "reason": SKIP_POLICY_BLOCKED}
+
+            # 3. 检查是否已安装
+            if OFFICIAL_MARKETPLACE_NAME in self._known:
+                logger.debug(f"Official marketplace '{OFFICIAL_MARKETPLACE_NAME}' already installed")
+                self._save_official_state({
+                    **state,
+                    "attempted": True,
+                    "installed": True,
+                    "fail_reason": None,
+                })
+                return {"installed": False, "skipped": True, "reason": SKIP_ALREADY_INSTALLED}
+
+            # 4. 检查 git 可用性
+            if not self._check_git_available():
+                logger.debug("Git not available, skipping official marketplace auto-install")
+                retry_count = state.get("retry_count", 0) + 1
+                now = time.time()
+                next_retry = now + self._calculate_retry_delay(retry_count)
+                self._save_official_state({
+                    **state,
+                    "attempted": True,
+                    "installed": False,
+                    "fail_reason": SKIP_GIT_UNAVAILABLE,
+                    "retry_count": retry_count,
+                    "last_attempt_time": now,
+                    "next_retry_time": next_retry,
+                })
+                return {"installed": False, "skipped": True, "reason": SKIP_GIT_UNAVAILABLE}
+
+            # 5. 执行 git clone 安装
+            logger.info("Attempting to auto-install official marketplace...")
+            url = OFFICIAL_MARKETPLACE_SOURCE["url"]
+            # 清理可能存在的的中途目录（上次失败残留）
+            stale_dir = os.path.join(_marketplaces_cache_dir(), OFFICIAL_MARKETPLACE_NAME)
+            if os.path.exists(stale_dir) and OFFICIAL_MARKETPLACE_NAME not in self._known:
+                shutil.rmtree(stale_dir, ignore_errors=True)
+            result = self.add_marketplace(
+                url=url,
+                name=OFFICIAL_MARKETPLACE_NAME,
+                source_type="github",
+            )
+
+            if result.startswith("✅"):
+                # 安装成功
+                logger.info(f"Successfully auto-installed official marketplace: {OFFICIAL_MARKETPLACE_NAME}")
+                self._save_official_state({
+                    "attempted": True,
+                    "installed": True,
+                    "fail_reason": None,
+                    "retry_count": 0,
+                    "last_attempt_time": time.time(),
+                    "next_retry_time": None,
+                })
+                return {"installed": True, "skipped": False, "reason": None}
+            else:
+                # 安装失败
+                logger.warning(f"Failed to auto-install official marketplace: {result}")
+                retry_count = state.get("retry_count", 0) + 1
+                now = time.time()
+                next_retry = now + self._calculate_retry_delay(retry_count)
+                self._save_official_state({
+                    **state,
+                    "attempted": True,
+                    "installed": False,
+                    "fail_reason": SKIP_UNKNOWN,
+                    "retry_count": retry_count,
+                    "last_attempt_time": now,
+                    "next_retry_time": next_retry,
+                })
+                return {"installed": False, "skipped": True, "reason": SKIP_UNKNOWN}
+
+        except Exception as e:
+            logger.error(f"Official marketplace auto-install error: {e}")
+            retry_count = state.get("retry_count", 0) + 1
+            now = time.time()
+            next_retry = now + self._calculate_retry_delay(retry_count)
+            self._save_official_state({
+                **state,
+                "attempted": True,
+                "installed": False,
+                "fail_reason": SKIP_UNKNOWN,
+                "retry_count": retry_count,
+                "last_attempt_time": now,
+                "next_retry_time": next_retry,
+            })
+            return {"installed": False, "skipped": True, "reason": SKIP_UNKNOWN}
+
+    def get_official_marketplace_status(self) -> Dict[str, Any]:
+        """获取官方 marketplace 安装状态详情"""
+        state = self._load_official_state()
+        installed = OFFICIAL_MARKETPLACE_NAME in self._known
+        return {
+            "name": OFFICIAL_MARKETPLACE_NAME,
+            "source": OFFICIAL_MARKETPLACE_SOURCE,
+            "registered": installed,
+            "install_location": self.get_install_location(OFFICIAL_MARKETPLACE_NAME),
+            "state": state,
+            "env_disabled": _is_env_truthy(ENV_DISABLE_OFFICIAL_AUTOINSTALL),
+        }
+
+    # ── 官方 Marketplace 内部方法 ─────────────────────────────
+
+    def _load_official_state(self) -> Dict[str, Any]:
+        """加载官方 marketplace 安装状态"""
+        path = _official_state_path()
+        if not os.path.exists(path):
+            return {}
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    def _save_official_state(self, state: Dict[str, Any]):
+        """持久化官方 marketplace 安装状态"""
+        path = _official_state_path()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(state, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logger.warning(f"Failed to save official marketplace state: {e}")
+
+    def _should_retry_install(self, state: Dict[str, Any]) -> bool:
+        """判断是否应该重试安装"""
+        # 从未尝试过 → 应该尝试
+        if not state.get("attempted"):
+            return True
+
+        # 已成功安装 → 不重试
+        if state.get("installed"):
+            return False
+
+        fail_reason = state.get("fail_reason")
+        retry_count = state.get("retry_count", 0)
+        next_retry_time = state.get("next_retry_time")
+
+        # 超过最大重试次数
+        if retry_count >= RETRY_CONFIG["max_attempts"]:
+            return False
+
+        # 永久性失败 → 不重试
+        if fail_reason == SKIP_POLICY_BLOCKED:
+            return False
+
+        # 检查是否到了重试时间
+        if next_retry_time and time.time() < next_retry_time:
+            return False
+
+        # 瞬时失败可以重试
+        return fail_reason in (
+            SKIP_UNKNOWN, SKIP_GIT_UNAVAILABLE, None,
+        )
+
+    @staticmethod
+    def _calculate_retry_delay(retry_count: int) -> float:
+        """计算指数退避延迟（秒）"""
+        delay = (
+            RETRY_CONFIG["initial_delay_s"]
+            * (RETRY_CONFIG["backoff_multiplier"] ** retry_count)
+        )
+        return min(delay, RETRY_CONFIG["max_delay_s"])
+
+    @staticmethod
+    def _check_git_available() -> bool:
+        """检查 git 命令是否可用"""
+        try:
+            result = subprocess.run(
+                ["git", "--version"],
+                capture_output=True, text=True, timeout=10,
+            )
+            return result.returncode == 0
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            return False
 
     # ── Seed marketplace ──
 
