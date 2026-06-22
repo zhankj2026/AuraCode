@@ -290,25 +290,71 @@ def _cmd_marketplace(args: list) -> str:
 
 
 def _cmd_install(target: str) -> str:
-    """安装插件: /plugins install <name>@<marketplace>"""
+    """安装插件: /plugins install <name>@<marketplace> 或 <name>@git:<url>"""
     installer = _get_plugin_installer()
     mm = _get_marketplace_manager()
     if installer is None or mm is None:
         return "插件安装模块不可用"
 
     if not target:
-        return "用法: /plugins install <name>@<marketplace>"
+        return (
+            "用法:\n"
+            "  /plugins install <name>@<marketplace>  从已注册 marketplace 安装\n"
+            "  /plugins install <name>@git:<url>      直接从 Git URL 安装\n"
+            "\n"
+            "示例:\n"
+            "  /plugins install superpowers@my-marketplace\n"
+            "  /plugins install my-plugin@git:https://github.com/user/plugin.git"
+        )
 
-    # 解析 name@marketplace
+    # 解析 name@marketplace 或 name@git:url
     if "@" in target:
-        name, marketplace = target.split("@", 1)
+        name, source = target.split("@", 1)
     else:
         # 尝试在第一个 marketplace 中查找
         names = mm.get_marketplace_names()
         if not names:
-            return "无已注册的 marketplace，请先 /plugins marketplace add <url>"
+            return (
+                "无已注册的 marketplace。\n"
+                "\n"
+                "请先添加一个 marketplace:\n"
+                "  /plugins marketplace add <git-url>\n"
+                "\n"
+                "或直接从 Git URL 安装:\n"
+                "  /plugins install <name>@git:<url>"
+            )
         name = target
-        marketplace = names[0]
+        source = names[0]
+
+    # 直接 Git URL 安装: name@git:https://...
+    if source.startswith("git:") or source.startswith("http://") or source.startswith("https://"):
+        git_url = source[4:] if source.startswith("git:") else source
+        return installer.install_plugin(
+            name, marketplace="direct",
+            source_url=git_url, version="latest",
+        )
+
+    marketplace = source
+
+    # 检查 marketplace 是否已注册
+    known_names = mm.get_marketplace_names()
+    if marketplace not in known_names:
+        available = ", ".join(known_names) if known_names else "(无)"
+        return (
+            f"❌ Marketplace '{marketplace}' 未注册。\n"
+            f"\n"
+            f"已注册的 marketplace: {available}\n"
+            f"\n"
+            f"你可以:\n"
+            f"  1. 先添加 marketplace:\n"
+            f"     /plugins marketplace add <git-url> --name {marketplace}\n"
+            f"\n"
+            f"  2. 直接从 Git URL 安装（无需 marketplace）:\n"
+            f"     /plugins install {name}@git:<plugin-git-url>\n"
+            f"\n"
+            f"  3. 查看已注册的 marketplace:\n"
+            f"     /plugins marketplace list"
+        )
 
     # 从 marketplace 查找插件源码 URL
     plugins = mm.get_marketplace_plugins(marketplace)
@@ -319,6 +365,21 @@ def _cmd_install(target: str) -> str:
             source_url = p.source
             version = p.version
             break
+
+    if not source_url and not plugins:
+        return (
+            f"❌ Marketplace '{marketplace}' 中没有找到任何插件。\n"
+            f"请检查 marketplace.json 是否包含 plugins 列表。"
+        )
+
+    if not source_url:
+        available_plugins = [p.name for p in plugins[:10]]
+        return (
+            f"❌ 插件 '{name}' 不在 marketplace '{marketplace}' 中。\n"
+            f"\n"
+            f"可用插件: {', '.join(available_plugins)}"
+            + (f" (共 {len(plugins)} 个)" if len(plugins) > 10 else "")
+        )
 
     return installer.install_plugin(name, marketplace, source_url=source_url, version=version)
 
@@ -429,7 +490,7 @@ def plugins_handler(args: list, loop=None) -> str:
         "stats": lambda: _cmd_stats(),
         # Marketplace 子命令
         "marketplace": lambda: _cmd_marketplace(args[1:]) if len(args) > 1 else _cmd_marketplace([]),
-        "install": lambda: _cmd_install(rest) if rest else "用法: /plugins install <name>@<marketplace>",
+        "install": lambda: _cmd_install(rest),
         "uninstall": lambda: _cmd_uninstall(rest) if rest else "用法: /plugins uninstall <name>@<marketplace>",
         "installed": lambda: _cmd_installed(),
         "search": lambda: _cmd_search(rest) if rest else "用法: /plugins search <keyword>",

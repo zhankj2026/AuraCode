@@ -213,13 +213,36 @@ class PluginInstaller:
             from plugins.marketplace import MarketplaceManager
             mm = MarketplaceManager()
             mp_dir = mm.get_install_location(marketplace)
-            if not mp_dir:
-                return f"❌ Marketplace '{marketplace}' 不存在"
+            if not mp_dir or not os.path.exists(mp_dir):
+                known = mm.get_marketplace_names()
+                available = ", ".join(known) if known else "(无)"
+                return (
+                    f"❌ Marketplace '{marketplace}' 不存在或目录已丢失。\n"
+                    f"\n"
+                    f"已注册的 marketplace: {available}\n"
+                    f"\n"
+                    f"请先注册 marketplace:\n"
+                    f"  /plugins marketplace add <git-url> --name {marketplace}\n"
+                    f"\n"
+                    f"或直接从 Git URL 安装:\n"
+                    f"  /plugins install {plugin_name}@git:<url>"
+                )
 
             # 检查 marketplace 目录中是否有插件子目录
             plugin_subdir = os.path.join(mp_dir, plugin_name)
             if not os.path.isdir(plugin_subdir):
-                return f"❌ 插件 '{plugin_name}' 在 marketplace '{marketplace}' 中不存在"
+                # 列出 marketplace 中可用的插件目录
+                available_dirs = [
+                    d for d in os.listdir(mp_dir)
+                    if os.path.isdir(os.path.join(mp_dir, d))
+                    and not d.startswith('.')
+                    and d != 'node_modules'
+                ]
+                return (
+                    f"❌ 插件 '{plugin_name}' 不在 marketplace '{marketplace}' 中。\n"
+                    f"\n"
+                    f"可用插件目录: {', '.join(available_dirs[:15]) or '(无)'}"
+                )
 
             # 复制到缓存
             shutil.copytree(plugin_subdir, plugin_dir)
