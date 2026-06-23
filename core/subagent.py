@@ -827,6 +827,8 @@ class SubagentOrchestrator:
     - 编排多代理工作流 (串行/并行/条件)
     - 共享上下文传递
     - 结果聚合分析
+    - 阶段化工作流执行（Dynamic Workflows 增强）
+    - 中间结果存储（上下文卸载）
     """
 
     def __init__(self, manager: SubagentManager = None):
@@ -834,6 +836,7 @@ class SubagentOrchestrator:
         self.mailbox = AgentMailbox()
         self._shared_context: Dict[str, Any] = {}
         self._workflow_results: Dict[str, List[Dict]] = {}
+        self._intermediate_store: Dict[str, Any] = {}  # 中间结果存储（上下文卸载）
 
     def set_shared_context(self, key: str, value: Any):
         """设置共享上下文"""
@@ -1012,3 +1015,232 @@ class SubagentOrchestrator:
                 report["agreement_rate"] = most_common[1] / total
 
         return report
+
+    # ── Dynamic Workflows 增强 ──
+
+    def run_workflow(self, workflow_script, model: str = "glm-4-plus") -> Dict[str, Any]:
+        """
+        执行阶段化工作流（Dynamic Workflows 核心方法）
+
+        对标 Claude Code Dynamic Workflows 的执行引擎。
+
+        流程:
+        1. 验证脚本正确性
+        2. 拓扑排序确定执行顺序
+        3. 按阶段执行（阶段内并行，阶段间串行）
+        4. 综合阶段结果（存入中间存储，不占上下文）
+        5. 检查收敛条件
+        6. 返回最终结果
+
+        Args:
+            workflow_script: WorkflowScript 对象（或字典）
+            model: LLM 模型
+
+        Returns:
+            工作流执行结果 {
+                "workflow_name": str,
+                "stages": Dict[stage_name -> stage_result],
+                "final_result": str,
+                "intermediate_store": Dict,
+                "iterations": int,
+                "converged": bool
+            }
+
+        Raises:
+            ValueError: 脚本验证失败或存在循环依赖
+        """
+        # 延迟导入（避免循环依赖）
+        from core.workflow_types import WorkflowScript
+
+        # 支持字典或 WorkflowScript 对象
+        if isinstance(workflow_script, dict):
+            script = WorkflowScript.from_dict(workflow_script)
+        else:
+            script = workflow_script
+
+        # 1. 验证脚本
+        errors = script.validate()
+        if errors:
+            raise ValueError(f"工作流脚本验证失败:\n" + "\n".join(f"- {e}" for e in errors))
+
+        # 2. 获取执行顺序（拓扑排序）
+        try:
+            execution_order = script.get_execution_order()
+        except ValueError as e:
+            raise ValueError(f"工作流执行顺序错误: {e}")
+
+        # 3. 构建阶段映射
+        stage_map = {stage.name: stage for stage in script.stages}
+
+        # 4. 执行工作流
+        stage_results = {}
+        self._intermediate_store.clear()  # 清空中间存储
+
+        for stage_name in execution_order:
+            stage = stage_map[stage_name]
+
+            # 等待依赖完成
+            for dep in stage.depends:
+                if dep not in stage_results:
+                    raise RuntimeError(f"阶段 '{stage_name}' 的依赖 '{dep}' 未执行")
+
+            # 执行阶段
+            stage_result = self._execute_stage(stage, stage_results, model)
+            stage_results[stage_name] = stage_result
+
+            # 综合结果（如果需要）
+            if stage.synthesize:
+                synthesized = self._synthesize_stage(stage, stage_result)
+                self._intermediate_store[stage_name] = synthesized
+            else:
+                # 直接存储原始结果
+                self._intermediate_store[stage_name] = stage_result
+
+        # 5. 收敛检查
+        converged = self._check_convergence(script, self._intermediate_store)
+
+        # 6. 返回结果
+        return {
+            "workflow_name": script.name,
+            "stages": stage_results,
+            "final_result": self._intermediate_store.get(execution_order[-1], ""),
+            "intermediate_store": {
+                k: v[:500] if isinstance(v, str) else v  # 摘要显示
+                for k, v in self._intermediate_store.items()
+            },
+            "iterations": 1,
+            "converged": converged,
+        }
+
+    def _execute_stage(self, stage, stage_results: Dict, model: str) -> List[Dict]:
+        """
+        执行单个阶段（阶段内并行）
+
+        Args:
+            stage: WorkflowStage 对象
+            stage_results: 已完成阶段的结果
+            model: LLM 模型
+
+        Returns:
+            Agent 结果列表
+        """
+        handles = []
+        results = []
+
+        # 构建阶段上下文（依赖阶段的结果摘要）
+        stage_context = ""
+        if stage.depends:
+            context_parts = []
+            for dep in stage.depends:
+                dep_result = stage_results.get(dep, {})
+                if isinstance(dep_result, dict) and "final_result" in dep_result:
+                    context_parts.append(
+                        f"### {dep} 阶段结果:\n{dep_result['final_result'][:500]}"
+                    )
+            if context_parts:
+                stage_context = "\n\n---\n\n".join(context_parts) + "\n\n---\n\n"
+
+        # 启动所有 Agent（并行）
+        for agent_task in stage.agents:
+            # 构建完整 prompt（自包含）
+            full_prompt = f"{stage_context}{agent_task.prompt}"
+
+            # 注入中间存储（如果阶段需要访问之前的结果）
+            if self._intermediate_store:
+                store_summary = json.dumps({
+                    k: v[:200] if isinstance(v, str) else str(v)[:200]
+                    for k, v in list(self._intermediate_store.items())[-3:]  # 最近 3 个
+                }, ensure_ascii=False)
+                full_prompt = f"[之前阶段结果摘要] {store_summary}\n\n{full_prompt}"
+
+            handle = self.manager.spawn_subagent(
+                task=full_prompt,
+                model=model,
+                agent_type=agent_task.agent_type.value,
+                run_in_background=True
+            )
+            self.mailbox.register_agent(handle.agent_id)
+            handles.append((agent_task, handle))
+
+        # 等待所有完成
+        for agent_task, handle in handles:
+            try:
+                handle.thread.join(timeout=agent_task.timeout)
+                status = handle.status
+                result = handle.result or ""
+            except Exception as e:
+                status = "error"
+                result = str(e)
+
+            results.append({
+                "agent_id": handle.agent_id,
+                "agent_type": agent_task.agent_type.value,
+                "status": status,
+                "result": result,
+                "result_preview": result[:200],
+            })
+
+        return results
+
+    def _synthesize_stage(self, stage, results: List[Dict]) -> str:
+        """
+        综合阶段结果
+
+        Args:
+            stage: WorkflowStage 对象
+            results: Agent 结果列表
+
+        Returns:
+            综合后的结果
+        """
+        # 收集所有发现
+        all_findings = "\n\n".join([
+            f"### Agent {r['agent_id']} ({r['agent_type']})\n{r['result']}"
+            for r in results if r['status'] == 'completed'
+        ])
+
+        # 使用综合提示词或默认提示词
+        synthesize_prompt = stage.synthesize_prompt or (
+            "综合以上所有发现，提取关键信息，消除矛盾，"
+            "生成一致的结论。如果有相互矛盾的发现，请标注出来。"
+        )
+
+        # 启动综合 Agent
+        synthesis_handle = self.manager.spawn_subagent(
+            task=f"{synthesize_prompt}\n\n---\n\n所有发现:\n{all_findings}",
+            model="glm-4-plus",
+            agent_type="general",
+            run_in_background=False  # 同步等待
+        )
+
+        return synthesis_handle.result or "综合失败"
+
+    def _check_convergence(self, script, intermediate_store: Dict) -> bool:
+        """
+        检查收敛条件
+
+        Args:
+            script: WorkflowScript 对象
+            intermediate_store: 中间结果存储
+
+        Returns:
+            是否收敛
+        """
+        if not script.convergence_check:
+            # 没有定义收敛检查，默认收敛
+            return True
+
+        # TODO: 实现收敛检查逻辑
+        # 可以启动一个 Agent 评估是否收敛
+        # 或者使用简单的规则（如结果长度、关键词等）
+
+        return True
+
+    def get_intermediate_store(self) -> Dict[str, Any]:
+        """获取中间结果存储"""
+        return self._intermediate_store.copy()
+
+    def clear_intermediate_store(self):
+        """清空中间结果存储"""
+        self._intermediate_store.clear()
+

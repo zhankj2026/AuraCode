@@ -846,40 +846,98 @@ After:  自动生成研究流程（搜索→获取→交叉检查→综合）
 
 ### 9.1 迁移可行性结论
 
-**✅ 高度可行，建议实施**
+**✅ 高度可行，采用渐进增强方案**
 
 **理由**:
 1. ✅ **技术基础完备**: OpenCode 已有 Subagent、Coordinator、Team 等核心组件
 2. ✅ **架构适配性好**: Python 可完美替代 JavaScript 脚本方案
-3. ✅ **实现难度可控**: 分 6 个 Phase，每阶段 1-3 天，总计 9-13 天
-4. ✅ **价值显著**: 填补 Claude Code 最新核心能力，提升编排规模 10x
+3. ✅ **渐进增强可行**: 在现有编排基础上增强，无需推倒重来
+4. ✅ **实现难度可控**: 分 3 个 Phase，每阶段 2-3 天，总计 6-8 天
+5. ✅ **价值显著**: 填补 Claude Code 最新核心能力，提升编排规模 10x
 
-### 9.2 实施建议
+### 9.2 实施策略：渐进增强（强烈推荐⭐⭐⭐）
 
-**优先级**: P1（高优先级，紧跟 P0/P1/P2 之后）
+**核心思路**: 在现有 5 种编排方式上增强，而非新建引擎
 
-**实施策略**:
-1. **渐进式实现**: 按 Phase 1-6 逐步推进，每阶段可独立使用
-2. **向后兼容**: 不影响现有 Subagent/Coordinator/Team 功能
-3. **可选启用**: 通过配置开关控制，不强制使用
-4. **充分测试**: 每阶段完成后编写测试，确保质量
+**增强目标**:
+1. ✅ **增强 SubagentOrchestrator**（核心执行引擎）
+   - 新增 `run_workflow()` 方法
+   - 支持阶段化 Pipeline（DAG 依赖）
+   - 支持中间结果存储（`intermediate_store`）
 
-**最小可用版本（MVP）**:
-- Phase 1 + Phase 2 即可提供核心价值
-- 用户可手动编写脚本或使用 LLM 自动生成
-- 支持基本阶段化执行和并行
+2. ✅ **增强 CoordinatorMode**（智能编排）
+   - 新增 `load_workflow_script()` 方法
+   - 支持 LLM 动态生成脚本
+   - 支持进度跟踪和恢复
 
-**完整版本**:
-- Phase 1-6 全部完成
-- 对标 Claude Code Dynamic Workflows 全部能力
-- 支持对抗性验证、收敛检查、中断恢复
+3. ✅ **新增工具集**（用户接口）
+   - `dynamic_workflow` 工具
+   - `workflow_status` 工具
+   - `save_workflow` 工具
 
-### 9.3 下一步行动
+**优势**:
+- ✅ 向后兼容 100%（不影响现有功能）
+- ✅ 代码改动量小（600-900 行 vs 新建 2000+ 行）
+- ✅ 实施时间短（6-8 天 vs 9-13 天）
+- ✅ 实施风险低（渐进交付）
+- ✅ 用户学习成本低（统一接口）
 
-1. **评审方案**: 确认技术路线和实施计划
-2. **启动 Phase 1**: 实现基础框架（1-2 天）
-3. **快速迭代**: 每 2-3 天完成一个 Phase
-4. **用户反馈**: MVP 完成后收集反馈，调整后续 Phase
+### 9.3 渐进增强实施计划
+
+#### Phase 1: 增强 SubagentOrchestrator（2-3 天）
+
+**目标**: 让 Orchestrator 支持阶段化工作流执行
+
+**任务**:
+1. ✅ 定义 `WorkflowScript`、`WorkflowStage`、`AgentTask` 数据类
+2. ✅ 在 `SubagentOrchestrator` 中新增 `run_workflow()` 方法
+3. ✅ 实现 DAG 依赖解析和拓扑排序
+4. ✅ 实现阶段内并行执行
+5. ✅ 实现中间结果存储（`intermediate_store`）
+6. ✅ 实现阶段间数据传递
+
+**产出**:
+- `core/workflow_types.py` - 工作流类型定义（新增，~150 行）
+- `core/subagent.py` - 增强 SubagentOrchestrator（修改，+300 行）
+
+**交付物**: 可手动编写脚本并执行的工作流引擎
+
+#### Phase 2: 增强 CoordinatorMode（2-3 天）
+
+**目标**: 让 Coordinator 支持脚本化编排和 LLM 生成
+
+**任务**:
+1. ✅ 在 `CoordinatorMode` 中新增 `load_workflow_script()` 方法
+2. ✅ 设计 Script Generator prompt
+3. ✅ 实现 `WorkflowScriptGenerator`（LLM 生成脚本）
+4. ✅ 实现脚本验证（Schema 校验 + 安全检查）
+5. ✅ 实现进度跟踪（复用 CronScheduler 持久化机制）
+6. ✅ 实现中断恢复逻辑
+
+**产出**:
+- `core/workflow_generator.py` - 脚本生成器（新增，~250 行）
+- `core/coordinator.py` - 增强 CoordinatorMode（修改，+250 行）
+- `core/workflow_tracker.py` - 进度跟踪器（新增，~150 行）
+
+**交付物**: 支持 LLM 生成脚本和进度跟踪的完整编排
+
+#### Phase 3: 工具集成与高级功能（2 天）
+
+**目标**: 注册工具并实现收敛检查
+
+**任务**:
+1. ✅ 注册 `dynamic_workflow` 工具
+2. ✅ 注册 `workflow_status` 工具
+3. ✅ 注册 `save_workflow` 工具
+4. ✅ 实现收敛检查机制
+5. ✅ 实现对抗性验证（可选）
+6. ✅ 编写工具文档和测试
+
+**产出**:
+- `tools/builtin/workflow_tools.py` - 工具集（新增，~200 行）
+- 测试套件
+
+**交付物**: 完整的 Dynamic Workflows 用户接口
 
 ---
 
