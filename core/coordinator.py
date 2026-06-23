@@ -1,7 +1,7 @@
 """
 Coordinator 模式 - 多智能体协调者（P0 核心功能）
 
-对标 Claude Code 的 CoordinatorMode，实现高级编排能力：
+实现高级编排能力：
 1. 任务分解与 Worker 调度
 2. 结果综合（禁止懒惰委托）
 3. Continue vs Spawn 决策支持
