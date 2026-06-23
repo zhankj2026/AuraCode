@@ -310,6 +310,18 @@ Phase 3: 综合报告
    - ✅ 依赖关系管理（blocks/blocked_by）
    - ✅ 进度追踪（0-100%）
    - ✅ 任务层级（parent_id/subtasks）
+   - ✅ 团队关联（team_name）
+   - ✅ 任务认领（owner）
+   - ✅ 可认领任务过滤（show_available）
+
+5. **Team 团队管理** (`team_manager.py`)
+   - ✅ team_create - 创建团队和 TaskList
+   - ✅ team_delete - 删除团队
+   - ✅ team_spawn - 启动队友
+   - ✅ team_list - 列出团队信息
+   - ✅ team_discover - 发现团队成员
+   - ✅ team_notify_idle - 空闲通知
+   - ✅ 团队配置持久化（~/.opencode/teams/）
 
 ---
 
@@ -317,11 +329,11 @@ Phase 3: 综合报告
 
 | 功能 | Claude Code 实现 | OpenCode 状态 | 缺失程度 |
 |------|------------------|---------------|----------|
-| **Coordinator 模式** | 完整的协调者角色、System Prompt、工作流指导 | ❌ 未实现 | 🔴 严重 |
-| **SendMessage 工具** | 继续已完成的 Subagent 对话 | ❌ 未实现 | 🔴 严重 |
+| **Coordinator 模式** | 完整的协调者角色、System Prompt、工作流指导 | ✅ 已实现 | ✅ 完成 |
+| **SendMessage 工具** | 继续已完成的 Subagent 对话 | ✅ 已实现 | ✅ 完成 |
 | **TaskStop 工具** | 停止运行中的 Worker | ✅ 已实现 (task_manager.py) | ✅ 完成 |
-| **Team 团队模式** | TeamCreate、TaskList、Teammate、Mailbox | ❌ 未实现 | 🔴 严重 |
-| **Task 依赖管理** | blocks/blocked_by、自主认领、空闲通知 | ⚠️ 部分实现 | 🟡 中等 |
+| **Team 团队模式** | TeamCreate、TaskList、Teammate、Mailbox | ✅ 已实现 | ✅ 完成 |
+| **Task 依赖管理** | blocks/blocked_by、自主认领、空闲通知 | ✅ 已实现 | ✅ 完成 |
 | **Batch Skill** | `/batch` 命令、git worktree 隔离、PR 自动化 | ❌ 未实现 | 🟡 中等 |
 | **Simplify Skill** | 三路并行审查 | ❌ 未实现 | 🟢 可选 |
 | **Fork 完整实现** | 继承完整对话历史 + 工具调用状态 | ⚠️ 部分实现 | 🟡 中等 |
@@ -594,46 +606,29 @@ class BatchSkill:
 
 ## 五、实现优先级建议
 
-### 🔴 P0 - 核心缺失（必须实现）
+### ✅ P0 - 已完成
 
-1. **SendMessage 工具**
-   - 实现继续 Subagent 对话的能力
-   - 支持上下文继承和重新激活
+1. ✅ **SendMessage 工具** - 实现继续 Subagent 对话的能力
+2. ✅ **Coordinator 模式** - 实现协调者角色和系统提示词
+3. ✅ **TaskStop 工具** - 已在 task_manager.py 中实现
 
-2. **Coordinator 模式**
-   - 实现协调者角色和系统提示词
-   - 实现任务通知处理机制
-   - 实现结果综合指导
+### ✅ P1 - 已完成
 
-### 🟡 P1 - 重要功能（强烈建议）
-
-3. **Team 团队模式（基础）**
-   - TeamCreate/TeamDelete 工具
-   - TaskList 管理（创建、认领、完成）
-   - 队友启动和配置
-
-4. **Team 协作机制**
-   - 队友间 SendMessage
-   - 空闲通知
-   - 自主认领任务
-
-5. **Task 依赖管理完善**
-   - 自主认领机制
-   - 空闲通知系统
-   - 依赖解析和可用任务计算
-   - （注：blocks/blocked_by 已在 task_manager.py 中实现）
+3. ✅ **Team 团队模式（基础）** - 完整的团队管理系统
+4. ✅ **Team 协作机制** - 队友间协作和任务认领
+5. ✅ **Task 依赖管理完善** - 自主认领、空闲通知、团队过滤
 
 ### 🟢 P2 - 高级功能（按需实现）
 
-7. **Batch Skill**
+6. **Batch Skill**
    - `/batch` 命令
    - git worktree 隔离
    - PR 自动化
 
-8. **Simplify Skill**
+7. **Simplify Skill**
    - 三路并行审查
 
-9. **进度摘要**
+8. **进度摘要**
    - 定时生成 Subagent 进度摘要
 
 ---
@@ -653,10 +648,10 @@ Level 4: Batch 大规模变更   ← OpenCode 缺失 ❌
 ```
 
 **核心差距在于**:
-1. **编排能力**: Claude Code 可以实现"分解-综合-再分解"的高级工作流，OpenCode 只有"启动-等待-获取结果"
-2. **上下文复用**: Claude Code 通过 SendMessage 继续对话，OpenCode 每次都是全新启动
-3. **协作机制**: Claude Code 支持 Team 多角色协作，OpenCode 只有独立的 Subagent
-4. **自动化**: Claude Code 支持 git worktree 隔离和 PR 自动化，OpenCode 无此能力
-5. **任务管理**: ✅ Task 管理已实现（task_manager.py），但需要与 Subagent 生命周期集成
+1. ✅ **编排能力**: Coordinator 模式已实现，支持"分解-综合-再分解"工作流
+2. ✅ **上下文复用**: SendMessage 已实现，支持继续 Subagent 对话
+3. ✅ **协作机制**: Team 模式已实现，支持多角色协作和任务认领
+4. ❌ **自动化**: Claude Code 支持 git worktree 隔离和 PR 自动化，OpenCode 无此能力
+5. ✅ **任务管理**: 完整的 Task 管理和 Team 协作机制
 
-**建议**: 优先实现 SendMessage + Coordinator 模式，这将带来最大的能力提升。
+**下一步建议**: 实现 P2 高级功能（Batch Skill、Simplify Skill）
