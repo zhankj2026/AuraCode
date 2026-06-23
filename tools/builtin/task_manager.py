@@ -153,6 +153,8 @@ def task_update_handler(
     add_tag: str = "",
     add_blocks: str = "",
     add_blocked_by: str = "",
+    owner: str = "",
+    team_name: str = "",
 ) -> str:
     """
     更新任务状态/内容（对标 Claude Code TaskUpdateTool）。
@@ -166,6 +168,8 @@ def task_update_handler(
         progress: 进度百分比（0-100）
         note: 追加备注
         add_tag: 追加标签
+        owner: 任务负责人（队友认领任务时使用）
+        team_name: 团队名称
 
     Returns:
         更新结果
@@ -249,6 +253,22 @@ def task_update_handler(
             _TASKS[resolved_dep].setdefault("blocks", []).append(task_id)
             changes.append(f"blocked_by: +{resolved_dep}")
 
+    # 任务认领
+    if owner:
+        old_owner = task.get("owner", "")
+        task["owner"] = owner
+        changes.append(f"owner: {old_owner or 'None'} → {owner}")
+        
+        # 自动设置状态为 in_progress
+        if task["status"] == "pending":
+            task["status"] = "in_progress"
+            changes.append(f"status: pending → in_progress (auto)")
+    
+    # 团队关联
+    if team_name and not task.get("team_name"):
+        task["team_name"] = team_name
+        changes.append(f"team: {team_name}")
+
     task["updated_at"] = time.time()
 
     if not changes:
@@ -300,6 +320,8 @@ def task_list_handler(
     filter_priority: str = "",
     filter_tag: str = "",
     show_tree: bool = True,
+    team_name: str = "",
+    show_available: bool = False,
 ) -> str:
     """
     列出所有任务。
@@ -309,6 +331,8 @@ def task_list_handler(
         filter_priority: 按优先级过滤（high/medium/low）
         filter_tag: 按标签过滤
         show_tree: 是否以树形结构显示
+        team_name: 团队名称（过滤特定团队的任务）
+        show_available: 只显示可认领的任务（pending、无 owner、无阻塞）
 
     Returns:
         任务列表
@@ -318,12 +342,26 @@ def task_list_handler(
 
     # 过滤
     tasks = list(_TASKS.values())
+    
+    # 团队过滤
+    if team_name:
+        tasks = [t for t in tasks if t.get("team_name") == team_name]
+    
     if filter_status:
         tasks = [t for t in tasks if t["status"] == filter_status]
     if filter_priority:
         tasks = [t for t in tasks if t["priority"] == filter_priority]
     if filter_tag:
         tasks = [t for t in tasks if filter_tag in t.get("tags", [])]
+    
+    # 只显示可认领的任务
+    if show_available:
+        tasks = [
+            t for t in tasks
+            if t["status"] == "pending"
+            and not t.get("owner")
+            and not t.get("blocked_by")
+        ]
 
     if not tasks:
         return f"📋 无匹配任务（过滤条件: {filter_status or 'any'} / {filter_priority or 'any'}）"
@@ -394,7 +432,7 @@ register_tool("task_create", {
         "Create a new task to track implementation work. "
         "Use subject (imperative form like 'Implement X') and activeForm "
         "(present tense like 'Implementing X') for best results. "
-        "Supports hierarchy via parent_id, priorities, and tags."
+        "Supports hierarchy via parent_id, priorities, tags, and team association."
     ),
     "parameters": {
         "type": "object",
@@ -428,6 +466,11 @@ register_tool("task_create", {
                 "description": "Comma-separated tags",
                 "default": "",
             },
+            "team_name": {
+                "type": "string",
+                "description": "Associate task with a team",
+                "default": "",
+            },
         },
         "required": ["subject"],
     },
@@ -458,7 +501,7 @@ register_tool("task_update", {
     "description": (
         "Update task status, content, or progress. "
         "Supports status changes (pending/in_progress/done/cancelled), "
-        "subject/description/activeForm updates, and notes."
+        "subject/description/activeForm updates, notes, and task claiming by teammates."
     ),
     "parameters": {
         "type": "object",
@@ -512,6 +555,16 @@ register_tool("task_update", {
                 "description": "Task ID that blocks this task",
                 "default": "",
             },
+            "owner": {
+                "type": "string",
+                "description": "Claim task by setting owner (teammate name)",
+                "default": "",
+            },
+            "team_name": {
+                "type": "string",
+                "description": "Associate task with team",
+                "default": "",
+            },
         },
         "required": ["task_id"],
     },
@@ -523,7 +576,7 @@ register_tool("task_list", {
     "description": (
         "List all tasks with optional filtering. "
         "Shows id, subject, status, owner, and blockedBy. "
-        "Use to see available work or project progress."
+        "Use to see available work, project progress, or team tasks."
     ),
     "parameters": {
         "type": "object",
@@ -547,6 +600,16 @@ register_tool("task_list", {
                 "type": "boolean",
                 "description": "Show as tree (default: true)",
                 "default": True,
+            },
+            "team_name": {
+                "type": "string",
+                "description": "Filter by team name",
+                "default": "",
+            },
+            "show_available": {
+                "type": "boolean",
+                "description": "Show only available tasks (pending, no owner, not blocked)",
+                "default": False,
             },
         },
     },
