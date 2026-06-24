@@ -56,3 +56,6 @@ from . import branch_command
 
 # Work directory management (cd/pwd/workdir)
 from . import cd_command
+
+# Command execution (exec/run/shell)
+from . import exec_command
