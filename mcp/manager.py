@@ -30,6 +30,7 @@ from mcp.client.base import MCPClient, MCPSessionExpiredError
 from mcp.config.types import McpServerConfig, McpStdioServerConfig, McpSSEServerConfig
 from mcp.tools.adapter import MCPToolAdapter
 from mcp.tools.validation import validate_and_truncate_output
+from mcp.security import is_mcp_server_allowed, get_security_policy
 
 logger = logging.getLogger(__name__)
 
@@ -82,10 +83,25 @@ class McpManager:
     # ═══════════ 服务器生命周期 ═══════════
 
     async def add_server(self, name: str, config: McpServerConfig) -> McpServerState:
-        """添加并连接 MCP 服务器（热加载）"""
+        """
+        添加并连接 MCP 服务器（热加载）
+        
+        安全检查:
+        1. 检查拒绝列表
+        2. 检查允许列表
+        3. 命令/URL 模式匹配
+        """
         if name in self.servers:
             logger.warning(f"MCP server '{name}' already exists, reconnecting...")
             await self.remove_server(name)
+        
+        # 安全策略检查
+        config_dict = self._config_to_dict(config)
+        if not is_mcp_server_allowed(name, config_dict):
+            error_msg = f"MCP server '{name}' denied by security policy"
+            logger.error(error_msg)
+            state = McpServerState(name=name, config=config, error=error_msg)
+            return state
 
         state = McpServerState(name=name, config=config)
         self.servers[name] = state
@@ -562,6 +578,46 @@ class McpManager:
                 "error_rate": round(err_rate, 4),
             }
         return result
+    
+    def _config_to_dict(self, config: McpServerConfig) -> Dict[str, Any]:
+        """
+        将 McpServerConfig 转换为字典（用于安全策略检查）
+        
+        Args:
+            config: MCP 服务器配置对象
+        
+        Returns:
+            配置字典
+        """
+        if isinstance(config, McpStdioServerConfig):
+            return {
+                "type": "stdio",
+                "command": config.command,
+                "args": config.args,
+                "env": config.env,
+            }
+        elif isinstance(config, McpSSEServerConfig):
+            return {
+                "type": "sse",
+                "url": config.url,
+                "headers": config.headers,
+            }
+        else:
+            # 尝试获取通用属性
+            result = {}
+            if hasattr(config, "type"):
+                result["type"] = config.type
+            if hasattr(config, "command"):
+                result["command"] = config.command
+            if hasattr(config, "args"):
+                result["args"] = config.args
+            if hasattr(config, "url"):
+                result["url"] = config.url
+            if hasattr(config, "env"):
+                result["env"] = config.env
+            if hasattr(config, "headers"):
+                result["headers"] = config.headers
+            return result
 
     def get_debug_report(self) -> Dict[str, Any]:
         """
