@@ -53,3 +53,6 @@ from . import settings_command
 # Git workflow commands (commit-push-pr, branch)
 from . import commit_push_pr_command
 from . import branch_command
+
+# Work directory management (cd/pwd/workdir)
+from . import cd_command
