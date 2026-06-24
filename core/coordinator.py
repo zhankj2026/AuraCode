@@ -46,6 +46,7 @@ class CoordinatorMode:
     7. 决定 Continue vs Spawn
     8. 调度实施/验证 Worker
     9. 向用户报告结果
+    10. 支持工作流脚本执行（Dynamic Workflows 增强）
     """
     
     def __init__(self):
@@ -53,6 +54,8 @@ class CoordinatorMode:
         self.workers: Dict[str, WorkerResult] = {}
         self.pending_notifications: List[Dict[str, Any]] = []
         self.synthesis_history: List[str] = []
+        self._workflow_script = None  # 当前加载的工作流脚本
+        self._workflow_progress: Dict[str, Any] = {}  # 工作流执行进度
     
     def activate(self):
         """激活 Coordinator 模式"""
@@ -487,3 +490,163 @@ You:
   
   Fix is in progress.
 """
+
+
+# ── Dynamic Workflows 增强 ──
+
+def load_workflow_script(self, workflow_script) -> str:
+    """
+    加载工作流脚本（Dynamic Workflows 核心方法）
+    
+    对标 Claude Code Dynamic Workflows 的脚本加载机制。
+    
+    Args:
+        workflow_script: WorkflowScript 对象或字典
+    
+    Returns:
+        加载结果
+    """
+    from core.workflow_types import WorkflowScript
+    
+    # 支持字典或 WorkflowScript 对象
+    if isinstance(workflow_script, dict):
+        self._workflow_script = WorkflowScript.from_dict(workflow_script)
+    else:
+        self._workflow_script = workflow_script
+    
+    # 验证脚本
+    errors = self._workflow_script.validate()
+    if errors:
+        return f"❌ 工作流脚本验证失败:\n" + "\n".join(f"- {e}" for e in errors)
+    
+    # 初始化进度
+    self._workflow_progress = {
+        "workflow_name": self._workflow_script.name,
+        "status": "loaded",
+        "stages_completed": 0,
+        "stages_total": len(self._workflow_script.stages),
+        "started_at": None,
+        "completed_at": None,
+    }
+    
+    logger.info(f"Loaded workflow script: {self._workflow_script.name}")
+    
+    return (
+        f"✅ 工作流脚本加载成功\n\n"
+        f"**名称**: {self._workflow_script.name}\n"
+        f"**描述**: {self._workflow_script.description}\n"
+        f"**阶段数**: {len(self._workflow_script.stages)}\n"
+        f"**执行顺序**: {' -> '.join(self._workflow_script.get_execution_order())}\n\n"
+        f"使用 `execute_workflow()` 开始执行。"
+    )
+
+
+def execute_workflow(self, model: str = "glm-4-plus") -> str:
+    """
+    执行已加载的工作流脚本
+    
+    Args:
+        model: LLM 模型
+    
+    Returns:
+        执行结果摘要
+    """
+    if not self._workflow_script:
+        return "❌ 未加载工作流脚本，请先调用 load_workflow_script()"
+    
+    # 使用 SubagentOrchestrator 执行
+    from core.subagent import SubagentOrchestrator
+    
+    orchestrator = SubagentOrchestrator()
+    
+    try:
+        # 更新进度
+        self._workflow_progress["status"] = "running"
+        self._workflow_progress["started_at"] = datetime.now().isoformat()
+        
+        # 执行工作流
+        result = orchestrator.run_workflow(self._workflow_script, model=model)
+        
+        # 更新进度
+        self._workflow_progress["status"] = "completed"
+        self._workflow_progress["completed_at"] = datetime.now().isoformat()
+        self._workflow_progress["stages_completed"] = len(result.get("stages", {}))
+        self._workflow_progress["final_result"] = result.get("final_result", "")[:500]
+        
+        # 生成执行报告
+        report_lines = [
+            f"✅ 工作流执行完成\n",
+            f"**名称**: {result['workflow_name']}",
+            f"**收敛**: {result['converged']}",
+            f"**迭代次数**: {result['iterations']}",
+            f"**阶段数**: {len(result['stages'])}",
+            f"",
+            f"## 阶段结果\n",
+        ]
+        
+        for stage_name, stage_result in result['stages'].items():
+            report_lines.append(f"### {stage_name}")
+            report_lines.append(f"- Agent 数: {len(stage_result)}")
+            completed = sum(1 for r in stage_result if r['status'] == 'completed')
+            report_lines.append(f"- 完成: {completed}/{len(stage_result)}")
+            report_lines.append("")
+        
+        report_lines.extend([
+            f"## 最终结果\n",
+            result.get('final_result', '')[:1000],
+        ])
+        
+        return "\n".join(report_lines)
+        
+    except Exception as e:
+        self._workflow_progress["status"] = "failed"
+        self._workflow_progress["error"] = str(e)
+        
+        return f"❌ 工作流执行失败: {e}"
+
+
+def get_workflow_progress(self) -> Dict[str, Any]:
+    """获取工作流执行进度"""
+    return self._workflow_progress.copy()
+
+
+def save_workflow_script(self, name: str, description: str = "") -> str:
+    """
+    保存当前工作流脚本到文件
+    
+    Args:
+        name: 脚本名称
+        description: 脚本描述
+    
+    Returns:
+        保存结果
+    """
+    import json
+    from pathlib import Path
+    
+    if not self._workflow_script:
+        return "❌ 未加载工作流脚本"
+    
+    # 确保目录存在
+    workflows_dir = Path(".opencode/workflows")
+    workflows_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 保存脚本
+    script_file = workflows_dir / f"{name}.json"
+    with open(script_file, 'w', encoding='utf-8') as f:
+        json.dump(self._workflow_script.to_dict(), f, indent=2, ensure_ascii=False)
+    
+    return (
+        f"✅ 工作流脚本已保存\n\n"
+        f"**路径**: {script_file}\n"
+        f"**名称**: {name}\n"
+        f"**描述**: {description or self._workflow_script.description}\n\n"
+        f"使用 `load_workflow_script()` 加载此脚本。"
+    )
+
+
+# 重新绑定方法到类
+CoordinatorMode.load_workflow_script = load_workflow_script
+CoordinatorMode.execute_workflow = execute_workflow
+CoordinatorMode.get_workflow_progress = get_workflow_progress
+CoordinatorMode.save_workflow_script = save_workflow_script
