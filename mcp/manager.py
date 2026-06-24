@@ -634,3 +634,66 @@ class McpManager:
             "registered_tools": len(self._registered_tool_names),
             "timestamp": time.time(),
         }
+    
+    async def reconnect_server(self, name: str) -> bool:
+        """
+        重新连接 MCP 服务器（用于健康检查自动重连）
+        
+        Args:
+            name: 服务器名称
+        
+        Returns:
+            是否重连成功
+        """
+        if name not in self.servers:
+            logger.error(f"Server '{name}' not found for reconnection")
+            return False
+        
+        state = self.servers[name]
+        config = state.config
+        
+        try:
+            logger.info(f"Reconnecting MCP server '{name}'...")
+            
+            # 先断开连接
+            if state.client:
+                try:
+                    await state.client.disconnect()
+                except Exception as e:
+                    logger.warning(f"Error disconnecting server '{name}': {e}")
+            
+            # 重新连接
+            from mcp.client.base import MCPClient
+            client = MCPClient(config)
+            await client.connect()
+            
+            # 更新状态
+            state.client = client
+            state.connected = True
+            state.error = None
+            state.last_connect_time = time.time()
+            
+            # 刷新工具列表
+            await self._discover_tools(name)
+            
+            logger.info(f"Server '{name}' reconnected successfully")
+            return True
+        
+        except Exception as e:
+            error_msg = f"Failed to reconnect server '{name}': {e}"
+            logger.error(error_msg)
+            state.connected = False
+            state.error = error_msg
+            return False
+    
+    def get_server_state(self, name: str) -> Optional[McpServerState]:
+        """
+        获取服务器状态（用于健康检查）
+        
+        Args:
+            name: 服务器名称
+        
+        Returns:
+            服务器状态对象，如果不存在则返回 None
+        """
+        return self.servers.get(name)
