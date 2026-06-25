@@ -7,7 +7,7 @@ Doctor 命令 - 环境诊断与健康检查
 - 检查 LLM API 连通性
 - 检查配置文件有效性
 - 检查 Git 环境
-- 检查 opencode 模块加载状态
+- 检查 auracode 模块加载状态
 
 用法:
   /doctor        运行完整诊断
@@ -29,7 +29,7 @@ def _check(label: str, ok: bool, detail: str = "") -> str:
 def doctor_handler(args: list, loop=None) -> str:
     """doctor 命令处理函数"""
     lines = []
-    lines.append("🩺 opencode 环境诊断")
+    lines.append("🩺 auracode 环境诊断")
     lines.append("=" * 60)
     passed = 0
     total = 0
@@ -121,10 +121,10 @@ def doctor_handler(args: list, loop=None) -> str:
         ("config.yaml", "主配置"),
         ("requirements.txt", "依赖清单"),
     ]
-    opencode_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    auracode_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     for fname, desc in config_files:
         total += 1
-        fpath = os.path.join(opencode_dir, fname)
+        fpath = os.path.join(auracode_dir, fname)
         exists = os.path.isfile(fpath)
         if exists:
             passed += 1
@@ -150,8 +150,8 @@ def doctor_handler(args: list, loop=None) -> str:
         warnings.append(f"Git 不可用: {e}")
         lines.append(_check("Git", False, str(e)[:60]))
 
-    # ── 6. opencode 模块 ──
-    lines.append("\n📐 opencode 模块:")
+    # ── 6. auracode 模块 ──
+    lines.append("\n📐 auracode 模块:")
     modules = [
         ("core.agent_loop", "核心循环"),
         ("core.session_state", "会话状态"),

@@ -628,7 +628,7 @@ def save_workflow_script(self, name: str, description: str = "") -> str:
         return "❌ 未加载工作流脚本"
     
     # 确保目录存在
-    workflows_dir = Path(".opencode/workflows")
+    workflows_dir = Path(".auracode/workflows")
     workflows_dir.mkdir(parents=True, exist_ok=True)
     
     # 保存脚本

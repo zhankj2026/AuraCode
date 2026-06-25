@@ -1,6 +1,6 @@
-# OpenCode 官方网站
+# AuraCode 官方网站
 
-这是 OpenCode AI 编程助手的官方网站，提供产品介绍、功能展示和详细文档。
+这是 AuraCode AI 编程助手的官方网站，提供产品介绍、功能展示和详细文档。
 
 ## 📁 项目结构
 
@@ -170,4 +170,4 @@ MIT License
 
 ---
 
-**OpenCode** - AI 编程助手，让编程更高效！
+**AuraCode** - AI 编程助手，让编程更高效！

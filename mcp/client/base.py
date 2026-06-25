@@ -262,7 +262,7 @@ class MCPClient:
                     "prompts": {},
                 },
                 "clientInfo": {
-                    "name": "opencode-mcp-client",
+                    "name": "auracode-mcp-client",
                     "version": "1.0.0",
                 },
             })

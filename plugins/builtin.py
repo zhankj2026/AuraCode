@@ -137,7 +137,7 @@ def _get_settings_path() -> str:
     """获取插件设置文件路径"""
     global _settings_path
     if _settings_path is None:
-        config_dir = os.path.join(os.path.expanduser("~"), ".opencode")
+        config_dir = os.path.join(os.path.expanduser("~"), ".auracode")
         _settings_path = os.path.join(config_dir, "plugins_settings.json")
     return _settings_path
 

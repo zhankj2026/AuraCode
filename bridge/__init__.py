@@ -1,5 +1,5 @@
 """
-OpenCode Bridge - 多会话远程控制系统
+AuraCode Bridge - 多会话远程控制系统
 
 提供 REST API + WebSocket 接口，支持：
 - 多会话并行管理

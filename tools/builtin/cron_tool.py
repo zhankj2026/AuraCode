@@ -34,7 +34,7 @@ RECURRING_JITTER_PCT = 0.10      # 周期性任务最多延迟 10%
 RECURRING_JITTER_MAX_MIN = 15    # 最大延迟 15 分钟
 ONESHOT_JITTER_SEC = 90          # 一次性任务最大抖动 90 秒
 CRON_POLL_INTERVAL = 30          # 轮询间隔(秒)
-DURABLE_TASKS_FILE = ".opencode/scheduled_tasks.json"
+DURABLE_TASKS_FILE = ".auracode/scheduled_tasks.json"
 
 
 # ── 数据结构 ──────────────────────────────────────────────
@@ -210,7 +210,7 @@ class CronStore:
         if store_path is None:
             # 默认存储位置
             home = Path.home()
-            store_path = str(home / ".opencode" / "scheduled_tasks.json")
+            store_path = str(home / ".auracode" / "scheduled_tasks.json")
         self._path = store_path
         self._lock = threading.Lock()
 

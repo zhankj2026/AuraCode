@@ -153,7 +153,7 @@ def test_save_workflow_script():
     print(f"保存结果:\n{result}")
 
     # 验证文件存在
-    script_file = os.path.join(".opencode", "workflows", "test-workflow.json")
+    script_file = os.path.join(".auracode", "workflows", "test-workflow.json")
     assert os.path.exists(script_file), f"脚本文件未保存: {script_file}"
 
     # 验证文件内容
@@ -261,7 +261,7 @@ def test_integration_workflow_lifecycle():
     print(f"4. 保存脚本 ✅")
 
     # 5. 从文件重新加载
-    script_file = os.path.join(".opencode", "workflows", "lifecycle-test.json")
+    script_file = os.path.join(".auracode", "workflows", "lifecycle-test.json")
     with open(script_file, 'r', encoding='utf-8') as f:
         loaded_dict = json.load(f)
 

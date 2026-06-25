@@ -46,8 +46,8 @@ git log --oneline -5
 - 展示识别出的步骤列表
 - 确认参数（是否需要输入参数，参数格式）
 - 确认保存位置：
-  - **项目级** (`.opencode/skills/<name>/SKILL.md`) — 仅当前项目使用
-  - **用户级** (`~/.opencode/skills/<name>/SKILL.md`) — 跨所有项目
+  - **项目级** (`.auracode/skills/<name>/SKILL.md`) — 仅当前项目使用
+  - **用户级** (`~/.auracode/skills/<name>/SKILL.md`) — 跨所有项目
 
 **第三轮: 触发条件**
 - 确认何时应该自动调用此 Skill

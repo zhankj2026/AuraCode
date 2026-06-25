@@ -1,18 +1,18 @@
 ---
 name: stuck
-description: 诊断卡死、缓慢或无响应的 opencode 会话，分析进程状态和资源使用
+description: 诊断卡死、缓慢或无响应的 auracode 会话，分析进程状态和资源使用
 trigger: 用户主动调用 /stuck
-when_to_use: 当用户感觉 opencode 会话卡住、无响应或运行缓慢时主动激活
+when_to_use: 当用户感觉 auracode 会话卡住、无响应或运行缓慢时主动激活
 argument_hint: "[PID or symptom description]"
 ---
 
-# Stuck: 诊断卡死/缓慢的 opencode 会话
+# Stuck: 诊断卡死/缓慢的 auracode 会话
 
-调查当前机器上卡死或运行缓慢的 opencode 进程，输出诊断报告。
+调查当前机器上卡死或运行缓慢的 auracode 进程，输出诊断报告。
 
 ## 目标
 
-找到卡住或异常的 opencode 进程，分析原因并提供诊断信息。**仅诊断，不终止进程。**
+找到卡住或异常的 auracode 进程，分析原因并提供诊断信息。**仅诊断，不终止进程。**
 
 ## 卡死信号
 
@@ -29,20 +29,20 @@ argument_hint: "[PID or symptom description]"
 
 ## 调查步骤
 
-### Step 1: 列出所有 opencode 进程
+### Step 1: 列出所有 auracode 进程
 
 **macOS/Linux:**
 ```bash
-ps -axo pid=,pcpu=,rss=,etime=,state=,comm=,command= | grep -E 'python.*opencode' | grep -v grep
+ps -axo pid=,pcpu=,rss=,etime=,state=,comm=,command= | grep -E 'python.*auracode' | grep -v grep
 ```
 
 **Windows (PowerShell):**
 ```powershell
-Get-Process python* | Where-Object { $_.CommandLine -like '*opencode*' } |
+Get-Process python* | Where-Object { $_.CommandLine -like '*auracode*' } |
   Select-Object Id, CPU, WorkingSet64, StartTime, State
 ```
 
-**成功标准**: 获取所有 opencode 相关进程的 PID、CPU、内存、运行时间。
+**成功标准**: 获取所有 auracode 相关进程的 PID、CPU、内存、运行时间。
 
 ### Step 2: 分析可疑进程
 
@@ -70,14 +70,14 @@ Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq $PID } |
 
 ### Step 3: 检查 Bridge 会话状态（如适用）
 
-如果 opencode 使用 Bridge 模式，检查 WebSocket 连接状态：
+如果 auracode 使用 Bridge 模式，检查 WebSocket 连接状态：
 
 ```bash
 # 检查 Bridge 服务器端口
 netstat -an | grep -E '(8765|8766)'
 
 # 检查最近的会话日志
-ls -la ~/.opencode/sessions/ | tail -5
+ls -la ~/.auracode/sessions/ | tail -5
 ```
 
 **成功标准**: 确认 Bridge 连接是否正常。

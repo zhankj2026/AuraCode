@@ -1,7 +1,7 @@
 """
 MCP Integration Usage Example
 
-This example demonstrates how to use the MCP integration in opencode.
+This example demonstrates how to use the MCP integration in auracode.
 
 Usage:
     python examples/mcp_usage_example.py

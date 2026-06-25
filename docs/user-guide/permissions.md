@@ -1,6 +1,6 @@
 # 权限管理
 
-OpenCode 提供四级权限模式，通过参数级 allow/deny 规则精确控制 AI 的操作边界。
+AuraCode 提供四级权限模式，通过参数级 allow/deny 规则精确控制 AI 的操作边界。
 
 ---
 

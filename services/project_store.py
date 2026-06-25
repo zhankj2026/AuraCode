@@ -9,7 +9,7 @@
 - 项目级 onboarding 状态
 
 存储结构:
-~/.opencode/projects/{sanitized-cwd}/.config.json
+~/.auracode/projects/{sanitized-cwd}/.config.json
 
 何时读取:
 - 会话启动时加载项目配置
@@ -34,8 +34,8 @@ logger = logging.getLogger(__name__)
 
 # ── 路径工具 ──
 
-def _opencode_home() -> str:
-    return os.path.join(os.path.expanduser("~"), ".opencode")
+def _auracode_home() -> str:
+    return os.path.join(os.path.expanduser("~"), ".auracode")
 
 
 def _sanitize_path(path: str) -> str:
@@ -51,7 +51,7 @@ def _sanitize_path(path: str) -> str:
 
 
 def get_project_dir(cwd: str) -> str:
-    return os.path.join(_opencode_home(), "projects", _sanitize_path(cwd))
+    return os.path.join(_auracode_home(), "projects", _sanitize_path(cwd))
 
 
 def get_project_config_path(cwd: str) -> str:
@@ -228,7 +228,7 @@ def get_project_store(cwd: Optional[str] = None) -> ProjectStore:
 def list_project_configs() -> List[Dict[str, Any]]:
     """列出所有项目的配置"""
     results = []
-    projects_dir = os.path.join(_opencode_home(), "projects")
+    projects_dir = os.path.join(_auracode_home(), "projects")
     if not os.path.exists(projects_dir):
         return results
 

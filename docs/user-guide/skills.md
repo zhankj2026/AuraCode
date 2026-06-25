@@ -77,14 +77,14 @@
 
 | 层级 | 路径 | 说明 |
 |------|------|------|
-| 内置 | `opencode/skills/` | 随 OpenCode 发布 |
-| 项目级 | `.opencode/skills/` | 跟随仓库，团队共享 |
-| 用户级 | `~/.opencode/skills/` | 个人全局，所有项目可用 |
+| 内置 | `auracode/skills/` | 随 AuraCode 发布 |
+| 项目级 | `.auracode/skills/` | 跟随仓库，团队共享 |
+| 用户级 | `~/.auracode/skills/` | 个人全局，所有项目可用 |
 
 ### 目录结构
 
 ```
-.opencode/skills/my-skill/
+.auracode/skills/my-skill/
 ├── SKILL.md      # 技能元数据（YAML frontmatter）
 └── prompt.md     # 完整提示词内容（激活时加载）
 ```
@@ -106,10 +106,10 @@ trigger: 当需要执行特定任务时
 ### 示例：创建项目级技能
 
 ```bash
-mkdir -p .opencode/skills/api-design
+mkdir -p .auracode/skills/api-design
 ```
 
-创建 `.opencode/skills/api-design/SKILL.md`：
+创建 `.auracode/skills/api-design/SKILL.md`：
 ```markdown
 ---
 name: api-design
@@ -118,7 +118,7 @@ trigger: 设计或修改 API 接口时
 ---
 ```
 
-创建 `.opencode/skills/api-design/prompt.md`：
+创建 `.auracode/skills/api-design/prompt.md`：
 ```markdown
 # API 设计规范
 
@@ -137,7 +137,7 @@ trigger: 设计或修改 API 接口时
 ...
 ```
 
-重启 OpenCode 后技能自动生效：
+重启 AuraCode 后技能自动生效：
 
 ```
 > /skills

@@ -26,8 +26,8 @@ Hook 配置加载器
 }
 
 支持的配置路径 (按优先级):
-1. 项目级: .opencode/hooks.json
-2. 用户级: ~/.opencode/hooks.json
+1. 项目级: .auracode/hooks.json
+2. 用户级: ~/.auracode/hooks.json
 """
 
 import json
@@ -95,8 +95,8 @@ class HookConfigLoader:
 
     # 默认配置搜索路径
     CONFIG_PATHS = [
-        ".opencode/hooks.json",
-        os.path.expanduser("~/.opencode/hooks.json"),
+        ".auracode/hooks.json",
+        os.path.expanduser("~/.auracode/hooks.json"),
     ]
 
     def __init__(self, hook_manager=None, project_root: str = "."):
@@ -116,12 +116,12 @@ class HookConfigLoader:
     def find_config(self) -> Optional[str]:
         """查找配置文件路径"""
         # 项目级优先
-        project_path = os.path.join(self.project_root, ".opencode", "hooks.json")
+        project_path = os.path.join(self.project_root, ".auracode", "hooks.json")
         if os.path.exists(project_path):
             return project_path
 
         # 用户级
-        user_path = os.path.expanduser("~/.opencode/hooks.json")
+        user_path = os.path.expanduser("~/.auracode/hooks.json")
         if os.path.exists(user_path):
             return user_path
 
@@ -391,7 +391,7 @@ class HookConfigLoader:
         """
         save_path = path or self._config_path
         if not save_path:
-            save_path = os.path.join(self.project_root, ".opencode", "hooks.json")
+            save_path = os.path.join(self.project_root, ".auracode", "hooks.json")
 
         try:
             os.makedirs(os.path.dirname(save_path), exist_ok=True)

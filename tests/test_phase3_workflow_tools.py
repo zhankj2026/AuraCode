@@ -142,7 +142,7 @@ def test_save_workflow():
     assert "test-save" in result, "名称不匹配"
 
     # 验证文件存在
-    script_file = os.path.join(".opencode", "workflows", "test-save.json")
+    script_file = os.path.join(".auracode", "workflows", "test-save.json")
     assert os.path.exists(script_file), f"脚本文件未保存: {script_file}"
 
     print(f"\n✅ 保存正常")

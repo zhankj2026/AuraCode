@@ -1,6 +1,6 @@
 # 快速开始
 
-本文带你用 5 分钟完成 OpenCode 的安装与首次使用，体验核心交互能力。
+本文带你用 5 分钟完成 AuraCode 的安装与首次使用，体验核心交互能力。
 
 ---
 
@@ -14,8 +14,8 @@
 ### 安装步骤
 
 ```bash
-# 进入 opencode 目录
-cd opencode
+# 进入 auracode 目录
+cd auracode
 
 # 安装依赖
 pip install -r requirements.txt
@@ -25,7 +25,7 @@ pip install -r requirements.txt
 
 ## 2. 配置 API Key
 
-OpenCode 需要一个 LLM API Key 才能运行。推荐两种方式：
+AuraCode 需要一个 LLM API Key 才能运行。推荐两种方式：
 
 ### 方式一：环境变量（推荐）
 
@@ -152,7 +152,7 @@ python cli.py --mode plan
 A: 运行时使用 `/model <模型名>` 切换，或修改 `config.yaml` 中的 `llm.model`。
 
 **Q: 遇到 429 Too Many Requests 怎么办？**
-A: OpenCode 内置指数退避重试（最多 5 次），一般无需手动处理。可配置 Fallback 模型作为备选。
+A: AuraCode 内置指数退避重试（最多 5 次），一般无需手动处理。可配置 Fallback 模型作为备选。
 
 **Q: 如何保存会话？**
-A: 会话自动持久化到 `~/.opencode/sessions/`，下次用 `/resume` 恢复。
+A: 会话自动持久化到 `~/.auracode/sessions/`，下次用 `/resume` 恢复。

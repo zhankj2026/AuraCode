@@ -348,7 +348,7 @@ class McpManager:
                         logger.warning(f"Failed to parse MCP config {f}: {e}")
 
         # 2. config.yaml 中的 mcp_servers 节
-        for cfg_file in ["config.yaml", "config.yml", ".opencode.yaml"]:
+        for cfg_file in ["config.yaml", "config.yml", ".auracode.yaml"]:
             p = Path(cfg_file)
             if p.exists():
                 try:

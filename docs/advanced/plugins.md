@@ -1,6 +1,6 @@
 # 插件系统
 
-opencode 的插件系统允许通过插件扩展工具、钩子和行为。插件可以从四个来源加载，并通过统一的 `plugin_id` 进行管理。
+auracode 的插件系统允许通过插件扩展工具、钩子和行为。插件可以从四个来源加载，并通过统一的 `plugin_id` 进行管理。
 
 ---
 
@@ -25,10 +25,10 @@ plugins/
 
 | 来源 | 路径 / 方式 | plugin_id 后缀 | 说明 |
 |------|------------|----------------|------|
-| **builtin** | `register_builtin_plugin()` 代码注册 | `@builtin` | 随 opencode 发布，不可删除 |
-| **目录** | `opencode/plugins/*.py` 文件扫描 | `@user` | 项目自带插件 |
-| **项目级** | `.opencode/plugins/` 目录 | `@project` | 跟随项目仓库 |
-| **用户级** | `~/.opencode/plugins/` 目录 | `@user` | 全局个人插件 |
+| **builtin** | `register_builtin_plugin()` 代码注册 | `@builtin` | 随 auracode 发布，不可删除 |
+| **目录** | `auracode/plugins/*.py` 文件扫描 | `@user` | 项目自带插件 |
+| **项目级** | `.auracode/plugins/` 目录 | `@project` | 跟随项目仓库 |
+| **用户级** | `~/.auracode/plugins/` 目录 | `@user` | 全局个人插件 |
 
 加载顺序：builtin → 目录 → 项目级 → 用户级。同名插件后加载的覆盖先加载的。
 
@@ -110,7 +110,7 @@ class MyPlugin(ToolPlugin):
 
 ## 内置插件注册
 
-内置插件通过代码硬编码注册（而非目录扫描），适用于随 opencode 发布的核心扩展：
+内置插件通过代码硬编码注册（而非目录扫描），适用于随 auracode 发布的核心扩展：
 
 ```python
 from plugins.builtin import register_builtin_plugin, BuiltinPluginDefinition
@@ -151,7 +151,7 @@ register_builtin_plugin(BuiltinPluginDefinition(
 
 ## 用户设置持久化
 
-用户启用/禁用操作持久化到 `~/.opencode/plugins_settings.json`：
+用户启用/禁用操作持久化到 `~/.auracode/plugins_settings.json`：
 
 ```json
 {
@@ -218,11 +218,11 @@ PluginLoader.load_all_plugins()
 
 ## 项目级插件
 
-在项目根目录创建 `.opencode/plugins/` 目录，放入 `.py` 文件即可：
+在项目根目录创建 `.auracode/plugins/` 目录，放入 `.py` 文件即可：
 
 ```
 my-project/
-├── .opencode/
+├── .auracode/
 │   └── plugins/
 │       └── custom_lint.py
 ├── src/
@@ -236,10 +236,10 @@ my-project/
 
 ## 用户级插件
 
-放入 `~/.opencode/plugins/` 目录，全局生效：
+放入 `~/.auracode/plugins/` 目录，全局生效：
 
 ```
-~/.opencode/
+~/.auracode/
 ├── plugins/
 │   └── my_global_tool.py
 ├── config.yaml

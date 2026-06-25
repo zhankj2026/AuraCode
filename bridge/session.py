@@ -624,7 +624,7 @@ class BridgeSession:
                 break
 
     def _save_session_on_exit(self):
-        """退出时持久化会话到 ~/.opencode/sessions/"""
+        """退出时持久化会话到 ~/.auracode/sessions/"""
         try:
             if not self._agent_loop:
                 return

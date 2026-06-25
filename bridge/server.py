@@ -230,8 +230,8 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
     _auth = SimpleTokenAuth(token=_server_config.auth_token)
 
     app = FastAPI(
-        title="OpenCode Bridge Server",
-        description="Multi-session remote control for OpenCode AI assistant",
+        title="AuraCode Bridge Server",
+        description="Multi-session remote control for AuraCode AI assistant",
         version="1.0.0",
         lifespan=lifespan,
     )
@@ -630,7 +630,7 @@ def start_bridge_server(
     app = create_app(config)
 
     print(f"\n{'=' * 60}")
-    print(f"  OpenCode Bridge Server")
+    print(f"  AuraCode Bridge Server")
     print(f"{'=' * 60}")
     print(f"  Host:       {config.host}")
     print(f"  Port:       {config.port}")

@@ -21,7 +21,7 @@
 
 ## 配置方式
 
-### 项目级配置（`.opencode/hooks.yaml`）
+### 项目级配置（`.auracode/hooks.yaml`）
 
 ```yaml
 hooks:
@@ -36,7 +36,7 @@ hooks:
       matcher: "\\.py$"         # 正则匹配文件路径
 
   Stop:
-    - command: "notify-send 'OpenCode task completed'"
+    - command: "notify-send 'AuraCode task completed'"
 ```
 
 ### 运行时注册（插件方式）
@@ -89,7 +89,7 @@ hooks:
 
 ### 文件监听热重载
 
-修改 `.opencode/hooks.yaml` 后自动重载，无需重启。
+修改 `.auracode/hooks.yaml` 后自动重载，无需重启。
 
 ---
 

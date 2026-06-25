@@ -1,12 +1,12 @@
 # 对话交互
 
-OpenCode 的核心交互方式是多轮对话。AI 代理在每一轮中会分析你的需求，自动调用合适的工具完成任务，并将结果呈现给你。
+AuraCode 的核心交互方式是多轮对话。AI 代理在每一轮中会分析你的需求，自动调用合适的工具完成任务，并将结果呈现给你。
 
 ---
 
 ## 工作模式
 
-OpenCode 提供三种启动模式：
+AuraCode 提供三种启动模式：
 
 ### 对话模式（默认）
 
@@ -37,7 +37,7 @@ python cli.py --bridge --bridge-port 9000
 
 ## 对话循环
 
-OpenCode 采用 **TAOR 循环**（Think → Act → Observe → Repeat）：
+AuraCode 采用 **TAOR 循环**（Think → Act → Observe → Repeat）：
 
 ```
 用户提问
@@ -73,7 +73,7 @@ AI 回复默认以流式方式逐字显示，无需等待完整响应。可通�
 
 ### 自动压缩
 
-当上下文接近窗口上限（默认 200,000 Token）时，OpenCode 会自动触发压缩：
+当上下文接近窗口上限（默认 200,000 Token）时，AuraCode 会自动触发压缩：
 - 旧的工具结果被裁剪（只保留关键变更区域）
 - 早期对话被压缩为摘要
 - base64 图片被剥离
@@ -94,7 +94,7 @@ AI 回复默认以流式方式逐字显示，无需等待完整响应。可通�
 输入编号恢复，或 /resume --all 查看全部
 ```
 
-会话文件存储在 `~/.opencode/sessions/`。
+会话文件存储在 `~/.auracode/sessions/`。
 
 ---
 

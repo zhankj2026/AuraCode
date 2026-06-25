@@ -10,7 +10,7 @@ Marketplace 管理器 — 对标 Claude Code marketplaceManager.ts
 - 官方 marketplace 自动安装 (对标 officialMarketplaceStartupCheck.ts)
 
 目录结构:
-  ~/.opencode/
+  ~/.auracode/
     known_marketplaces.json      # 已注册 marketplace 列表
     marketplaces/                # marketplace clone 缓存
       {marketplace-name}/
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 # ── 官方 Marketplace 常量 ────────────────────────────────────
 # 对标 Claude Code officialMarketplace.ts
 
-OFFICIAL_MARKETPLACE_NAME = "opencode-plugins-official"
+OFFICIAL_MARKETPLACE_NAME = "auracode-plugins-official"
 OFFICIAL_MARKETPLACE_SOURCE = {
     "source": "github",
     "url": "https://github.com/anthropics/claude-plugins-official",
@@ -41,7 +41,7 @@ OFFICIAL_MARKETPLACE_SOURCE = {
 }
 
 # 环境变量: 设为 1/true/yes 禁用官方 marketplace 自动安装
-ENV_DISABLE_OFFICIAL_AUTOINSTALL = "OPENCODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL"
+ENV_DISABLE_OFFICIAL_AUTOINSTALL = "AURACODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL"
 
 # ── 重试配置 ──────────────────────────────────────────────────
 # 对标 Claude Code officialMarketplaceStartupCheck.ts RETRY_CONFIG
@@ -64,24 +64,24 @@ SKIP_UNKNOWN = "unknown"
 # ── 路径常量 ──────────────────────────────────────────────────
 
 
-def _opencode_dir() -> str:
-    """获取 ~/.opencode 目录"""
-    return os.path.join(os.path.expanduser("~"), ".opencode")
+def _auracode_dir() -> str:
+    """获取 ~/.auracode 目录"""
+    return os.path.join(os.path.expanduser("~"), ".auracode")
 
 
 def _known_marketplaces_path() -> str:
     """known_marketplaces.json 路径"""
-    return os.path.join(_opencode_dir(), "known_marketplaces.json")
+    return os.path.join(_auracode_dir(), "known_marketplaces.json")
 
 
 def _marketplaces_cache_dir() -> str:
     """marketplace clone 缓存目录"""
-    return os.path.join(_opencode_dir(), "marketplaces")
+    return os.path.join(_auracode_dir(), "marketplaces")
 
 
 def _official_state_path() -> str:
     """官方 marketplace 安装状态文件路径"""
-    return os.path.join(_opencode_dir(), "official_marketplace_state.json")
+    return os.path.join(_auracode_dir(), "official_marketplace_state.json")
 
 
 def _is_env_truthy(name: str) -> bool:
@@ -677,7 +677,7 @@ class MarketplaceManager:
 
     def register_seed_marketplaces(self) -> bool:
         """
-        从 OPENCODE_PLUGIN_SEED_DIR 环境变量注册 seed marketplace。
+        从 AURACODE_PLUGIN_SEED_DIR 环境变量注册 seed marketplace。
 
         Seed 目录由管理员/容器镜像预装，优先级最高。
         多个 seed 目录用 os.pathsep 分隔。
@@ -685,7 +685,7 @@ class MarketplaceManager:
         Returns:
             True if any entries were added/changed
         """
-        seed_dirs = os.environ.get("OPENCODE_PLUGIN_SEED_DIR", "")
+        seed_dirs = os.environ.get("AURACODE_PLUGIN_SEED_DIR", "")
         if not seed_dirs:
             return False
 
@@ -734,7 +734,7 @@ class MarketplaceManager:
         candidates = [
             os.path.join(install_dir, "marketplace.json"),
             os.path.join(install_dir, ".claude-plugin", "marketplace.json"),
-            os.path.join(install_dir, ".opencode-plugin", "marketplace.json"),
+            os.path.join(install_dir, ".auracode-plugin", "marketplace.json"),
         ]
 
         for path in candidates:

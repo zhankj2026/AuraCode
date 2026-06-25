@@ -1,7 +1,7 @@
 """
 全局交互历史日志 (history.jsonl)
 
-每次交互（一轮用户输入 + AI 响应）追加一行 JSON 到 ~/.opencode/history.jsonl。
+每次交互（一轮用户输入 + AI 响应）追加一行 JSON 到 ~/.auracode/history.jsonl。
 用于跨会话搜索、统计和使用模式分析。
 
 设计参考:
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 def _default_history_path() -> str:
     """获取默认历史日志文件路径"""
     home = os.path.expanduser("~")
-    return os.path.join(home, ".opencode", "history.jsonl")
+    return os.path.join(home, ".auracode", "history.jsonl")
 
 
 @dataclass
@@ -63,7 +63,7 @@ class HistoryLog:
     """
     全局交互历史日志管理器
 
-    存储位置: ~/.opencode/history.jsonl
+    存储位置: ~/.auracode/history.jsonl
     写入方式: 追加写入（每行一条 JSON）
     读取方式: 流式读取（逐行解析，支持大文件）
 
@@ -78,7 +78,7 @@ class HistoryLog:
     def __init__(self, history_path: Optional[str] = None):
         """
         Args:
-            history_path: 历史日志文件路径，默认 ~/.opencode/history.jsonl
+            history_path: 历史日志文件路径，默认 ~/.auracode/history.jsonl
         """
         self.history_path = history_path or _default_history_path()
         # 确保目录存在

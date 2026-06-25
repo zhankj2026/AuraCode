@@ -1,7 +1,7 @@
 """
 Bridge 命令 - 远程控制服务器管理
 
-在 opencode 对话模式中管理 Bridge 服务器:
+在 auracode 对话模式中管理 Bridge 服务器:
 - /bridge start [--port 8765] [--max-sessions 5]
 - /bridge status
 - /bridge stop

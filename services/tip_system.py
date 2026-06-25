@@ -2,7 +2,7 @@
 TipSystem 服务 — 功能发现提示
 
 在适当时机向用户展示功能使用提示，
-帮助用户发现 opencode 的高级功能。
+帮助用户发现 auracode 的高级功能。
 支持提示注册、冷却机制、历史记录和上下文感知调度。
 """
 import json
@@ -218,7 +218,7 @@ class TipHistory:
         self._load()
 
     def _default_path(self) -> str:
-        config_dir = os.path.join(os.path.expanduser("~"), ".opencode")
+        config_dir = os.path.join(os.path.expanduser("~"), ".auracode")
         os.makedirs(config_dir, exist_ok=True)
         return os.path.join(config_dir, "tip_history.json")
 
@@ -411,7 +411,7 @@ def get_tip_scheduler() -> TipScheduler:
 try:
     from commands.registry import register_command
     register_command("tips", {
-        "description": "功能发现提示 — 查看 opencode 高级功能",
+        "description": "功能发现提示 — 查看 auracode 高级功能",
         "handler": tips_handler,
         "category": "help",
         "args_help": "[list|reset]  显示提示/列出所有/重置历史",

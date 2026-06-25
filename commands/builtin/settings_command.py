@@ -1,7 +1,7 @@
 """
 /settings 命令 - 全局用户设置管理
 
-查看、修改、重置 ~/.opencode/settings.json 中的用户偏好。
+查看、修改、重置 ~/.auracode/settings.json 中的用户偏好。
 
 用法:
     /settings                    — 查看所有设置
@@ -53,7 +53,7 @@ def settings_handler(args, loop=None):
 
 def _show_settings(store) -> str:
     display = store.to_display_dict()
-    lines = ["=" * 60, "全局用户设置 (~/.opencode/settings.json)", "=" * 60]
+    lines = ["=" * 60, "全局用户设置 (~/.auracode/settings.json)", "=" * 60]
 
     categories = {
         "模型偏好": ["preferred_model", "fallback_model"],
@@ -153,7 +153,7 @@ def _list_backups(store) -> str:
 
 
 register_command("settings", {
-    "description": "全局用户设置管理 (~/.opencode/settings.json)",
+    "description": "全局用户设置管理 (~/.auracode/settings.json)",
     "handler": settings_handler,
     "category": "system",
 })

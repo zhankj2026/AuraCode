@@ -8,7 +8,7 @@
 - 多 Agent 协作（文件锁竞争认领）
 
 存储结构:
-~/.opencode/tasks/{task_list_id}/
+~/.auracode/tasks/{task_list_id}/
 ├── 1.json              # 任务文件
 ├── 2.json
 ├── .highwatermark      # 最大 ID 记录（防止重置后 ID 复用）
@@ -31,8 +31,8 @@ logger = logging.getLogger(__name__)
 
 # ── 路径工具 ──
 
-def _opencode_home() -> str:
-    return os.path.join(os.path.expanduser("~"), ".opencode")
+def _auracode_home() -> str:
+    return os.path.join(os.path.expanduser("~"), ".auracode")
 
 
 def _sanitize_component(s: str) -> str:
@@ -43,7 +43,7 @@ def _sanitize_component(s: str) -> str:
 def get_tasks_dir(task_list_id: str) -> str:
     """获取任务列表目录"""
     return os.path.join(
-        _opencode_home(), "tasks", _sanitize_component(task_list_id)
+        _auracode_home(), "tasks", _sanitize_component(task_list_id)
     )
 
 

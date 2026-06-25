@@ -58,7 +58,7 @@ def resume_handler(args, loop=None):
     if not args:
         sessions = store.list_sessions(limit=15)
         if not sessions:
-            return "📭 没有找到保存的会话。\n\n会话会在每次对话结束后自动保存到 ~/.opencode/sessions/"
+            return "📭 没有找到保存的会话。\n\n会话会在每次对话结束后自动保存到 ~/.auracode/sessions/"
 
         lines = [f"📂 最近会话 (共 {store.get_session_count()} 个):\n"]
         for i, meta in enumerate(sessions):

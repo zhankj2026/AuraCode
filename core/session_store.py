@@ -4,7 +4,7 @@
 实现会话消息的 JSON 持久化、列表、搜索和恢复。
 
 每个会话保存为独立 JSON 文件，包含元数据和完整消息历史。
-存储目录: ~/.opencode/sessions/
+存储目录: ~/.auracode/sessions/
 """
 
 import json
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 def _default_sessions_dir() -> str:
     """获取默认会话存储目录"""
     home = os.path.expanduser("~")
-    return os.path.join(home, ".opencode", "sessions")
+    return os.path.join(home, ".auracode", "sessions")
 
 
 @dataclass
@@ -94,7 +94,7 @@ class SessionStore:
     def __init__(self, sessions_dir: Optional[str] = None):
         """
         Args:
-            sessions_dir: 会话存储目录，默认 ~/.opencode/sessions/
+            sessions_dir: 会话存储目录，默认 ~/.auracode/sessions/
         """
         self.sessions_dir = sessions_dir or _default_sessions_dir()
         os.makedirs(self.sessions_dir, exist_ok=True)

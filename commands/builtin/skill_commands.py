@@ -112,7 +112,7 @@ register_command("batch", {
 })
 
 register_command("update-config", {
-    "description": "管理 opencode 配置（LLM/权限/钩子/日志）",
+    "description": "管理 auracode 配置（LLM/权限/钩子/日志）",
     "handler": update_config_handler,
     "category": "skills",
     "args_help": "[配置请求]"

@@ -5,7 +5,7 @@
 存储 Hook 产生的环境脚本（如 venv/conda 激活），使 shell 环境在会话内持久化。
 
 存储结构:
-~/.opencode/session-env/{session_id}/
+~/.auracode/session-env/{session_id}/
 ├── setup-hook-0.sh         # Setup Hook 产生的环境脚本
 ├── sessionstart-hook-0.sh  # SessionStart Hook 产生
 ├── cwdchanged-hook-0.sh    # CwdChanged Hook 产生
@@ -28,13 +28,13 @@ logger = logging.getLogger(__name__)
 
 # ── 路径工具 ──
 
-def _opencode_home() -> str:
-    return os.path.join(os.path.expanduser("~"), ".opencode")
+def _auracode_home() -> str:
+    return os.path.join(os.path.expanduser("~"), ".auracode")
 
 
 def get_session_env_dir(session_id: str) -> str:
     """获取会话环境目录"""
-    return os.path.join(_opencode_home(), "session-env", session_id)
+    return os.path.join(_auracode_home(), "session-env", session_id)
 
 
 def get_hook_env_path(session_id: str, hook_event: str, hook_index: int) -> str:

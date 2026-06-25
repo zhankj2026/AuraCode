@@ -4,11 +4,11 @@ Plugin Zip Cache — 对标 Claude Code zipCache.ts
 功能:
 - 将插件目录打包为 .zip 归档存储
 - 从 .zip 解压到临时会话目录
-- 环境变量控制: OPENCODE_PLUGIN_USE_ZIP_CACHE, OPENCODE_PLUGIN_CACHE_DIR
+- 环境变量控制: AURACODE_PLUGIN_USE_ZIP_CACHE, AURACODE_PLUGIN_CACHE_DIR
 - 适用于离线/容器场景（ephemeral container + mounted volume）
 
 目录结构:
-  $OPENCODE_PLUGIN_CACHE_DIR/
+  $AURACODE_PLUGIN_CACHE_DIR/
     installed_plugins.json
     marketplaces/
       {marketplace-name}.json
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 def is_zip_cache_enabled() -> bool:
     """检查 zip 缓存是否启用"""
-    val = os.environ.get("OPENCODE_PLUGIN_USE_ZIP_CACHE", "")
+    val = os.environ.get("AURACODE_PLUGIN_USE_ZIP_CACHE", "")
     return val.lower() in ("1", "true", "yes", "on")
 
 
@@ -39,10 +39,10 @@ def get_zip_cache_path() -> Optional[str]:
     """获取 zip 缓存根目录"""
     if not is_zip_cache_enabled():
         return None
-    cache_dir = os.environ.get("OPENCODE_PLUGIN_CACHE_DIR", "")
+    cache_dir = os.environ.get("AURACODE_PLUGIN_CACHE_DIR", "")
     if not cache_dir:
-        # 默认 ~/.opencode/zip-cache
-        cache_dir = os.path.join(os.path.expanduser("~"), ".opencode", "zip-cache")
+        # 默认 ~/.auracode/zip-cache
+        cache_dir = os.path.join(os.path.expanduser("~"), ".auracode", "zip-cache")
     return os.path.expanduser(cache_dir)
 
 
@@ -175,7 +175,7 @@ def unzip_plugin_to_session(marketplace: str, plugin_name: str,
 
     # 解压到 tempdir
     target_dir = os.path.join(tempfile.gettempdir(),
-                              "opencode_plugins",
+                              "auracode_plugins",
                               marketplace, plugin_name, version)
 
     if os.path.exists(target_dir):
@@ -195,7 +195,7 @@ def unzip_plugin_to_session(marketplace: str, plugin_name: str,
 
 def cleanup_session_plugins():
     """清理会话临时插件目录"""
-    session_dir = os.path.join(tempfile.gettempdir(), "opencode_plugins")
+    session_dir = os.path.join(tempfile.gettempdir(), "auracode_plugins")
     if os.path.exists(session_dir):
         try:
             shutil.rmtree(session_dir)

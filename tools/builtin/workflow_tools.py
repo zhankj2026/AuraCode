@@ -191,7 +191,7 @@ def workflow_status_handler(workflow_id: str = "") -> str:
         lines.append(f"\n**最终结果**:\n{progress['final_result'][:500]}")
     
     # 查看已保存的工作流脚本
-    workflows_dir = Path(".opencode/workflows")
+    workflows_dir = Path(".auracode/workflows")
     if workflows_dir.exists():
         saved_workflows = list(workflows_dir.glob("*.json"))
         if saved_workflows:
@@ -259,7 +259,7 @@ def execute_saved_workflow_handler(
     import json
     
     # 查找脚本文件
-    workflows_dir = Path(".opencode/workflows")
+    workflows_dir = Path(".auracode/workflows")
     
     # 尝试作为文件名或名称
     script_file = workflows_dir / f"{name}.json"

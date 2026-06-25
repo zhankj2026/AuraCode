@@ -1,1 +1,1 @@
-"""Examples package for opencode."""
+"""Examples package for auracode."""

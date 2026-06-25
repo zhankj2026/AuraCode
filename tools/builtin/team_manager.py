@@ -69,8 +69,8 @@ _TEAMS: Dict[str, TeamConfig] = {}
 _TEAMMATES: Dict[str, List[Teammate]] = {}
 
 # 团队配置持久化目录
-_TEAMS_DIR = Path.home() / ".opencode" / "teams"
-_TASKS_DIR = Path.home() / ".opencode" / "tasks"
+_TEAMS_DIR = Path.home() / ".auracode" / "teams"
+_TASKS_DIR = Path.home() / ".auracode" / "tasks"
 
 
 def _ensure_dirs():

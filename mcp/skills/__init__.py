@@ -2,7 +2,7 @@
 MCP skill discovery and integration.
 
 This module provides functionality to discover and integrate
-MCP servers as skills in the opencode skill system.
+MCP servers as skills in the auracode skill system.
 """
 
 import asyncio

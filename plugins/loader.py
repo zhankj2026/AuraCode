@@ -35,8 +35,8 @@ class PluginLoader:
     加载来源:
     1. 内置插件 — builtin.py 注册表（程序化注册，对应 Claude Code builtinPlugins.ts）
     2. 目录插件 — plugins/ 目录下 .py 文件（动态扫描）
-    3. 项目级插件 — .opencode/plugins/ 目录
-    4. 用户级插件 — ~/.opencode/plugins/ 目录
+    3. 项目级插件 — .auracode/plugins/ 目录
+    4. 用户级插件 — ~/.auracode/plugins/ 目录
 
     每个插件都有规范 plugin_id: {name}@{source}
     """
@@ -46,19 +46,19 @@ class PluginLoader:
         初始化插件加载器
         
         Args:
-            plugins_dir: 插件目录路径,默认为 opencode/plugins/
+            plugins_dir: 插件目录路径,默认为 auracode/plugins/
             project_root: 项目根目录（用于查找项目级插件）
         """
         if plugins_dir is None:
-            # 默认为 opencode/plugins/
+            # 默认为 auracode/plugins/
             plugins_dir = os.path.dirname(__file__)
         
         self.plugins_dir = os.path.abspath(plugins_dir)
         self.project_root = os.path.abspath(project_root)
 
         # 项目级 / 用户级插件目录
-        self.project_plugins_dir = os.path.join(self.project_root, '.opencode', 'plugins')
-        self.user_plugins_dir = os.path.join(os.path.expanduser('~'), '.opencode', 'plugins')
+        self.project_plugins_dir = os.path.join(self.project_root, '.auracode', 'plugins')
+        self.user_plugins_dir = os.path.join(os.path.expanduser('~'), '.auracode', 'plugins')
 
         self.plugins: List[ToolPlugin] = []
         self.plugins_map: Dict[str, ToolPlugin] = {}
@@ -194,10 +194,10 @@ class PluginLoader:
 
         加载顺序（优先级由低到高，同名时后者覆盖前者）:
         1. 内置插件（builtin.py 注册表）
-        2. opencode/plugins/ 目录扫描
-        3. 项目级插件 (.opencode/plugins/)
-        4. 用户级插件 (~/.opencode/plugins/)
-        5. Marketplace 安装的插件 (~/.opencode/plugins/cache/)
+        2. auracode/plugins/ 目录扫描
+        3. 项目级插件 (.auracode/plugins/)
+        4. 用户级插件 (~/.auracode/plugins/)
+        5. Marketplace 安装的插件 (~/.auracode/plugins/cache/)
         
         Args:
             include_builtin: 是否加载内置插件
@@ -219,7 +219,7 @@ class PluginLoader:
             if builtin_count:
                 logger.info(f"从 builtin 注册表加载 {builtin_count} 个内置插件")
 
-        # 2. 扫描 opencode/plugins/ 目录
+        # 2. 扫描 auracode/plugins/ 目录
         plugin_files = self.scan_plugins()
         dir_count = 0
         for filename in plugin_files:
@@ -345,7 +345,7 @@ class PluginLoader:
 
     def _register_seed_marketplaces(self) -> None:
         """
-        从 OPENCODE_PLUGIN_SEED_DIR 注册 seed marketplace。
+        从 AURACODE_PLUGIN_SEED_DIR 注册 seed marketplace。
 
         容器/部署场景下，管理员在镜像中预装 marketplace，
         启动时自动注册，seed 条目优先级最高。
@@ -354,7 +354,7 @@ class PluginLoader:
             from plugins.marketplace import MarketplaceManager
             mm = MarketplaceManager()
             if mm.register_seed_marketplaces():
-                logger.info("Seed marketplace(s) registered from OPENCODE_PLUGIN_SEED_DIR")
+                logger.info("Seed marketplace(s) registered from AURACODE_PLUGIN_SEED_DIR")
         except Exception as e:
             logger.warning(f"Failed to register seed marketplaces: {e}")
 
@@ -362,7 +362,7 @@ class PluginLoader:
         """
         从 marketplace 缓存目录加载插件
 
-        扫描 ~/.opencode/plugins/cache/ 下所有 marketplace/plugin 目录，
+        扫描 ~/.auracode/plugins/cache/ 下所有 marketplace/plugin 目录，
         加载最新版本目录中的 ToolPlugin，并自动发现 skills/ 子目录。
 
         Returns:
@@ -392,7 +392,7 @@ class PluginLoader:
 
     def _extract_marketplace_source(self, plugin_dir: str) -> str:
         """从插件路径提取 marketplace 来源标识"""
-        # 路径格式: ~/.opencode/plugins/cache/{marketplace}/{plugin}/{version}/
+        # 路径格式: ~/.auracode/plugins/cache/{marketplace}/{plugin}/{version}/
         parts = plugin_dir.replace("\\", "/").split("/")
         try:
             cache_idx = parts.index("cache")

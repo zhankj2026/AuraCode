@@ -69,7 +69,7 @@ def config_handler(
     config_path = file or DEFAULT_CONFIG_FILE
     if scope == "user":
         home = os.path.expanduser("~")
-        config_path = os.path.join(home, ".opencode", "config.yaml")
+        config_path = os.path.join(home, ".auracode", "config.yaml")
 
     if action == "list":
         # 列出所有配置

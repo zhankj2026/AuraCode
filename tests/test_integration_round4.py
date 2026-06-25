@@ -111,7 +111,7 @@ except Exception as e:
     check("SessionStore 可导入", False, str(e))
 
 # 2. SessionStore 包含智能增强属性
-tmpdir = tempfile.mkdtemp(prefix="opencode_test_sessions_")
+tmpdir = tempfile.mkdtemp(prefix="auracode_test_sessions_")
 try:
     store = SessionStore(sessions_dir=tmpdir)
     check("SessionStore 初始化含 SessionIntelligence",
@@ -218,7 +218,7 @@ try:
     from core.code_analyzer import CodeAnalyzer
 
     # 创建临时项目结构
-    test_project = tempfile.mkdtemp(prefix="opencode_test_project_")
+    test_project = tempfile.mkdtemp(prefix="auracode_test_project_")
     src_dir = os.path.join(test_project, "src")
     os.makedirs(src_dir)
 

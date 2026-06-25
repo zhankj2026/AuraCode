@@ -12,7 +12,7 @@ Plugin Installer — 从 marketplace 安装/卸载/更新插件
 - reconcile: 对账（声明 vs 实际安装）
 
 目录结构:
-  ~/.opencode/
+  ~/.auracode/
     installed_plugins.json                    # 已安装插件记录
     plugins/cache/                            # 插件安装缓存
       {marketplace_name}/
@@ -38,12 +38,12 @@ logger = logging.getLogger(__name__)
 
 def _installed_plugins_path() -> str:
     """installed_plugins.json 路径"""
-    return os.path.join(os.path.expanduser("~"), ".opencode", "installed_plugins.json")
+    return os.path.join(os.path.expanduser("~"), ".auracode", "installed_plugins.json")
 
 
 def _plugin_cache_dir() -> str:
     """插件缓存根目录"""
-    return os.path.join(os.path.expanduser("~"), ".opencode", "plugins", "cache")
+    return os.path.join(os.path.expanduser("~"), ".auracode", "plugins", "cache")
 
 
 def _get_plugin_dir(marketplace: str, plugin_name: str, version: str) -> str:

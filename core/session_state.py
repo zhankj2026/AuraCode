@@ -1,7 +1,7 @@
 """会话状态管理
 
 参考 AppStateStore + QueryEngine 设计，
-为 opencode 提供集中式会话状态管理、Token 累计追踪和结构化结果报告。
+为 auracode 提供集中式会话状态管理、Token 累计追踪和结构化结果报告。
 
 增强功能:
 - 发布/订阅: on_change 回调，状态变更事件广播
@@ -242,7 +242,7 @@ class SessionState:
     - create_snapshot() — 创建完整状态快照
     - restore_snapshot(snapshot) — 从快照恢复状态
 
-    参考 OpenCode:
+    参考 AuraCode:
     - AppStateStore.ts (集中状态 + Store 发布订阅)
     - QueryEngine (usage/cost tracking)
     - query.ts (loop state machine)

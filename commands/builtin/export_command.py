@@ -40,7 +40,7 @@ def _extract_first_prompt(messages: list) -> str:
 def _format_as_markdown(messages: list) -> str:
     """将消息历史格式化为 Markdown"""
     lines = []
-    lines.append(f"# opencode 对话记录")
+    lines.append(f"# auracode 对话记录")
     lines.append(f"")
     lines.append(f"> 导出时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     lines.append(f"> 消息总数: {len(messages)}")
@@ -124,7 +124,7 @@ def _format_as_json(messages: list, state=None) -> str:
         "metadata": {
             "exported_at": datetime.now().isoformat(),
             "message_count": len(messages),
-            "version": "opencode-1.0",
+            "version": "auracode-1.0",
         },
         "messages": [],
     }

@@ -1,13 +1,13 @@
 # 架构总览
 
-opencode 是一个基于 TAOR（Think-Act-Observe-Repeat）循环设计的 AI 编程助手，使用 Python 实现。本文档描述其整体架构、模块划分和数据流。
+auracode 是一个基于 TAOR（Think-Act-Observe-Repeat）循环设计的 AI 编程助手，使用 Python 实现。本文档描述其整体架构、模块划分和数据流。
 
 ---
 
 ## 目录结构
 
 ```
-opencode/
+auracode/
 ├── cli.py                # CLI 入口：参数解析 + 主循环
 ├── config.yaml           # 用户配置文件
 ├── requirements.txt      # Python 依赖
@@ -15,7 +15,7 @@ opencode/
 ├── core/                 # 核心引擎
 │   ├── agent_loop.py     # AgentLoop — TAOR 循环主体
 │   ├── session_state.py  # SessionState — 会话状态管理
-│   ├── context.py        # 项目上下文加载（OPENCODE.md + 技术栈检测）
+│   ├── context.py        # 项目上下文加载（AURACODE.md + 技术栈检测）
 │   ├── memory.py         # 记忆系统（MEMORY.md 管理 + LLM 驱动召回）
 │   ├── message.py        # 消息格式化
 │   ├── subagent.py       # 子代理（并行任务分派）
@@ -104,7 +104,7 @@ AgentLoop.run()                                   │
   │                                               │
   ├─ 构建 System Prompt                           │
   │   ├─ 角色定义                                  │
-  │   ├─ 项目上下文 (OPENCODE.md)                  │
+  │   ├─ 项目上下文 (AURACODE.md)                  │
   │   ├─ 记忆注入 (MEMORY.md)                      │
   │   └─ 技能激活提示                              │
   │                                               │
@@ -214,8 +214,8 @@ AgentLoop.run()                                   │
 三源技能加载：
 
 - **内置技能**：`skills/` 目录下的技能包
-- **项目技能**：`.opencode/skills/` 目录
-- **用户技能**：`~/.opencode/skills/` 目录
+- **项目技能**：`.auracode/skills/` 目录
+- **用户技能**：`~/.auracode/skills/` 目录
 
 技能通过 `SkillContext` 单例桥接 AgentLoop 和工具系统。
 
@@ -237,7 +237,7 @@ AgentLoop.run()                                   │
 ### CLI 模式
 
 ```
-python -m opencode.cli
+python -m auracode.cli
 ```
 
 终端交互，用户在命令行中输入消息，AgentLoop 处理后流式输出。
@@ -245,7 +245,7 @@ python -m opencode.cli
 ### Bridge 模式
 
 ```
-python -m opencode.cli --bridge
+python -m auracode.cli --bridge
 ```
 
 启动 FastAPI 服务器，通过 REST API + WebSocket 提供远程控制能力。Web UI 可实时查看执行过程。
@@ -259,7 +259,7 @@ python -m opencode.cli --bridge
 | 新工具 | 继承 `ToolPlugin` 或直接 `register_tool()` | `tools/builtin/` 或插件 |
 | 新命令 | 继承 `Command` 基类 | `commands/builtin/` |
 | 新技能 | 创建 `SKILL.md` 元数据 | `skills/` 目录 |
-| 新钩子 | 配置文件或插件 `get_hooks()` | `.opencode/hooks.yaml` |
+| 新钩子 | 配置文件或插件 `get_hooks()` | `.auracode/hooks.yaml` |
 | 新插件 | 继承 `ToolPlugin` | `plugins/` 或 `register_builtin_plugin()` |
 | MCP 服务器 | `mcp/config/` 配置 | `config.yaml` 的 `mcp_servers` |
 
@@ -270,8 +270,8 @@ python -m opencode.cli --bridge
 配置从多个来源合并，优先级从高到低：
 
 1. CLI 参数 (`--model`, `--permission-mode`)
-2. 项目配置 (`.opencode/config.yaml`)
-3. 用户配置 (`~/.opencode/config.yaml` 或 `config.yaml`)
+2. 项目配置 (`.auracode/config.yaml`)
+3. 用户配置 (`~/.auracode/config.yaml` 或 `config.yaml`)
 4. 环境变量 (`OPENAI_API_KEY`, `OPENAI_BASE_URL`)
 5. 内置默认值
 

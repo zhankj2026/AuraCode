@@ -170,7 +170,7 @@ def web_fetch_handler(
         # 请求网页
         try:
             headers = {
-                "User-Agent": "Mozilla/5.0 (compatible; opencode-bot/1.0)",
+                "User-Agent": "Mozilla/5.0 (compatible; auracode-bot/1.0)",
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             }
             with httpx.Client(timeout=timeout, follow_redirects=True, headers=headers) as client:

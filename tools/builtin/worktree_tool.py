@@ -102,7 +102,7 @@ def _generate_random_name() -> str:
 
 def _get_worktree_dir(git_root: str) -> str:
     """获取 worktree 存储目录"""
-    wt_dir = os.path.join(git_root, ".opencode", "worktrees")
+    wt_dir = os.path.join(git_root, ".auracode", "worktrees")
     os.makedirs(wt_dir, exist_ok=True)
     return wt_dir
 

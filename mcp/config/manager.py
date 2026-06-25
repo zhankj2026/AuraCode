@@ -46,7 +46,7 @@ class MCPConfigManager:
         self.user_config_dir = (
             Path(user_config_dir)
             if user_config_dir
-            else Path.home() / ".config" / "opencode"
+            else Path.home() / ".config" / "auracode"
         )
         self._cached_configs: dict[ConfigScope, dict[str, ScopedMcpServerConfig]] = {}
 

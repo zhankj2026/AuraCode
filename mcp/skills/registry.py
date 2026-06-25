@@ -1,7 +1,7 @@
 """
 MCP skill registry.
 
-This module provides integration between MCP servers and the opencode
+This module provides integration between MCP servers and the auracode
 skill system, allowing MCP tools to be exposed as skills.
 """
 
@@ -64,7 +64,7 @@ async def create_mcp_skill_command(
     """
     Create a skill command from an MCP server.
 
-    This function creates an opencode skill command that wraps
+    This function creates an auracode skill command that wraps
     an MCP server, exposing its tools as skill commands.
 
     Args:

@@ -1,9 +1,9 @@
 """
-MCP Server - 将 OpenCode 作为 MCP Server 运行
+MCP Server - 将 AuraCode 作为 MCP Server 运行
 
 对标 Claude Code 的 src/entrypoints/mcp.ts，实现：
 1. StdioServerTransport Server
-2. 工具暴露机制（将 OpenCode 工具转为 MCP 工具）
+2. 工具暴露机制（将 AuraCode 工具转为 MCP 工具）
 3. 工具调用代理（接收外部请求并调用内置工具）
 
 用法:
@@ -26,13 +26,13 @@ class McpServer:
     """
     MCP Server 实现
     
-    将 OpenCode 的所有工具通过 MCP 协议暴露给外部客户端。
-    外部 AI 代理或其他系统可以通过 MCP 调用 OpenCode 的工具。
+    将 AuraCode 的所有工具通过 MCP 协议暴露给外部客户端。
+    外部 AI 代理或其他系统可以通过 MCP 调用 AuraCode 的工具。
     """
     
     def __init__(
         self,
-        name: str = "opencode",
+        name: str = "auracode",
         version: str = "1.0.0",
         cwd: Optional[str] = None,
         debug: bool = False,
@@ -100,7 +100,7 @@ class McpServer:
                 pass
     
     def _load_tools(self) -> None:
-        """加载 OpenCode 工具并转换为 MCP 格式"""
+        """加载 AuraCode 工具并转换为 MCP 格式"""
         try:
             # 导入工具注册表
             from tools.registry import TOOL_REGISTRY
@@ -119,7 +119,7 @@ class McpServer:
     
     def _convert_to_mcp_tool(self, name: str, tool_def: Dict) -> Dict:
         """
-        将 OpenCode 工具定义转换为 MCP 工具格式
+        将 AuraCode 工具定义转换为 MCP 工具格式
         
         MCP Tool Schema:
         {
@@ -265,7 +265,7 @@ class McpServer:
         """
         处理 tools/call 请求
         
-        调用 OpenCode 内置工具并返回结果
+        调用 AuraCode 内置工具并返回结果
         """
         tool_name = params.get("name")
         arguments = params.get("arguments", {})
@@ -332,7 +332,7 @@ class McpServer:
     
     async def _call_tool(self, tool_name: str, arguments: Dict) -> Any:
         """
-        调用 OpenCode 工具
+        调用 AuraCode 工具
         
         Args:
             tool_name: 工具名称
@@ -416,7 +416,7 @@ async def start_mcp_server(
         verbose: 详细日志
     """
     server = McpServer(
-        name="opencode",
+        name="auracode",
         version="1.0.0",
         cwd=cwd,
         debug=debug,
@@ -435,7 +435,7 @@ def main():
     """CLI 入口点"""
     import argparse
     
-    parser = argparse.ArgumentParser(description="OpenCode MCP Server")
+    parser = argparse.ArgumentParser(description="AuraCode MCP Server")
     parser.add_argument("--cwd", default=".", help="Working directory")
     parser.add_argument("--debug", action="store_true", help="Debug mode")
     parser.add_argument("--verbose", action="store_true", help="Verbose logging")

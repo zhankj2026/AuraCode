@@ -81,7 +81,7 @@ def substitute_plugin_vars(value: str, plugin: Any) -> str:
     if plugin_source:
         import os
         plugin_data = os.path.expanduser(
-            f"~/.config/opencode/plugins/{plugin_source}"
+            f"~/.config/auracode/plugins/{plugin_source}"
         )
         value = value.replace("${CLAUDE_PLUGIN_DATA}", plugin_data)
 

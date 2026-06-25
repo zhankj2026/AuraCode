@@ -1,15 +1,15 @@
 """
-Init 命令 - 初始化项目文档 OPENCODE.md
+Init 命令 - 初始化项目文档 AURACODE.md
 
 功能:
 - 分析代码库结构、语言、框架
-- 使用 AI 生成项目文档 OPENCODE.md
+- 使用 AI 生成项目文档 AURACODE.md
 - 包含构建/测试/规范等关键信息
 - 帮助 AI 快速理解项目上下文
 
 用法:
-  /init              分析并生成 OPENCODE.md
-  /init --force      强制覆盖已有的 OPENCODE.md
+  /init              分析并生成 AURACODE.md
+  /init --force      强制覆盖已有的 AURACODE.md
 """
 
 import os
@@ -33,13 +33,13 @@ KEY_FILES = [
     # README
     "README.md", "README.rst",
     # 现有 AI 配置
-    "CLAUDE.md", "OPENCODE.md", ".cursorrules",
+    "CLAUDE.md", "AURACODE.md", ".cursorrules",
     ".cursor/rules", ".github/copilot-instructions.md",
 ]
 
-INIT_SYSTEM_PROMPT = """你是一个代码库文档专家。请分析以下项目信息，创建一份精炼的 OPENCODE.md 文件。
+INIT_SYSTEM_PROMPT = """你是一个代码库文档专家。请分析以下项目信息，创建一份精炼的 AURACODE.md 文件。
 
-OPENCODE.md 是给 AI 编程助手使用的项目指南，帮助 AI 快速理解项目。
+AURACODE.md 是给 AI 编程助手使用的项目指南，帮助 AI 快速理解项目。
 
 规则:
 1. 只包含 AI 不知道就无法正确工作的信息
@@ -48,7 +48,7 @@ OPENCODE.md 是给 AI 编程助手使用的项目指南，帮助 AI 快速理解
 4. 重点包括：非标准命令、特殊约定、架构决策、测试技巧
 
 输出格式（Markdown，仅输出文件内容）:
-# OPENCODE.md
+# AURACODE.md
 
 This file provides guidance to AI coding assistants when working with code in this repository.
 
@@ -91,7 +91,7 @@ def _explore_project(cwd: str = ".") -> dict:
                     content = fp.read(2000)
                     if f in ("README.md", "README.rst"):
                         info["readme_content"] = content
-                    elif f in ("CLAUDE.md", "OPENCODE.md"):
+                    elif f in ("CLAUDE.md", "AURACODE.md"):
                         info["existing_ai_config"][f] = content
                     elif f in ("package.json", "pyproject.toml", "Cargo.toml",
                                "go.mod", "requirements.txt"):
@@ -157,7 +157,7 @@ def _explore_project(cwd: str = ".") -> dict:
 def init_handler(args: list, loop=None) -> str:
     """init 命令处理函数"""
     lines = []
-    lines.append("📝 初始化项目文档 (OPENCODE.md)")
+    lines.append("📝 初始化项目文档 (AURACODE.md)")
     lines.append("=" * 60)
 
     force = "--force" in args
@@ -165,7 +165,7 @@ def init_handler(args: list, loop=None) -> str:
 
     # 检查是否已存在
     existing_files = []
-    for f in ("OPENCODE.md", "CLAUDE.md"):
+    for f in ("AURACODE.md", "CLAUDE.md"):
         if os.path.exists(os.path.join(cwd, f)):
             existing_files.append(f)
 
@@ -209,7 +209,7 @@ def init_handler(args: list, loop=None) -> str:
                 for fname, content in info["existing_ai_config"].items():
                     user_prompt += f"现有 {fname} 内容（供参考改进）:\n{content[:1000]}\n\n"
 
-            user_prompt += "请基于以上信息，创建一份精炼的 OPENCODE.md 文件。"
+            user_prompt += "请基于以上信息，创建一份精炼的 AURACODE.md 文件。"
 
             response = loop.client.chat.completions.create(
                 model=loop.model,
@@ -227,7 +227,7 @@ def init_handler(args: list, loop=None) -> str:
             content = _generate_basic_template(info)
 
     # 写入文件
-    output_path = os.path.join(cwd, "OPENCODE.md")
+    output_path = os.path.join(cwd, "AURACODE.md")
     try:
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(content)
@@ -250,7 +250,7 @@ def init_handler(args: list, loop=None) -> str:
 def _generate_basic_template(info: dict) -> str:
     """无 AI 时生成基础模板"""
     langs = ", ".join(info["languages"]) if info["languages"] else "未检测"
-    return f"""# OPENCODE.md
+    return f"""# AURACODE.md
 
 This file provides guidance to AI coding assistants when working with code in this repository.
 
@@ -281,7 +281,7 @@ This file provides guidance to AI coding assistants when working with code in th
 
 
 register_command("init", {
-    "description": "初始化 OPENCODE.md 项目文档 - AI 分析代码库生成指南",
+    "description": "初始化 AURACODE.md 项目文档 - AI 分析代码库生成指南",
     "handler": init_handler,
     "category": "tools",
     "args_help": "[--force]"

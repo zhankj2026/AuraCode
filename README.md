@@ -1,4 +1,4 @@
-# OpenCode — AI 编程智能体
+# AuraCode — AI 编程智能体
 
 > Python 实现的全功能 AI 编程助手，支持 **56 种内置工具**、**54 条交互命令**、**7 项领域技能**，具备 MCP 协议完整实现、Bridge 远程控制与企业级安全策略。
 
@@ -37,7 +37,7 @@
 ### 安装
 
 ```bash
-cd opencode
+cd auracode
 pip install -r requirements.txt
 ```
 
@@ -158,7 +158,7 @@ python cli.py --bridge --bridge-port 9000
 | `/rewind` | 会话回退 — Checkpoint 撤销 |
 | `/export` | 对话导出为 Markdown / JSON |
 | `/plan` | 任务规划模式 — 分步计划制定与追踪 |
-| `/init` | 初始化项目文档 OPENCODE.md |
+| `/init` | 初始化项目文档 AURACODE.md |
 
 ### 代码质量
 
@@ -272,10 +272,10 @@ python cli.py --bridge --bridge-port 9000
 
 ```
 # 项目级（跟随仓库）
-.opencode/skills/my-skill/SKILL.md
+.auracode/skills/my-skill/SKILL.md
 
 # 用户级（全局）
-~/.opencode/skills/my-skill/SKILL.md
+~/.auracode/skills/my-skill/SKILL.md
 ```
 
 **SKILL.md 格式**：
@@ -325,7 +325,7 @@ mcp:
 
 ### MCP Server 模式
 
-将 OpenCode 作为 MCP Server 运行，对外暴露内置工具：
+将 AuraCode 作为 MCP Server 运行，对外暴露内置工具：
 
 ```bash
 python -m mcp.server --cwd . --debug
@@ -477,7 +477,7 @@ permissions:
 | `ContextWarning` | 上下文窗口警告 |
 
 ```yaml
-# .opencode/hooks.yaml
+# .auracode/hooks.yaml
 hooks:
   PreToolUse:
     - command: "echo 'About to use tool'"
@@ -536,7 +536,7 @@ plugins/
 ## 📁 项目结构
 
 ```
-opencode/
+auracode/
 ├── cli.py                    # CLI 入口（对话模式 + 命令模式 + Bridge 模式）
 ├── config.yaml               # 运行时配置
 ├── config.example.yaml       # 配置模板
@@ -654,7 +654,7 @@ opencode/
 
 ## 🤖 支持的 LLM
 
-OpenCode 通过 OpenAI 兼容接口对接各类 LLM：
+AuraCode 通过 OpenAI 兼容接口对接各类 LLM：
 
 | 提供商 | 模型示例 | 说明 |
 |--------|----------|------|

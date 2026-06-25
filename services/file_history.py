@@ -2,7 +2,7 @@
 文件修改历史 (file-history)
 
 在每次文件编辑前自动创建备份，支持回退到任意时间点。
-备份存储在 ~/.opencode/file-history/ 目录下。
+备份存储在 ~/.auracode/file-history/ 目录下。
 
 设计参考:
 - Claude Code: ~/.claude/file-history/ (按会话组织的文件快照)
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 def _default_history_dir() -> str:
     """获取默认文件历史目录"""
     home = os.path.expanduser("~")
-    return os.path.join(home, ".opencode", "file-history")
+    return os.path.join(home, ".auracode", "file-history")
 
 
 # ── 数据结构 ────────────────────────────────────────────────────────────────
@@ -93,7 +93,7 @@ class FileHistory:
     def __init__(self, history_dir: Optional[str] = None):
         """
         Args:
-            history_dir: 文件历史目录，默认 ~/.opencode/file-history/
+            history_dir: 文件历史目录，默认 ~/.auracode/file-history/
         """
         self.history_dir = history_dir or _default_history_dir()
         os.makedirs(self.history_dir, exist_ok=True)

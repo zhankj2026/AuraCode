@@ -112,8 +112,8 @@ def get_plan_content() -> str:
 
 
 def _generate_plan_file_path(cwd: str = ".") -> str:
-    """生成 plan 文件路径: .opencode/plans/{slug}.md"""
-    plan_dir = os.path.join(cwd, ".opencode", "plans")
+    """生成 plan 文件路径: .auracode/plans/{slug}.md"""
+    plan_dir = os.path.join(cwd, ".auracode", "plans")
     os.makedirs(plan_dir, exist_ok=True)
     slug = uuid.uuid4().hex[:12]
     return os.path.join(plan_dir, f"plan-{slug}.md")

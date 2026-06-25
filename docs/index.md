@@ -1,6 +1,6 @@
-# OpenCode — AI 编程智能体
+# AuraCode — AI 编程智能体
 
-OpenCode 是一款基于 Python 实现的全功能 AI 编程助手。它通过增强上下文工程与智能体无缝结合，全面理解你的代码库，并以系统化方式推进开发任务。OpenCode 提供**对话模式**、**命令模式**与 **Bridge 远程控制**三种工作方式，涵盖代码生成、智能搜索、多文件修改、自动测试、安全审查等完整开发场景。
+AuraCode 是一款基于 Python 实现的全功能 AI 编程助手。它通过增强上下文工程与智能体无缝结合，全面理解你的代码库，并以系统化方式推进开发任务。AuraCode 提供**对话模式**、**命令模式**与 **Bridge 远程控制**三种工作方式，涵盖代码生成、智能搜索、多文件修改、自动测试、安全审查等完整开发场景。
 
 ---
 
@@ -49,7 +49,7 @@ OpenCode 是一款基于 Python 实现的全功能 AI 编程助手。它通过�
 
 ## 支持的 LLM
 
-OpenCode 通过 OpenAI 兼容接口对接各类大语言模型：
+AuraCode 通过 OpenAI 兼容接口对接各类大语言模型：
 
 | 提供商 | 模型示例 | 说明 |
 |--------|----------|------|
@@ -69,4 +69,4 @@ OpenCode 通过 OpenAI 兼容接口对接各类大语言模型：
 
 ## 许可证
 
-[Apache License 2.0](https://github.com/opencode/opencode/blob/main/LICENSE)
+[Apache License 2.0](https://github.com/auracode/auracode/blob/main/LICENSE)

@@ -8,7 +8,7 @@ argument_hint: "[error description or log content]"
 
 # Debug: 会话问题诊断
 
-帮助诊断当前 opencode 会话中遇到的问题。系统性分析错误、异常行为和配置问题。
+帮助诊断当前 auracode 会话中遇到的问题。系统性分析错误、异常行为和配置问题。
 
 ## 诊断流程
 
@@ -27,8 +27,8 @@ python --version
 # 已安装的包
 pip list 2>/dev/null || pip3 list
 
-# 检查 opencode 配置
-cat opencode/config.yaml 2>/dev/null || echo "No config.yaml found"
+# 检查 auracode 配置
+cat auracode/config.yaml 2>/dev/null || echo "No config.yaml found"
 ```
 
 **1.3 检查 Git 状态**
@@ -93,7 +93,7 @@ git log --oneline -5
 # ERROR - 明确的错误（API 调用失败、文件不存在）
 ```
 
-## 常见 opencode 问题速查
+## 常见 auracode 问题速查
 
 | 问题 | 可能原因 | 快速修复 |
 |------|---------|---------|

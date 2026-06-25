@@ -5,7 +5,7 @@ JSONL 增量会话转录 (Session Transcript)
 每条消息以 JSONL 格式增量写入，一行一条，支持崩溃恢复和高效读取。
 
 存储结构:
-~/.opencode/projects/{sanitized-cwd}/{session_id}.jsonl
+~/.auracode/projects/{sanitized-cwd}/{session_id}.jsonl
 
 作用:
 1. 增量持久化 — 每条消息产生后立即写入，崩溃不丢失
@@ -28,9 +28,9 @@ logger = logging.getLogger(__name__)
 
 # ── 路径工具 ──
 
-def _opencode_home() -> str:
-    """获取 ~/.opencode 目录"""
-    return os.path.join(os.path.expanduser("~"), ".opencode")
+def _auracode_home() -> str:
+    """获取 ~/.auracode 目录"""
+    return os.path.join(os.path.expanduser("~"), ".auracode")
 
 
 def _sanitize_path(path: str) -> str:
@@ -55,17 +55,17 @@ def _sanitize_path(path: str) -> str:
 
 
 def get_projects_dir() -> str:
-    """获取项目目录根: ~/.opencode/projects/"""
-    return os.path.join(_opencode_home(), "projects")
+    """获取项目目录根: ~/.auracode/projects/"""
+    return os.path.join(_auracode_home(), "projects")
 
 
 def get_project_dir(cwd: str) -> str:
-    """获取指定项目的目录: ~/.opencode/projects/{sanitized-cwd}/"""
+    """获取指定项目的目录: ~/.auracode/projects/{sanitized-cwd}/"""
     return os.path.join(get_projects_dir(), _sanitize_path(cwd))
 
 
 def get_transcript_path(session_id: str, cwd: str) -> str:
-    """获取会话转录文件路径: ~/.opencode/projects/{cwd}/{sessionId}.jsonl"""
+    """获取会话转录文件路径: ~/.auracode/projects/{cwd}/{sessionId}.jsonl"""
     return os.path.join(get_project_dir(cwd), f"{session_id}.jsonl")
 
 

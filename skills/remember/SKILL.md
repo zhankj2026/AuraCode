@@ -12,15 +12,15 @@ argument_hint: "[specific topic to review]"
 
 ## 目标
 
-跨所有记忆层（auto-memory、OPENCODE.md、会话记忆）审查条目，发现提升、清理和冲突机会。
+跨所有记忆层（auto-memory、AURACODE.md、会话记忆）审查条目，发现提升、清理和冲突机会。
 
 ## 记忆层结构
 
 | 层级 | 位置 | 内容类型 |
 |------|------|---------|
-| **OPENCODE.md** | 项目根目录 | 项目规范、构建命令、代码约定（所有贡献者共享） |
-| **auto-memory** | `~/.opencode/memory/` | 自动提取的工作笔记（个人、跨项目） |
-| **会话记忆** | `.opencode/sessions/` | 会话摘要和上下文 |
+| **AURACODE.md** | 项目根目录 | 项目规范、构建命令、代码约定（所有贡献者共享） |
+| **auto-memory** | `~/.auracode/memory/` | 自动提取的工作笔记（个人、跨项目） |
+| **会话记忆** | `.auracode/sessions/` | 会话摘要和上下文 |
 
 ## 执行流程
 
@@ -30,8 +30,8 @@ argument_hint: "[specific topic to review]"
 
 ```bash
 # 项目级记忆
-cat OPENCODE.md 2>/dev/null || echo "OPENCODE.md 不存在"
-cat .opencode/OPENCODE.md 2>/dev/null || echo ".opencode/OPENCODE.md 不存在"
+cat AURACODE.md 2>/dev/null || echo "AURACODE.md 不存在"
+cat .auracode/AURACODE.md 2>/dev/null || echo ".auracode/AURACODE.md 不存在"
 ```
 
 使用 `get_relevant_memories` 工具获取 auto-memory 内容。
@@ -45,12 +45,12 @@ cat .opencode/OPENCODE.md 2>/dev/null || echo ".opencode/OPENCODE.md 不存在"
 
 | 目标位置 | 适合放什么 | 示例 |
 |---------|-----------|------|
-| **OPENCODE.md** | 项目约定和规范（所有贡献者遵循） | "测试命令是 pytest -v"、"API 路由使用 kebab-case"、"优先函数式风格" |
+| **AURACODE.md** | 项目约定和规范（所有贡献者遵循） | "测试命令是 pytest -v"、"API 路由使用 kebab-case"、"优先函数式风格" |
 | **保留在 auto-memory** | 个人偏好、工作笔记、临时上下文 | "我喜欢简洁回复"、"先运行测试再提交" |
-| **删除** | 已过时、重复或无用的条目 | 已被 OPENCODE.md 覆盖的内容、一次性会话上下文 |
+| **删除** | 已过时、重复或无用的条目 | 已被 AURACODE.md 覆盖的内容、一次性会话上下文 |
 
 **重要区分**:
-- OPENCODE.md 包含对 AI 的指令，不是用户对外部工具的偏好
+- AURACODE.md 包含对 AI 的指令，不是用户对外部工具的偏好
 - 工作流实践（PR 规范、合并策略）需问用户是个人还是团队级
 - 不确定时，问而非猜
 
@@ -60,8 +60,8 @@ cat .opencode/OPENCODE.md 2>/dev/null || echo ".opencode/OPENCODE.md 不存在"
 
 跨所有层扫描：
 
-- **重复**: auto-memory 中已在 OPENCODE.md 存在的条目 → 建议从 auto-memory 删除
-- **过时**: OPENCODE.md 中与新 auto-memory 矛盾的条目 → 建议更新较旧的层
+- **重复**: auto-memory 中已在 AURACODE.md 存在的条目 → 建议从 auto-memory 删除
+- **过时**: AURACODE.md 中与新 auto-memory 矛盾的条目 → 建议更新较旧的层
 - **冲突**: 任意两层之间的矛盾 → 建议解决方案，标注哪个更新
 
 **成功标准**: 所有跨层问题已识别。
@@ -73,8 +73,8 @@ cat .opencode/OPENCODE.md 2>/dev/null || echo ".opencode/OPENCODE.md 不存在"
 ```
 ## 记忆审查报告
 
-### 1. 提升建议（条目从 auto-memory → OPENCODE.md）
-- [条目内容] → 理由: [为什么适合放 OPENCODE.md]
+### 1. 提升建议（条目从 auto-memory → AURACODE.md）
+- [条目内容] → 理由: [为什么适合放 AURACODE.md]
 
 ### 2. 清理建议（可删除的条目）
 - [条目内容] → 理由: [与 XX 重复 / 已过时]
@@ -89,7 +89,7 @@ cat .opencode/OPENCODE.md 2>/dev/null || echo ".opencode/OPENCODE.md 不存在"
 - [简要说明哪些条目保持不变]
 ```
 
-如果 auto-memory 为空，说明情况并建议审查 OPENCODE.md 是否有需要清理的内容。
+如果 auto-memory 为空，说明情况并建议审查 AURACODE.md 是否有需要清理的内容。
 
 **成功标准**: 用户可以逐条审查和批准/拒绝每个建议。
 

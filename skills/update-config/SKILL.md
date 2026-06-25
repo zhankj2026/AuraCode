@@ -1,14 +1,14 @@
 ---
 name: update-config
-description: 管理 opencode 配置，包括 LLM 设置、权限规则、钩子、日志等
+description: 管理 auracode 配置，包括 LLM 设置、权限规则、钩子、日志等
 trigger: 当用户需要修改项目配置、添加权限规则、配置钩子时激活，或用户主动调用 /update-config
 when_to_use: 当需要修改 config.yaml、权限规则、钩子配置或 LLM 设置时主动激活
 argument_hint: "<what to configure>"
 ---
 
-# Update Config: opencode 配置管理
+# Update Config: auracode 配置管理
 
-修改 opencode 的 `config.yaml` 配置文件，管理 LLM 设置、权限规则、钩子系统等。
+修改 auracode 的 `config.yaml` 配置文件，管理 LLM 设置、权限规则、钩子系统等。
 
 ## CRITICAL: 先读后写
 
@@ -18,8 +18,8 @@ argument_hint: "<what to configure>"
 
 | 文件 | 用途 |
 |------|------|
-| `opencode/config.yaml` | 主配置文件 |
-| `opencode/config.example.yaml` | 配置模板参考 |
+| `auracode/config.yaml` | 主配置文件 |
+| `auracode/config.example.yaml` | 配置模板参考 |
 
 ## 配置结构详解
 
@@ -115,7 +115,7 @@ logging:
 
 ## 钩子系统 (Hooks)
 
-opencode 支持 4 种钩子事件，通过 `hooks/manager.py` 管理：
+auracode 支持 4 种钩子事件，通过 `hooks/manager.py` 管理：
 
 | 事件 | 触发时机 | 用途 |
 |------|---------|------|
@@ -166,7 +166,7 @@ def format_python(result, tool_name, **kwargs):
 def log_commands(result, tool_name, **kwargs):
     if tool_name == 'run_command':
         command = kwargs.get('command', '')
-        with open('.opencode_command_log.txt', 'a') as f:
+        with open('.auracode_command_log.txt', 'a') as f:
             f.write(f"{datetime.now()}: {command}\n")
     return HookResult(allow=True)
 ```
@@ -183,7 +183,7 @@ def block_dangerous(result, tool_name, **kwargs):
 
 ## 配置修改工作流
 
-1. **读取现有配置** — `cat opencode/config.yaml`
+1. **读取现有配置** — `cat auracode/config.yaml`
 2. **理解用户意图** — 需要修改什么？
 3. **合并变更** — 保留现有配置，只修改目标部分
 4. **验证 YAML 语法** — 确保格式正确

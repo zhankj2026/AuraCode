@@ -129,7 +129,7 @@ class MemoryManager:
             project_root: 项目根目录
         """
         self.project_root = Path(project_root).resolve()
-        self.memory_dir = self.project_root / ".opencode" / "memory"
+        self.memory_dir = self.project_root / ".auracode" / "memory"
 
         # 确保记忆目录存在
         self.memory_dir.mkdir(parents=True, exist_ok=True)
@@ -854,7 +854,7 @@ def build_memory_prompt_section(memory_dir: Path) -> str:
     构建记忆系统行为指导提示词。
     包含: 类型定义、保存时机、不应保存的内容、MEMORY.md 索引。
     用于注入系统提示词，让模型主动管理记忆。
-    迁移自 OpenCode memdir.ts 的 buildMemoryLines()。
+    迁移自 AuraCode memdir.ts 的 buildMemoryLines()。
     """
     mem_dir_str = str(memory_dir)
     lines = [

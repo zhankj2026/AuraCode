@@ -1,8 +1,8 @@
 """
 全局用户设置 (settings.json)
 
-管理 ~/.opencode/settings.json，存储用户级偏好和全局配置。
-支持项目级覆盖 (.opencode/settings.json)。
+管理 ~/.auracode/settings.json，存储用户级偏好和全局配置。
+支持项目级覆盖 (.auracode/settings.json)。
 
 设计参考:
 - Claude Code: ~/.claude/settings.json (全局) + .claude/settings.json (项目级)
@@ -73,18 +73,18 @@ _DEFAULT_SETTINGS = {
 def _global_settings_path() -> str:
     """全局设置文件路径"""
     home = os.path.expanduser("~")
-    return os.path.join(home, ".opencode", "settings.json")
+    return os.path.join(home, ".auracode", "settings.json")
 
 
 def _project_settings_path(project_root: str) -> str:
     """项目级设置文件路径"""
-    return os.path.join(project_root, ".opencode", "settings.json")
+    return os.path.join(project_root, ".auracode", "settings.json")
 
 
 def _backups_dir() -> str:
     """设置备份目录"""
     home = os.path.expanduser("~")
-    return os.path.join(home, ".opencode", "backups")
+    return os.path.join(home, ".auracode", "backups")
 
 
 # ── SettingsStore ────────────────────────────────────────────────────────────
@@ -94,8 +94,8 @@ class SettingsStore:
     全局用户设置管理器
 
     层级优先级（高到低）:
-    1. 项目级 .opencode/settings.json
-    2. 全局级 ~/.opencode/settings.json
+    1. 项目级 .auracode/settings.json
+    2. 全局级 ~/.auracode/settings.json
     3. 内置默认值 _DEFAULT_SETTINGS
 
     功能:
@@ -260,7 +260,7 @@ class SettingsStore:
         """
         创建设置文件的时间戳备份
 
-        备份存储在 ~/.opencode/backups/ 目录下。
+        备份存储在 ~/.auracode/backups/ 目录下。
 
         Args:
             scope: "global" 或 "project"

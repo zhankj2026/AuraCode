@@ -73,7 +73,7 @@ class SkillManager:
     
     增强功能:
     - 用户自定义 Skill 创建/删除
-    - 多源自动发现 (builtin + 项目级 .opencode/skills/ + 用户级 ~/.opencode/skills/)
+    - 多源自动发现 (builtin + 项目级 .auracode/skills/ + 用户级 ~/.auracode/skills/)
     - 元数据索引与搜索
     """
     
@@ -86,15 +86,15 @@ class SkillManager:
             project_root: 项目根目录（用于查找项目级自定义 Skill）
         """
         if skills_dir is None:
-            # 默认为 opencode/skills/
+            # 默认为 auracode/skills/
             skills_dir = os.path.join(os.path.dirname(__file__), '..', 'skills')
         
         self.builtin_skills_dir = os.path.abspath(skills_dir)
         self.project_root = os.path.abspath(project_root)
         
         # 用户自定义 Skill 目录
-        self.project_skills_dir = os.path.join(self.project_root, '.opencode', 'skills')
-        self.user_skills_dir = os.path.join(os.path.expanduser('~'), '.opencode', 'skills')
+        self.project_skills_dir = os.path.join(self.project_root, '.auracode', 'skills')
+        self.user_skills_dir = os.path.join(os.path.expanduser('~'), '.auracode', 'skills')
         
         self.skills: Dict[str, Skill] = {}
         self.active_skills: List[str] = []

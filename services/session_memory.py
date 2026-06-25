@@ -9,7 +9,7 @@
 3. 跨轮次连续性 — 记住当前任务进度
 
 存储结构:
-~/.opencode/projects/{sanitized-cwd}/{session_id}/session-memory/summary.md
+~/.auracode/projects/{sanitized-cwd}/{session_id}/session-memory/summary.md
 
 何时保存:
 - 每次 LLM 响应完成后（token 超过阈值时触发提取）
@@ -29,8 +29,8 @@ logger = logging.getLogger(__name__)
 
 # ── 路径工具 ──
 
-def _opencode_home() -> str:
-    return os.path.join(os.path.expanduser("~"), ".opencode")
+def _auracode_home() -> str:
+    return os.path.join(os.path.expanduser("~"), ".auracode")
 
 
 def _sanitize_path(path: str) -> str:
@@ -47,7 +47,7 @@ def _sanitize_path(path: str) -> str:
 
 def get_session_memory_dir(session_id: str, cwd: str) -> str:
     """获取会话记忆目录"""
-    proj_dir = os.path.join(_opencode_home(), "projects", _sanitize_path(cwd))
+    proj_dir = os.path.join(_auracode_home(), "projects", _sanitize_path(cwd))
     return os.path.join(proj_dir, session_id, "session-memory")
 
 

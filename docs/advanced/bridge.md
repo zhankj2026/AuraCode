@@ -1,6 +1,6 @@
 # Bridge 远程控制
 
-Bridge 是基于 FastAPI 的 REST + WebSocket 远程控制服务，支持从浏览器或其他客户端实时操控 OpenCode。
+Bridge 是基于 FastAPI 的 REST + WebSocket 远程控制服务，支持从浏览器或其他客户端实时操控 AuraCode。
 
 ---
 
