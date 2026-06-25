@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenCode - AI 编程助手</title>
+    <title>AuraCode - AI 编程助手</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -13,7 +13,7 @@
         <div class="container">
             <div class="nav-brand">
                 <i class="fas fa-code"></i>
-                <span>OpenCode</span>
+                <span>AuraCode</span>
             </div>
             <ul class="nav-menu">
                 <li><a href="#home">首页</a></li>
@@ -37,12 +37,12 @@
         <div class="container">
             <div class="hero-content">
                 <h1 class="hero-title">
-                    <span class="gradient-text">OpenCode</span>
+                    <span class="gradient-text">AuraCode</span>
                     <br>AI 编程助手
                 </h1>
                 <p class="hero-subtitle">
-                    生产级 AI 编程助手
-                    <br>支持多轮对话、命令执行、远程控制、多智能体协作
+                    Python 实现的全功能 AI 编程助手
+                    <br>56 种工具 · 54 条命令 · 7 项技能 · MCP 完整实现
                 </p>
                 <div class="hero-buttons">
                     <a href="#quickstart" class="btn btn-primary">
@@ -54,12 +54,12 @@
                 </div>
                 <div class="hero-stats">
                     <div class="stat-item">
-                        <div class="stat-number">22+</div>
+                        <div class="stat-number">56</div>
                         <div class="stat-label">内置工具</div>
                     </div>
                     <div class="stat-item">
-                        <div class="stat-number">18+</div>
-                        <div class="stat-label">命令</div>
+                        <div class="stat-number">54</div>
+                        <div class="stat-label">交互命令</div>
                     </div>
                     <div class="stat-item">
                         <div class="stat-number">7</div>
@@ -79,7 +79,7 @@
                             <span></span>
                             <span></span>
                         </div>
-                        <div class="terminal-title">OpenCode CLI</div>
+                        <div class="terminal-title">AuraCode CLI</div>
                     </div>
                     <div class="terminal-body">
                         <div class="terminal-line">
@@ -97,13 +97,17 @@
                         </div>
                         <div class="terminal-line">
                             <span class="prompt">$</span>
-                            <span class="command">/commit</span>
+                            <span class="command">/exec ls -la</span>
                         </div>
                         <div class="terminal-line output">
-                            <span class="success">✓</span> 已生成提交信息
+                            <span class="success">✓</span> 执行成功 (0.2s)
+                        </div>
+                        <div class="terminal-line">
+                            <span class="prompt">$</span>
+                            <span class="command">/cd src</span>
                         </div>
                         <div class="terminal-line output">
-                            <span class="info">feat: 添加用户认证模块</span>
+                            <span class="success">✓</span> 工作目录已切换
                         </div>
                     </div>
                 </div>
@@ -130,15 +134,15 @@
                     <div class="feature-icon">
                         <i class="fas fa-tools"></i>
                     </div>
-                    <h3>22+ 内置工具</h3>
-                    <p>文件操作、代码搜索、智能分析、命令执行等全方位工具支持</p>
+                    <h3>56 内置工具</h3>
+                    <p>文件操作、代码搜索、LSP 智能、Shell 执行、Web 搜索、子代理协同等</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">
                         <i class="fas fa-terminal"></i>
                     </div>
-                    <h3>18+ 命令</h3>
-                    <p>Git 提交、代码审查、任务规划、调试诊断等便捷命令</p>
+                    <h3>54 交互命令</h3>
+                    <p>Git 工作流、会话管理、调试诊断、安全审查、目录切换、命令执行等</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">
@@ -158,8 +162,8 @@
                     <div class="feature-icon">
                         <i class="fas fa-plug"></i>
                     </div>
-                    <h3>MCP 协议集成</h3>
-                    <p>Model Context Protocol 集成，支持外部工具服务扩展</p>
+                    <h3>MCP 完整实现</h3>
+                    <p>Client + Server 模式 + MCPB 格式 + 企业安全策略 + 健康检查</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">
@@ -179,8 +183,8 @@
                     <div class="feature-icon">
                         <i class="fas fa-users"></i>
                     </div>
-                    <h3>Subagent 并行</h3>
-                    <p>多智能体并行执行任务，大幅提升效率</p>
+                    <h3>6 层错误恢复</h3>
+                    <p>Fallback 模型 → Prompt 压缩 → 截断恢复 → Hook 兜底 → 预算控制 → 图片剥离</p>
                 </div>
             </div>
         </div>
@@ -199,7 +203,7 @@
                         <i class="fas fa-book"></i>
                     </div>
                     <h3>快速开始</h3>
-                    <p>5 分钟快速安装和配置 OpenCode</p>
+                    <p>5 分钟快速安装和配置 AuraCode</p>
                     <a href="docs/quickstart.html" class="doc-link">查看文档 →</a>
                 </div>
                 <div class="doc-card">
@@ -251,7 +255,7 @@
         <div class="container">
             <div class="section-header">
                 <h2 class="section-title">快速开始</h2>
-                <p class="section-subtitle">三步即可开始使用 OpenCode</p>
+                <p class="section-subtitle">三步即可开始使用 AuraCode</p>
             </div>
             <div class="steps">
                 <div class="step">
@@ -276,7 +280,7 @@ export OPENAI_BASE_URL="https://open.bigmodel.cn/api/paas/v4"</code></pre>
                 <div class="step">
                     <div class="step-number">3</div>
                     <div class="step-content">
-                        <h3>启动 OpenCode</h3>
+                        <h3>启动 AuraCode</h3>
                         <div class="code-block">
                             <pre><code>python cli.py</code></pre>
                         </div>
@@ -332,7 +336,7 @@ export OPENAI_BASE_URL="https://open.bigmodel.cn/api/paas/v4"</code></pre>
                 <div class="footer-brand">
                     <div class="nav-brand">
                         <i class="fas fa-code"></i>
-                        <span>OpenCode</span>
+                        <span>AuraCode</span>
                     </div>
                     <p>生产级 AI 编程助手，赋能开发者高效编程</p>
                 </div>
@@ -364,7 +368,7 @@ export OPENAI_BASE_URL="https://open.bigmodel.cn/api/paas/v4"</code></pre>
                 </div>
             </div>
             <div class="footer-bottom">
-                <p>&copy; 2024 OpenCode. MIT License.</p>
+                <p>&copy; 2026 AuraCode. MIT License.</p>
             </div>
         </div>
     </footer>

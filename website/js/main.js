@@ -235,4 +235,4 @@ document.querySelectorAll('.btn').forEach(btn => {
     });
 });
 
-console.log('OpenCode Website Loaded Successfully! 🚀');
+console.log('AuraCode Website Loaded Successfully! 🚀');
