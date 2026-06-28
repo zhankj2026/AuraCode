@@ -93,6 +93,68 @@ def generate_html_page(title, content, doc_path=""):
         parts = doc_path.split('/')
         breadcrumb += ''.join([f'<span class="breadcrumb-sep">/</span><span class="breadcrumb-item">{p.replace(".html", "")}</span>' for p in parts])
     
+    # 根据文档所在目录生成正确的侧边栏相对路径
+    if doc_path:
+        # 统一路径分隔符（Windows 使用 \，Linux/Mac 使用 /）
+        normalized_path = doc_path.replace('\\', '/')
+        parts = normalized_path.split('/')
+        current_dir = parts[0] if len(parts) > 1 else ""  # 当前文档所在目录
+        depth = len(parts) - 1  # 目录深度
+    else:
+        current_dir = ""
+        depth = 0
+    
+    # 生成侧边栏链接（根据当前目录动态调整）
+    def make_link(category, filename):
+        """生成正确的相对路径"""
+        if current_dir == "":
+            # 根目录文档
+            return f"{category}/{filename}" if category else filename
+        elif current_dir == category:
+            # 同目录文档
+            return filename
+        else:
+            # 不同目录
+            return f"../{category}/{filename}" if category else f"../{filename}"
+    
+    sidebar_html = f"""
+        <aside class="docs-sidebar">
+            <div class="sidebar-section">
+                <h3>入门指南</h3>
+                <ul>
+                    <li><a href="{make_link('', 'quick-start.html')}">快速开始</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>用户指南</h3>
+                <ul>
+                    <li><a href="{make_link('user-guide', 'chat.html')}">对话交互</a></li>
+                    <li><a href="{make_link('user-guide', 'commands.html')}">命令参考</a></li>
+                    <li><a href="{make_link('user-guide', 'tools.html')}">工具系统</a></li>
+                    <li><a href="{make_link('user-guide', 'skills.html')}">技能系统</a></li>
+                    <li><a href="{make_link('user-guide', 'memory.html')}">记忆系统</a></li>
+                    <li><a href="{make_link('user-guide', 'permissions.html')}">权限管理</a></li>
+                    <li><a href="{make_link('user-guide', 'mcp.html')}">MCP 协议</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>高级功能</h3>
+                <ul>
+                    <li><a href="{make_link('advanced', 'bridge.html')}">Bridge 远程控制</a></li>
+                    <li><a href="{make_link('advanced', 'hooks.html')}">钩子系统</a></li>
+                    <li><a href="{make_link('advanced', 'plugins.html')}">插件系统</a></li>
+                    <li><a href="{make_link('advanced', 'error-recovery.html')}">错误恢复</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>开发</h3>
+                <ul>
+                    <li><a href="{make_link('development', 'architecture.html')}">架构总览</a></li>
+                </ul>
+            </div>
+        </aside>
+    """
+    
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -299,41 +361,7 @@ def generate_html_page(title, content, doc_path=""):
 
     <!-- 文档内容 -->
     <div class="docs-container">
-        <aside class="docs-sidebar">
-            <div class="sidebar-section">
-                <h3>入门指南</h3>
-                <ul>
-                    <li><a href="quickstart.html">快速开始</a></li>
-                </ul>
-            </div>
-            <div class="sidebar-section">
-                <h3>用户指南</h3>
-                <ul>
-                    <li><a href="user-guide/chat.html">对话交互</a></li>
-                    <li><a href="user-guide/commands.html">命令参考</a></li>
-                    <li><a href="user-guide/tools.html">工具系统</a></li>
-                    <li><a href="user-guide/skills.html">技能系统</a></li>
-                    <li><a href="user-guide/memory.html">记忆系统</a></li>
-                    <li><a href="user-guide/permissions.html">权限管理</a></li>
-                    <li><a href="user-guide/mcp.html">MCP 协议</a></li>
-                </ul>
-            </div>
-            <div class="sidebar-section">
-                <h3>高级功能</h3>
-                <ul>
-                    <li><a href="advanced/bridge.html">Bridge 远程控制</a></li>
-                    <li><a href="advanced/hooks.html">钩子系统</a></li>
-                    <li><a href="advanced/plugins.html">插件系统</a></li>
-                    <li><a href="advanced/error-recovery.html">错误恢复</a></li>
-                </ul>
-            </div>
-            <div class="sidebar-section">
-                <h3>开发</h3>
-                <ul>
-                    <li><a href="development/architecture.html">架构总览</a></li>
-                </ul>
-            </div>
-        </aside>
+        {sidebar_html}
 
         <main class="docs-content">
             <div class="docs-header">
