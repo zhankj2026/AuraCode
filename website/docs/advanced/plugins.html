@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>插件系统 - AuraCode</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/docs.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .md-content { line-height: 1.8; }
+        .md-content h1 { font-size: 2rem; margin-bottom: 1rem; }
+        .md-content h2 { font-size: 1.5rem; margin: 2rem 0 1rem; }
+        .md-content h3 { font-size: 1.25rem; margin: 1.5rem 0 0.75rem; }
+        .md-content p { margin: 1rem 0; }
+        .md-content pre { background: var(--bg); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 1rem 0; }
+        .md-content code { background: var(--bg); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; }
+        .md-content pre code { background: none; padding: 0; }
+        .md-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        .md-content th, .md-content td { padding: 0.75rem; border: 1px solid var(--border-color); text-align: left; }
+        .md-content th { background: var(--s1); }
+        .md-content ul, .md-content ol { margin: 1rem 0; padding-left: 2rem; }
+        .md-content li { margin: 0.5rem 0; }
+        .md-content a { color: var(--acc); text-decoration: none; }
+        .md-content a:hover { text-decoration: underline; }
+        .md-content strong { font-weight: 600; }
+        .md-content hr { border: none; border-top: 1px solid var(--border-color); margin: 2rem 0; }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-code"></i>
+                <span>AuraCode</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="../index.html">首页</a></li>
+                <li><a href="../index.html#features">功能</a></li>
+                <li><a href="../index.html#docs">文档</a></li>
+                <li><a href="../index.html#quickstart">快速开始</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 文档内容 -->
+    <div class="docs-container">
+        <aside class="docs-sidebar">
+            <div class="sidebar-section">
+                <h3>入门指南</h3>
+                <ul>
+                    <li><a href="quickstart.html">快速开始</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>用户指南</h3>
+                <ul>
+                    <li><a href="user-guide/chat.html">对话交互</a></li>
+                    <li><a href="user-guide/commands.html">命令参考</a></li>
+                    <li><a href="user-guide/tools.html">工具系统</a></li>
+                    <li><a href="user-guide/skills.html">技能系统</a></li>
+                    <li><a href="user-guide/memory.html">记忆系统</a></li>
+                    <li><a href="user-guide/permissions.html">权限管理</a></li>
+                    <li><a href="user-guide/mcp.html">MCP 协议</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>高级功能</h3>
+                <ul>
+                    <li><a href="advanced/bridge.html">Bridge 远程控制</a></li>
+                    <li><a href="advanced/hooks.html">钩子系统</a></li>
+                    <li><a href="advanced/plugins.html">插件系统</a></li>
+                    <li><a href="advanced/error-recovery.html">错误恢复</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>开发</h3>
+                <ul>
+                    <li><a href="development/architecture.html">架构总览</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <main class="docs-content">
+            <div class="docs-header">
+                <h1>插件系统</h1>
+            </div>
+            <div class="md-content">
+                <h1>插件系统</h1>
+
+<p>auracode 的插件系统允许通过插件扩展工具、钩子和行为。插件可以从四个来源加载，并通过统一的 <code>plugin_id</code> 进行管理。</p>
+
+<p>---</p>
+
+<h2>架构概览</h2>
+
+<pre><code class="language-">plugins/
+├── base.py         # ToolPlugin 抽象基类（接口定义）
+├── builtin.py      # 内置插件注册表（程序化注册）
+├── loader.py       # 插件加载器（四源扫描 + 统一加载）
+└── registry.py     # 插件注册中心（清单 + 查询）
+</code></pre>
+
+<p>三层架构：
+- <strong>定义层</strong> — <code>base.py</code> 定义插件接口（<code>ToolPlugin</code>）
+- <strong>注册层</strong> — <code>builtin.py</code> 管理内置插件的程序化注册
+- <strong>加载层</strong> — <code>loader.py</code> + <code>registry.py</code> 负责扫描、加载、清单管理</p>
+
+<p>---</p>
+
+<h2>插件来源</h2>
+
+<div class="md-table-row">| 来源 | 路径 / 方式 | plugin_id 后缀 | 说明 |</div>
+<div class="md-table-row">|------|------------|----------------|------|</div>
+<div class="md-table-row">| <strong>builtin</strong> | <code>register_builtin_plugin()</code> 代码注册 | <code>@builtin</code> | 随 auracode 发布，不可删除 |</div>
+<div class="md-table-row">| <strong>目录</strong> | <code>auracode/plugins/*.py</code> 文件扫描 | <code>@user</code> | 项目自带插件 |</div>
+<div class="md-table-row">| <strong>项目级</strong> | <code>.auracode/plugins/</code> 目录 | <code>@project</code> | 跟随项目仓库 |</div>
+<div class="md-table-row">| <strong>用户级</strong> | <code>~/.auracode/plugins/</code> 目录 | <code>@user</code> | 全局个人插件 |</div>
+
+<p>加载顺序：builtin → 目录 → 项目级 → 用户级。同名插件后加载的覆盖先加载的。</p>
+
+<p>---</p>
+
+<h2>Plugin ID 规范</h2>
+
+<p>每个插件都有唯一标识，格式为 <code>{name}@{source}</code>：</p>
+
+<pre><code class="language-">auto-format@builtin       # 内置自动格式化插件
+my-tool@project           # 项目级自定义插件
+web-search@user           # 用户级插件
+</code></pre>
+
+<p>Plugin ID 用于：
+- 启用/禁用操作的唯一键
+- 用户设置持久化的索引
+- 日志和调试输出</p>
+
+<p>---</p>
+
+<h2>编写插件</h2>
+
+<h3>基类接口</h3>
+
+<p>所有插件必须继承 <code>ToolPlugin</code> 并实现抽象方法：</p>
+
+<pre><code class="language-python">from plugins.base import ToolPlugin
+
+<p>class MyPlugin(ToolPlugin):</p>
+
+<p>    @property
+    def name(self) -> str:
+        return "my-plugin"</p>
+
+<p>    @property
+    def version(self) -> str:
+        return "1.0.0"</p>
+
+<p>    @property
+    def description(self) -> str:
+        return "我的自定义插件"</p>
+
+<p>    def get_tools(self):
+        """返回工具定义列表"""
+        return [{
+            "name": "my_tool",
+            "description": "自定义工具",
+            "parameters": { ... },
+            "handler": self._handle_my_tool,
+            "permission_level": "read",
+        }]</p>
+
+<p>    def get_hooks(self):
+        """返回钩子定义列表"""
+        return [{
+            "event": "PreToolUse",
+            "handler": self._pre_tool_check,
+            "matcher": "run_command",  # 可选，匹配特定工具
+        }]</p>
+
+<p>    def is_available(self) -> bool:
+        """检查插件依赖是否满足"""
+        return True
+</code></pre></p>
+
+<h3>可选属性</h3>
+
+<div class="md-table-row">| 属性 | 默认值 | 说明 |</div>
+<div class="md-table-row">|------|--------|------|</div>
+<div class="md-table-row">| <code>default_enabled</code> | <code>True</code> | 默认启用状态（三级回退链第二级） |</div>
+<div class="md-table-row">| <code>source</code> | <code>"user"</code> | 插件来源标识 |</div>
+<div class="md-table-row">| <code>mcp_servers</code> | <code>[]</code> | 携带的 MCP Server 配置列表 |</div>
+<div class="md-table-row">| <code>plugin_id</code> | <code>{name}@{source}</code> | 自动计算，通常无需覆盖 |</div>
+
+<p>---</p>
+
+<h2>内置插件注册</h2>
+
+<p>内置插件通过代码硬编码注册（而非目录扫描），适用于随 auracode 发布的核心扩展：</p>
+
+<pre><code class="language-python">from plugins.builtin import register_builtin_plugin, BuiltinPluginDefinition
+
+<p>register_builtin_plugin(BuiltinPluginDefinition(
+    name="auto-format",
+    description="自动格式化代码",
+    version="1.0.0",
+    plugin_class=AutoFormatPlugin,
+    default_enabled=True,
+    is_available_fn=lambda: shutil.which("black") is not None,
+))
+</code></pre></p>
+
+<h3>启用状态三级回退</h3>
+
+<pre><code class="language-">用户设置 (plugins_settings.json) > default_enabled 属性 > True
+</code></pre>
+
+<div class="md-table-row">| 场景 | 用户设置 | default_enabled | 最终状态 |</div>
+<div class="md-table-row">|------|----------|-----------------|----------|</div>
+<div class="md-table-row">| 全新安装 | 无 | <code>True</code> | 启用 |</div>
+<div class="md-table-row">| 全新安装 | 无 | <code>False</code> | 禁用 |</div>
+<div class="md-table-row">| 用户禁用 | <code>false</code> | <code>True</code> | 禁用 |</div>
+<div class="md-table-row">| 用户启用 | <code>true</code> | <code>False</code> | 启用 |</div>
+
+<h3>is_available 隐藏</h3>
+
+<p>当 <code>is_available_fn</code> 返回 <code>False</code> 时，插件完全隐藏：
+- 不出现在启用列表
+- 不出现在禁用列表
+- 不占用用户设置空间</p>
+
+<p>典型场景：依赖外部工具（如 <code>black</code>、<code>prettier</code>）的插件，未安装时自动隐藏。</p>
+
+<p>---</p>
+
+<h2>用户设置持久化</h2>
+
+<p>用户启用/禁用操作持久化到 <code>~/.auracode/plugins_settings.json</code>：</p>
+
+<pre><code class="language-json">{
+  "auto-format@builtin": true,
+  "lint-check@builtin": false,
+  "my-tool@project": true
+}
+</code></pre>
+
+<p>管理命令：</p>
+
+<pre><code class="language-python">from plugins.builtin import enable_plugin, disable_plugin
+
+<p>enable_plugin("auto-format@builtin")   # 启用
+disable_plugin("lint-check@builtin")   # 禁用
+</code></pre></p>
+
+<p>---</p>
+
+<h2>插件清单</h2>
+
+<p><code>PluginLoader</code> 在加载时生成 <code>PluginManifest</code>，包含：</p>
+
+<div class="md-table-row">| 字段 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>name</code> | 插件名称 |</div>
+<div class="md-table-row">| <code>version</code> | 版本号 |</div>
+<div class="md-table-row">| <code>description</code> | 描述 |</div>
+<div class="md-table-row">| <code>plugin_id</code> | 规范 ID (<code>{name}@{source}</code>) |</div>
+<div class="md-table-row">| <code>source</code> | 来源标识 |</div>
+<div class="md-table-row">| <code>default_enabled</code> | 默认启用状态 |</div>
+<div class="md-table-row">| <code>tools</code> | 提供的工具列表 |</div>
+<div class="md-table-row">| <code>hooks</code> | 提供的钩子列表 |</div>
+
+<p>查询 API：</p>
+
+<pre><code class="language-python">from plugins.registry import PluginRegistry
+
+<p>registry = PluginRegistry()
+<h1>列出所有已注册插件</h1>
+all_plugins = registry.list_plugins()
+<h1>仅启用/禁用的插件</h1>
+enabled = registry.get_enabled_plugins()
+disabled = registry.get_disabled_plugins()
+</code></pre></p>
+
+<p>---</p>
+
+<h2>插件工具注册</h2>
+
+<p>插件的 <code>get_tools()</code> 返回的工具会在 <code>AgentLoop.__init__</code> 中自动注册到全局 <code>TOOL_REGISTRY</code>：</p>
+
+<pre><code class="language-">PluginLoader.load_all_plugins()
+    → get_all_tools()
+        → TOOL_REGISTRY.register_tool(name, definition)
+</code></pre>
+
+<p>插件工具与内置工具在使用上完全一致，LLM 不感知工具来源。</p>
+
+<p>---</p>
+
+<h2>项目级插件</h2>
+
+<p>在项目根目录创建 <code>.auracode/plugins/</code> 目录，放入 <code>.py</code> 文件即可：</p>
+
+<pre><code class="language-">my-project/
+├── .auracode/
+│   └── plugins/
+│       └── custom_lint.py
+├── src/
+│   └── ...
+└── README.md
+</code></pre>
+
+<p>项目级插件随项目仓库分发，团队成员克隆项目后自动加载。</p>
+
+<p>---</p>
+
+<h2>用户级插件</h2>
+
+<p>放入 <code>~/.auracode/plugins/</code> 目录，全局生效：</p>
+
+<pre><code class="language-">~/.auracode/
+├── plugins/
+│   └── my_global_tool.py
+├── config.yaml
+└── plugins_settings.json
+</code></pre>
+
+<p>适用于个人常用但与项目无关的扩展。
+</p>
+            </div>
+
+            <div class="docs-navigation">
+                <a href="../index.html" class="nav-btn prev">
+                    <i class="fas fa-arrow-left"></i>
+                    返回首页
+                </a>
+            </div>
+        </main>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2026 AuraCode. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+    <script src="../js/docs.js"></script>
+</body>
+</html>

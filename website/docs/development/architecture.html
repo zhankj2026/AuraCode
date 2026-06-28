@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>架构总览 - AuraCode</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/docs.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .md-content { line-height: 1.8; }
+        .md-content h1 { font-size: 2rem; margin-bottom: 1rem; }
+        .md-content h2 { font-size: 1.5rem; margin: 2rem 0 1rem; }
+        .md-content h3 { font-size: 1.25rem; margin: 1.5rem 0 0.75rem; }
+        .md-content p { margin: 1rem 0; }
+        .md-content pre { background: var(--bg); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 1rem 0; }
+        .md-content code { background: var(--bg); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; }
+        .md-content pre code { background: none; padding: 0; }
+        .md-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        .md-content th, .md-content td { padding: 0.75rem; border: 1px solid var(--border-color); text-align: left; }
+        .md-content th { background: var(--s1); }
+        .md-content ul, .md-content ol { margin: 1rem 0; padding-left: 2rem; }
+        .md-content li { margin: 0.5rem 0; }
+        .md-content a { color: var(--acc); text-decoration: none; }
+        .md-content a:hover { text-decoration: underline; }
+        .md-content strong { font-weight: 600; }
+        .md-content hr { border: none; border-top: 1px solid var(--border-color); margin: 2rem 0; }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-code"></i>
+                <span>AuraCode</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="../index.html">首页</a></li>
+                <li><a href="../index.html#features">功能</a></li>
+                <li><a href="../index.html#docs">文档</a></li>
+                <li><a href="../index.html#quickstart">快速开始</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 文档内容 -->
+    <div class="docs-container">
+        <aside class="docs-sidebar">
+            <div class="sidebar-section">
+                <h3>入门指南</h3>
+                <ul>
+                    <li><a href="quickstart.html">快速开始</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>用户指南</h3>
+                <ul>
+                    <li><a href="user-guide/chat.html">对话交互</a></li>
+                    <li><a href="user-guide/commands.html">命令参考</a></li>
+                    <li><a href="user-guide/tools.html">工具系统</a></li>
+                    <li><a href="user-guide/skills.html">技能系统</a></li>
+                    <li><a href="user-guide/memory.html">记忆系统</a></li>
+                    <li><a href="user-guide/permissions.html">权限管理</a></li>
+                    <li><a href="user-guide/mcp.html">MCP 协议</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>高级功能</h3>
+                <ul>
+                    <li><a href="advanced/bridge.html">Bridge 远程控制</a></li>
+                    <li><a href="advanced/hooks.html">钩子系统</a></li>
+                    <li><a href="advanced/plugins.html">插件系统</a></li>
+                    <li><a href="advanced/error-recovery.html">错误恢复</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>开发</h3>
+                <ul>
+                    <li><a href="development/architecture.html">架构总览</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <main class="docs-content">
+            <div class="docs-header">
+                <h1>架构总览</h1>
+            </div>
+            <div class="md-content">
+                <h1>架构总览</h1>
+
+<p>auracode 是一个基于 TAOR（Think-Act-Observe-Repeat）循环设计的 AI 编程助手，使用 Python 实现。本文档描述其整体架构、模块划分和数据流。</p>
+
+<p>---</p>
+
+<h2>目录结构</h2>
+
+<pre><code class="language-">auracode/
+├── cli.py                # CLI 入口：参数解析 + 主循环
+├── config.yaml           # 用户配置文件
+├── requirements.txt      # Python 依赖
+│
+├── core/                 # 核心引擎
+│   ├── agent_loop.py     # AgentLoop — TAOR 循环主体
+│   ├── session_state.py  # SessionState — 会话状态管理
+│   ├── context.py        # 项目上下文加载（AURACODE.md + 技术栈检测）
+│   ├── memory.py         # 记忆系统（MEMORY.md 管理 + LLM 驱动召回）
+│   ├── message.py        # 消息格式化
+│   ├── subagent.py       # 子代理（并行任务分派）
+│   └── tool_enhancer.py  # 工具增强（自动摘要 + 幂等重试 + 输出裁剪）
+│
+├── tools/                # 工具系统
+│   ├── registry.py       # TOOL_REGISTRY 全局注册表
+│   ├── __init__.py       # 工具自动注册
+│   └── builtin/          # 内置工具（50+ 个）
+│       ├── read_file.py
+│       ├── write_file.py
+│       ├── run_command.py
+│       ├── search_content.py
+│       └── ...
+│
+├── commands/             # 命令系统
+│   ├── base.py           # Command 抽象基类
+│   ├── registry.py       # 命令注册表
+│   └── builtin/          # 内置命令（40+ 个）
+│       ├── commit.py
+│       ├── compact.py
+│       ├── model.py
+│       └── ...
+│
+├── plugins/              # 插件系统
+│   ├── base.py           # ToolPlugin 抽象基类
+│   ├── builtin.py        # 内置插件注册表
+│   ├── loader.py         # 四源插件加载器
+│   └── registry.py       # PluginManifest 清单管理
+│
+├── hooks/                # 钩子系统
+│   └── manager.py        # HookManager — 事件分发 + 优先级 + 短路
+│
+├── skills/               # 技能系统
+│   ├── loader.py         # SkillManager — 三源技能加载
+│   ├── context.py        # SkillContext 单例（AgentLoop ↔ 工具桥接）
+│   └── <skill>/          # 内置技能目录
+│
+├── permissions/          # 权限系统
+│   └── manager.py        # PermissionManager — 四级模式 + allow/deny
+│
+├── mcp/                  # MCP 协议集成
+│   ├── client/           # MCP 客户端
+│   ├── config/           # MCP 服务器配置
+│   ├── transport/        # 传输层（stdio / SSE / WebSocket）
+│   ├── tools/            # MCP 工具适配器
+│   └── plugins/          # MCP 插件桥接
+│
+├── bridge/               # Bridge 远程控制
+│   ├── session.py        # BridgeSession — 远程会话
+│   ├── server.py         # FastAPI REST + WebSocket 服务器
+│   ├── manager.py        # 多会话管理器
+│   ├── types.py          # 类型定义
+│   └── config.py         # Bridge 配置
+│
+├── services/             # 持久化服务
+│   ├── session_store.py  # 会话持久化（JSON 日志）
+│   ├── history_log.py    # 全局交互历史（JSONL）
+│   ├── settings_store.py # 用户设置持久化
+│   ├── file_history.py   # 文件修改备份
+│   └── ...
+│
+├── config/               # 配置系统
+│   └── __init__.py       # 配置加载/合并
+│
+└── docs/                 # 项目文档
+    ├── index.md
+    ├── quick-start.md
+    ├── user-guide/
+    ├── advanced/
+    └── development/
+</code></pre>
+
+<p>---</p>
+
+<h2>核心数据流</h2>
+
+<pre><code class="language-">用户输入
+  │
+  ▼
+cli.py ──────────────────────────────────────────┐
+  │                                               │
+  ▼                                               │
+AgentLoop.run()                                   │
+  │                                               │
+  ├─ 构建 System Prompt                           │
+  │   ├─ 角色定义                                  │
+  │   ├─ 项目上下文 (AURACODE.md)                  │
+  │   ├─ 记忆注入 (MEMORY.md)                      │
+  │   └─ 技能激活提示                              │
+  │                                               │
+  ├─ TAOR 循环 ──────────────────────────────────┐│
+  │   │                                           ││
+  │   ├─ Think: _call_llm_streaming()             ││
+  │   │   ├─ OpenAI API 流式调用                   ││
+  │   │   ├─ 实时输出到终端                         ││
+  │   │   └─ 累积工具调用                          ││
+  │   │                                           ││
+  │   ├─ Act: _execute_tool()                     ││
+  │   │   ├─ PreToolUse Hook                      ││
+  │   │   ├─ PermissionManager 权限检查            ││
+  │   │   ├─ 工具执行 (TOOL_REGISTRY)              ││
+  │   │   ├─ ToolEnhancer 增强                     ││
+  │   │   └─ PostToolUse Hook                     ││
+  │   │                                           ││
+  │   ├─ Observe: 工具结果追加到消息历史            ││
+  │   │                                           ││
+  │   └─ Repeat: 继续循环或退出                     ││
+  │                                               ││
+  ├─ 错误恢复                                      ││
+  │   ├─ API 级重试 (8 次)                         ││
+  │   ├─ 轮次级重试 (1 次)                         ││
+  │   ├─ 上下文压缩 + 重试                         ││
+  │   └─ Fallback 模型                             ││
+  │                                               ││
+  └─ 返回 QueryResult ◄───────────────────────────┘│
+                                                    │
+  ◄─────────────────────────────────────────────────┘
+  展示结果 / 保存会话
+</code></pre>
+
+<p>---</p>
+
+<h2>模块关系</h2>
+
+<pre><code class="language-">                    ┌──────────┐
+                    │  cli.py  │
+                    └────┬─────┘
+                         │
+                    ┌────▼─────┐
+              ┌─────│ AgentLoop │──────┐
+              │     └────┬─────┘      │
+              │          │            │
+     ┌────────▼──┐  ┌───▼────┐  ┌───▼────────┐
+     │ Session   │  │ Tools  │  │ Extensions │
+     │ State     │  │        │  │            │
+     └───────────┘  └───┬────┘  └──┬───┬──┬─┘
+                        │     ┌────┘   │  │
+                   ┌────▼───┐ │   ┌────┘  └────┐
+                   │Registry│ │   │             │
+                   └────────┘ │   │             │
+                         ┌────▼┐ ┌▼─────┐ ┌────▼───┐
+                         │Hooks│ │Skills│ │Plugins │
+                         └─────┘ └──────┘ └────────┘
+</code></pre>
+
+<p>---</p>
+
+<h2>核心模块详解</h2>
+
+<h3>AgentLoop (<code>core/agent_loop.py</code>)</h3>
+
+<p>系统的核心引擎，约 2300 行代码，职责包括：</p>
+
+<p>- <strong>TAOR 循环</strong>：Think → Act → Observe → Repeat
+- <strong>LLM 调用</strong>：流式/同步 API 调用 + 智能重试
+- <strong>工具执行</strong>：解析 LLM 工具调用 → 权限检查 → 执行 → 返回结果
+- <strong>上下文管理</strong>：消息历史维护 + 自动压缩 + 记忆注入
+- <strong>事件发射</strong>：<code>_emit_event()</code> 供 Bridge 订阅
+- <strong>错误恢复</strong>：四层恢复机制（详见 <a href="../advanced/error-recovery.md">错误恢复</a>）</p>
+
+<h3>SessionState (<code>core/session_state.py</code>)</h3>
+
+<p>集中式会话状态管理：</p>
+
+<p>- <code>messages</code> — 对话消息历史
+- <code>token_usage</code> — Token 用量累计
+- <code>cost_tracker</code> — 费用追踪（每模型独立定价）
+- <code>turn_count</code> — 轮次计数
+- <code>abort_requested</code> — 中断控制
+- <code>active_model</code> — 当前活跃模型（支持 Fallback）
+- <code>on_change</code> — 状态变更回调（发布/订阅）</p>
+
+<h3>ToolRegistry (<code>tools/registry.py</code>)</h3>
+
+<p>全局工具注册表：</p>
+
+<p>- <code>register_tool(name, definition)</code> — 注册工具
+- <code>get_tool_schemas()</code> — 获取所有工具的 JSON Schema（传给 LLM）
+- <code>execute_tool(name, arguments)</code> — 执行工具</p>
+
+<p>50+ 内置工具覆盖：文件操作、代码搜索、Shell 执行、Web 搜索、LSP、Notebook 等。</p>
+
+<h3>HookManager (<code>hooks/manager.py</code>)</h3>
+
+<p>事件驱动的钩子系统：</p>
+
+<p>- 事件类型：<code>PreToolUse</code>, <code>PostToolUse</code>, <code>Stop</code>, <code>ToolError</code>, <code>UserMessage</code>, <code>PreCompact</code>, <code>PostCompact</code>, <code>ContextWarning</code>
+- 支持优先级排序和短路机制
+- 配置文件驱动 + 热重载</p>
+
+<h3>SkillManager (<code>skills/loader.py</code>)</h3>
+
+<p>三源技能加载：</p>
+
+<p>- <strong>内置技能</strong>：<code>skills/</code> 目录下的技能包
+- <strong>项目技能</strong>：<code>.auracode/skills/</code> 目录
+- <strong>用户技能</strong>：<code>~/.auracode/skills/</code> 目录</p>
+
+<p>技能通过 <code>SkillContext</code> 单例桥接 AgentLoop 和工具系统。</p>
+
+<h3>PermissionManager (<code>permissions/manager.py</code>)</h3>
+
+<p>四级权限模式：</p>
+
+<p>- <code>normal</code> — 写操作需用户确认
+- <code>auto</code> — 自动批准所有操作
+- <code>plan</code> — 只读模式，禁止写操作
+- <code>bypass</code> — 跳过所有检查</p>
+
+<p>支持 allow/deny 规则 + glob 模式匹配。</p>
+
+<p>---</p>
+
+<h2>运行模式</h2>
+
+<h3>CLI 模式</h3>
+
+<pre><code class="language-">python -m auracode.cli
+</code></pre>
+
+<p>终端交互，用户在命令行中输入消息，AgentLoop 处理后流式输出。</p>
+
+<h3>Bridge 模式</h3>
+
+<pre><code class="language-">python -m auracode.cli --bridge
+</code></pre>
+
+<p>启动 FastAPI 服务器，通过 REST API + WebSocket 提供远程控制能力。Web UI 可实时查看执行过程。</p>
+
+<p>---</p>
+
+<h2>扩展点</h2>
+
+<div class="md-table-row">| 扩展点 | 机制 | 入口 |</div>
+<div class="md-table-row">|--------|------|------|</div>
+<div class="md-table-row">| 新工具 | 继承 <code>ToolPlugin</code> 或直接 <code>register_tool()</code> | <code>tools/builtin/</code> 或插件 |</div>
+<div class="md-table-row">| 新命令 | 继承 <code>Command</code> 基类 | <code>commands/builtin/</code> |</div>
+<div class="md-table-row">| 新技能 | 创建 <code>SKILL.md</code> 元数据 | <code>skills/</code> 目录 |</div>
+<div class="md-table-row">| 新钩子 | 配置文件或插件 <code>get_hooks()</code> | <code>.auracode/hooks.yaml</code> |</div>
+<div class="md-table-row">| 新插件 | 继承 <code>ToolPlugin</code> | <code>plugins/</code> 或 <code>register_builtin_plugin()</code> |</div>
+<div class="md-table-row">| MCP 服务器 | <code>mcp/config/</code> 配置 | <code>config.yaml</code> 的 <code>mcp_servers</code> |</div>
+
+<p>---</p>
+
+<h2>配置层级</h2>
+
+<p>配置从多个来源合并，优先级从高到低：</p>
+
+<p>1. CLI 参数 (<code>--model</code>, <code>--permission-mode</code>)
+2. 项目配置 (<code>.auracode/config.yaml</code>)
+3. 用户配置 (<code>~/.auracode/config.yaml</code> 或 <code>config.yaml</code>)
+4. 环境变量 (<code>OPENAI_API_KEY</code>, <code>OPENAI_BASE_URL</code>)
+5. 内置默认值</p>
+
+<p>---</p>
+
+<h2>技术栈</h2>
+
+<div class="md-table-row">| 组件 | 技术 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| 语言 | Python 3.10+ |</div>
+<div class="md-table-row">| LLM SDK | openai (兼容 OpenAI API 协议) |</div>
+<div class="md-table-row">| Web 框架 | FastAPI (Bridge 服务器) |</div>
+<div class="md-table-row">| 通信协议 | WebSocket + REST (Bridge) |</div>
+<div class="md-table-row">| MCP 传输 | stdio / SSE / WebSocket |</div>
+<div class="md-table-row">| 持久化 | JSON / JSONL 文件 |</div>
+<div class="md-table-row">| 包管理 | pip + requirements.txt |</div>
+
+            </div>
+
+            <div class="docs-navigation">
+                <a href="../index.html" class="nav-btn prev">
+                    <i class="fas fa-arrow-left"></i>
+                    返回首页
+                </a>
+            </div>
+        </main>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2026 AuraCode. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+    <script src="../js/docs.js"></script>
+</body>
+</html>

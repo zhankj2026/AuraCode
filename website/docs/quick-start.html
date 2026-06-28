@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>快速开始 - AuraCode</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/docs.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .md-content { line-height: 1.8; }
+        .md-content h1 { font-size: 2rem; margin-bottom: 1rem; }
+        .md-content h2 { font-size: 1.5rem; margin: 2rem 0 1rem; }
+        .md-content h3 { font-size: 1.25rem; margin: 1.5rem 0 0.75rem; }
+        .md-content p { margin: 1rem 0; }
+        .md-content pre { background: var(--bg); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 1rem 0; }
+        .md-content code { background: var(--bg); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; }
+        .md-content pre code { background: none; padding: 0; }
+        .md-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        .md-content th, .md-content td { padding: 0.75rem; border: 1px solid var(--border-color); text-align: left; }
+        .md-content th { background: var(--s1); }
+        .md-content ul, .md-content ol { margin: 1rem 0; padding-left: 2rem; }
+        .md-content li { margin: 0.5rem 0; }
+        .md-content a { color: var(--acc); text-decoration: none; }
+        .md-content a:hover { text-decoration: underline; }
+        .md-content strong { font-weight: 600; }
+        .md-content hr { border: none; border-top: 1px solid var(--border-color); margin: 2rem 0; }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-code"></i>
+                <span>AuraCode</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="../index.html">首页</a></li>
+                <li><a href="../index.html#features">功能</a></li>
+                <li><a href="../index.html#docs">文档</a></li>
+                <li><a href="../index.html#quickstart">快速开始</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 文档内容 -->
+    <div class="docs-container">
+        <aside class="docs-sidebar">
+            <div class="sidebar-section">
+                <h3>入门指南</h3>
+                <ul>
+                    <li><a href="quickstart.html">快速开始</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>用户指南</h3>
+                <ul>
+                    <li><a href="user-guide/chat.html">对话交互</a></li>
+                    <li><a href="user-guide/commands.html">命令参考</a></li>
+                    <li><a href="user-guide/tools.html">工具系统</a></li>
+                    <li><a href="user-guide/skills.html">技能系统</a></li>
+                    <li><a href="user-guide/memory.html">记忆系统</a></li>
+                    <li><a href="user-guide/permissions.html">权限管理</a></li>
+                    <li><a href="user-guide/mcp.html">MCP 协议</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>高级功能</h3>
+                <ul>
+                    <li><a href="advanced/bridge.html">Bridge 远程控制</a></li>
+                    <li><a href="advanced/hooks.html">钩子系统</a></li>
+                    <li><a href="advanced/plugins.html">插件系统</a></li>
+                    <li><a href="advanced/error-recovery.html">错误恢复</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>开发</h3>
+                <ul>
+                    <li><a href="development/architecture.html">架构总览</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <main class="docs-content">
+            <div class="docs-header">
+                <h1>快速开始</h1>
+            </div>
+            <div class="md-content">
+                <h1>快速开始</h1>
+
+<p>本文带你用 5 分钟完成 AuraCode 的安装与首次使用，体验核心交互能力。</p>
+
+<p>---</p>
+
+<h2>1. 安装</h2>
+
+<h3>环境要求</h3>
+
+<p>- Python 3.10+
+- pip</p>
+
+<h3>安装步骤</h3>
+
+<pre><code class="language-bash"><h1>进入 auracode 目录</h1>
+cd auracode
+
+<h1>安装依赖</h1>
+pip install -r requirements.txt
+</code></pre>
+
+<p>---</p>
+
+<h2>2. 配置 API Key</h2>
+
+<p>AuraCode 需要一个 LLM API Key 才能运行。推荐两种方式：</p>
+
+<h3>方式一：环境变量（推荐）</h3>
+
+<pre><code class="language-bash"><h1>Linux/macOS</h1>
+export OPENAI_API_KEY="your-api-key-here"
+
+<h1>Windows PowerShell</h1>
+$env:OPENAI_API_KEY = "your-api-key-here"
+</code></pre>
+
+<h3>方式二：写入配置文件</h3>
+
+<pre><code class="language-bash"><h1>复制配置模板</h1>
+cp config.example.yaml config.yaml
+</code></pre>
+
+<p>编辑 <code>config.yaml</code>，填入 API 信息：</p>
+
+<pre><code class="language-yaml">llm:
+  provider: openai
+  model: glm-4.7
+  base_url: https://open.bigmodel.cn/api/paas/v4
+  max_tokens: 4096
+  temperature: 0.2
+</code></pre>
+
+<p>---</p>
+
+<h2>3. 启动对话</h2>
+
+<h3>多轮对话模式</h3>
+
+<pre><code class="language-bash"><h1>直接启动</h1>
+python cli.py
+
+<h1>带初始提问启动</h1>
+python cli.py "帮我分析这个项目的目录结构"
+</code></pre>
+
+<p>启动后进入交互界面，直接输入问题即可：</p>
+
+<pre><code class="language-">> 帮我找出项目中所有的 Python 文件，并统计数量
+</code></pre>
+
+<p>AI 会自动调用工具（<code>glob</code>、<code>run_command</code> 等）完成任务并返回结果。</p>
+
+<h3>命令模式</h3>
+
+<p>无需进入交互界面，直接执行单条命令：</p>
+
+<pre><code class="language-bash"><h1>分析项目</h1>
+python cli.py -c analyze .
+
+<h1>查看状态</h1>
+python cli.py -c status
+</code></pre>
+
+<p>---</p>
+
+<h2>4. 使用斜杠命令</h2>
+
+<p>在对话模式中输入 <code>/</code> 开头的命令可触发特殊功能：</p>
+
+<div class="md-table-row">| 命令 | 作用 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>/help</code> | 查看所有可用命令 |</div>
+<div class="md-table-row">| <code>/status</code> | 查看当前会话状态（Token 用量、模型等）|</div>
+<div class="md-table-row">| <code>/cost</code> | 查看本次会话费用 |</div>
+<div class="md-table-row">| <code>/clear</code> | 清空对话历史，重新开始 |</div>
+<div class="md-table-row">| <code>/compact</code> | 压缩对话历史，保留关键摘要 |</div>
+<div class="md-table-row">| <code>/commit</code> | AI 分析变更并生成 Git 提交 |</div>
+<div class="md-table-row">| <code>/model</code> | 运行时切换模型 |</div>
+
+<p>示例：</p>
+
+<pre><code class="language-">> /status
+
+<p>会话状态:
+  模型: glm-4.7
+  Token: 已用 3,200 / 200,000
+  迭代: 2/20
+  费用: $0.012
+</code></pre></p>
+
+<p>---</p>
+
+<h2>5. 权限控制</h2>
+
+<p>默认使用 <code>normal</code> 模式，危险操作（如执行 Shell 命令）会弹出确认提示。</p>
+
+<pre><code class="language-bash"><h1>使用自动模式（自动批准安全操作）</h1>
+python cli.py --mode auto
+
+<h1>使用只读计划模式（不执行任何修改）</h1>
+python cli.py --mode plan
+</code></pre>
+
+<p>详见 <a href="user-guide/permissions.md">权限管理</a>。</p>
+
+<p>---</p>
+
+<h2>6. 下一步</h2>
+
+<p>完成基本体验后，可以深入了解各项功能：</p>
+
+<p>- <a href="user-guide/chat.md">对话交互</a> — 了解完整的对话交互机制
+- <a href="user-guide/tools.md">工具系统</a> — 探索 53 个内置工具
+- <a href="user-guide/commands.md">命令参考</a> — 46 条命令完整说明
+- <a href="advanced/bridge.md">Bridge 远程控制</a> — 从浏览器远程操控</p>
+
+<p>---</p>
+
+<h2>常见问题</h2>
+
+<p><strong>Q: 如何更换模型？</strong>
+A: 运行时使用 <code>/model <模型名></code> 切换，或修改 <code>config.yaml</code> 中的 <code>llm.model</code>。</p>
+
+<p><strong>Q: 遇到 429 Too Many Requests 怎么办？</strong>
+A: AuraCode 内置指数退避重试（最多 5 次），一般无需手动处理。可配置 Fallback 模型作为备选。</p>
+
+<p><strong>Q: 如何保存会话？</strong>
+A: 会话自动持久化到 <code>~/.auracode/sessions/</code>，下次用 <code>/resume</code> 恢复。
+</p>
+            </div>
+
+            <div class="docs-navigation">
+                <a href="../index.html" class="nav-btn prev">
+                    <i class="fas fa-arrow-left"></i>
+                    返回首页
+                </a>
+            </div>
+        </main>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2026 AuraCode. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+    <script src="../js/docs.js"></script>
+</body>
+</html>

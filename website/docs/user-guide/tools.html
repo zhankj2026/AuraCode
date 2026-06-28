@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工具系统 - AuraCode</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/docs.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .md-content { line-height: 1.8; }
+        .md-content h1 { font-size: 2rem; margin-bottom: 1rem; }
+        .md-content h2 { font-size: 1.5rem; margin: 2rem 0 1rem; }
+        .md-content h3 { font-size: 1.25rem; margin: 1.5rem 0 0.75rem; }
+        .md-content p { margin: 1rem 0; }
+        .md-content pre { background: var(--bg); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 1rem 0; }
+        .md-content code { background: var(--bg); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; }
+        .md-content pre code { background: none; padding: 0; }
+        .md-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        .md-content th, .md-content td { padding: 0.75rem; border: 1px solid var(--border-color); text-align: left; }
+        .md-content th { background: var(--s1); }
+        .md-content ul, .md-content ol { margin: 1rem 0; padding-left: 2rem; }
+        .md-content li { margin: 0.5rem 0; }
+        .md-content a { color: var(--acc); text-decoration: none; }
+        .md-content a:hover { text-decoration: underline; }
+        .md-content strong { font-weight: 600; }
+        .md-content hr { border: none; border-top: 1px solid var(--border-color); margin: 2rem 0; }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-code"></i>
+                <span>AuraCode</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="../index.html">首页</a></li>
+                <li><a href="../index.html#features">功能</a></li>
+                <li><a href="../index.html#docs">文档</a></li>
+                <li><a href="../index.html#quickstart">快速开始</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 文档内容 -->
+    <div class="docs-container">
+        <aside class="docs-sidebar">
+            <div class="sidebar-section">
+                <h3>入门指南</h3>
+                <ul>
+                    <li><a href="quickstart.html">快速开始</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>用户指南</h3>
+                <ul>
+                    <li><a href="user-guide/chat.html">对话交互</a></li>
+                    <li><a href="user-guide/commands.html">命令参考</a></li>
+                    <li><a href="user-guide/tools.html">工具系统</a></li>
+                    <li><a href="user-guide/skills.html">技能系统</a></li>
+                    <li><a href="user-guide/memory.html">记忆系统</a></li>
+                    <li><a href="user-guide/permissions.html">权限管理</a></li>
+                    <li><a href="user-guide/mcp.html">MCP 协议</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>高级功能</h3>
+                <ul>
+                    <li><a href="advanced/bridge.html">Bridge 远程控制</a></li>
+                    <li><a href="advanced/hooks.html">钩子系统</a></li>
+                    <li><a href="advanced/plugins.html">插件系统</a></li>
+                    <li><a href="advanced/error-recovery.html">错误恢复</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>开发</h3>
+                <ul>
+                    <li><a href="development/architecture.html">架构总览</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <main class="docs-content">
+            <div class="docs-header">
+                <h1>工具系统</h1>
+            </div>
+            <div class="md-content">
+                <h1>工具系统</h1>
+
+<p>AuraCode 内置 53 个工具，由 AI 代理在对话过程中自动调用。你无需手动调用工具，AI 会根据你的需求自动选择并执行。</p>
+
+<p>---</p>
+
+<h2>工具分类</h2>
+
+<h3>文件操作</h3>
+
+<div class="md-table-row">| 工具 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>read_file</code> | 读取文件内容，支持指定行范围 |</div>
+<div class="md-table-row">| <code>write_file</code> | 写入/创建文件 |</div>
+<div class="md-table-row">| <code>replace_in_file</code> | 精确文本替换（先搜索后替换）|</div>
+<div class="md-table-row">| <code>undo_edit</code> | 撤销上一步编辑操作 |</div>
+<div class="md-table-row">| <code>notebook_edit</code> | Jupyter Notebook 单元格编辑 |</div>
+<div class="md-table-row">| <code>analyze_file</code> | 文件结构与内容分析 |</div>
+
+<h3>代码搜索</h3>
+
+<div class="md-table-row">| 工具 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>find</code> | 文件内容正则搜索 |</div>
+<div class="md-table-row">| <code>glob</code> | Glob 模式文件匹配（<code><em>*/</em>.py</code> 等）|</div>
+<div class="md-table-row">| <code>grep</code> | 高性能内容搜索（基于 ripgrep）|</div>
+<div class="md-table-row">| <code>list_directory</code> | 目录结构浏览 |</div>
+<div class="md-table-row">| <code>lsp</code> | LSP 协议 — 跳转定义、查找引用、获取诊断 |</div>
+<div class="md-table-row">| <code>tool_search</code> | 工具发现与搜索（不确定工具名时使用）|</div>
+
+<h3>终端执行</h3>
+
+<div class="md-table-row">| 工具 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>run_command</code> | Shell 命令执行（支持超时、后台、工作目录）|</div>
+<div class="md-table-row">| <code>run_powershell</code> | Windows PowerShell 执行 |</div>
+<div class="md-table-row">| <code>run_tests</code> | 项目测试运行 |</div>
+<div class="md-table-row">| <code>repl</code> | 交互式 Python REPL |</div>
+<div class="md-table-row">| <code>lint</code> | 代码规范检查 |</div>
+
+<h3>智能代理</h3>
+
+<div class="md-table-row">| 工具 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>spawn_subagent</code> | 创建子代理（独立上下文，可并行）|</div>
+<div class="md-table-row">| <code>join_subagent</code> | 等待子代理完成并获取结果 |</div>
+<div class="md-table-row">| <code>list_subagents</code> | 列出活跃子代理 |</div>
+<div class="md-table-row">| <code>subagent_stats</code> | 子代理执行统计 |</div>
+<div class="md-table-row">| <code>list_agent_types</code> | 可用代理类型列表 |</div>
+<div class="md-table-row">| <code>plan_agent</code> | 计划模式代理（只读分析）|</div>
+
+<h3>任务管理</h3>
+
+<div class="md-table-row">| 工具 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>task_create</code> | 创建任务 |</div>
+<div class="md-table-row">| <code>task_list</code> | 列出任务 |</div>
+<div class="md-table-row">| <code>task_update</code> | 更新任务状态 |</div>
+<div class="md-table-row">| <code>todo_write</code> | 任务进度可视化 |</div>
+
+<h3>计划模式</h3>
+
+<div class="md-table-row">| 工具 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>enter_plan_mode</code> | 进入计划模式（只读，不执行修改）|</div>
+<div class="md-table-row">| <code>exit_plan_mode</code> | 退出计划模式，恢复执行 |</div>
+
+<h3>Git Worktree</h3>
+
+<div class="md-table-row">| 工具 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>enter_worktree</code> | 进入 Git Worktree 隔离工作区 |</div>
+<div class="md-table-row">| <code>exit_worktree</code> | 退出 Worktree 并合并变更 |</div>
+
+<h3>定时任务</h3>
+
+<div class="md-table-row">| 工具 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>cron_create</code> | 创建定时任务（Cron 表达式）|</div>
+<div class="md-table-row">| <code>cron_delete</code> | 删除定时任务 |</div>
+<div class="md-table-row">| <code>cron_list</code> | 列出所有定时任务 |</div>
+
+<h3>记忆系统</h3>
+
+<div class="md-table-row">| 工具 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>save_memory</code> | 保存记忆条目 |</div>
+<div class="md-table-row">| <code>load_memory</code> | 加载记忆 |</div>
+<div class="md-table-row">| <code>search_memories</code> | 语义搜索记忆 |</div>
+<div class="md-table-row">| <code>list_memories</code> | 列出记忆索引 |</div>
+<div class="md-table-row">| <code>get_memory_summary</code> | 获取记忆摘要 |</div>
+<div class="md-table-row">| <code>get_relevant_memories</code> | LLM 驱动的相关记忆召回 |</div>
+<div class="md-table-row">| <code>delete_memory</code> | 删除记忆 |</div>
+
+<h3>技能系统</h3>
+
+<div class="md-table-row">| 工具 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>activate_skill</code> | 激活领域技能 |</div>
+<div class="md-table-row">| <code>deactivate_skill</code> | 停用领域技能 |</div>
+<div class="md-table-row">| <code>get_active_skills</code> | 获取已激活技能 |</div>
+<div class="md-table-row">| <code>list_skills</code> | 列出所有可用技能 |</div>
+<div class="md-table-row">| <code>show_available_skills</code> | 展示技能详情 |</div>
+
+<h3>网络与外部</h3>
+
+<div class="md-table-row">| 工具 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>web_fetch</code> | 获取网页内容并分析（支持提取正文）|</div>
+<div class="md-table-row">| <code>web_search</code> | 网络搜索 |</div>
+
+<h3>交互与配置</h3>
+
+<div class="md-table-row">| 工具 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>ask_user</code> | 向用户提问（支持多选和自定义输入）|</div>
+<div class="md-table-row">| <code>brief</code> | 简洁模式切换（减少输出）|</div>
+<div class="md-table-row">| <code>config</code> | 运行时配置读写 |</div>
+<div class="md-table-row">| <code>edit_history</code> | 编辑对话历史 |</div>
+<div class="md-table-row">| <code>sleep</code> | 等待/延迟 |</div>
+
+<p>---</p>
+
+<h2>工具增强</h2>
+
+<p>AuraCode 对所有工具调用提供统一增强（由 <code>ToolEnhancer</code> 驱动）：</p>
+
+<div class="md-table-row">| 功能 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <strong>结果摘要</strong> | 大型工具输出自动生成摘要 |</div>
+<div class="md-table-row">| <strong>自动重试</strong> | 幂等工具（读文件、搜索等）失败后自动重试 |</div>
+<div class="md-table-row">| <strong>输出裁剪</strong> | 超大 diff 只保留修改区域 ±N 行 |</div>
+
+<p>---</p>
+
+<h2>使用追踪</h2>
+
+<p>通过 <code>/tools</code> 命令查看工具使用统计：</p>
+
+<pre><code class="language-">> /tools
+
+<p>工具使用统计 (本次会话):
+  read_file      12 次  成功 100%  平均 0.3s
+  run_command     5 次  成功  80%  平均 1.2s
+  write_file      3 次  成功 100%  平均 0.1s
+  ...
+</code></pre></p>
+
+<p>---</p>
+
+<h2>相关文档</h2>
+
+<p>- <a href="commands.md">命令参考</a>
+- <a href="skills.md">技能系统</a>
+- <a href="mcp.md">MCP 协议集成</a> — 通过 MCP 扩展更多工具
+</p>
+            </div>
+
+            <div class="docs-navigation">
+                <a href="../index.html" class="nav-btn prev">
+                    <i class="fas fa-arrow-left"></i>
+                    返回首页
+                </a>
+            </div>
+        </main>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2026 AuraCode. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+    <script src="../js/docs.js"></script>
+</body>
+</html>

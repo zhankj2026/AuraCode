@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bridge 远程控制 - AuraCode</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/docs.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .md-content { line-height: 1.8; }
+        .md-content h1 { font-size: 2rem; margin-bottom: 1rem; }
+        .md-content h2 { font-size: 1.5rem; margin: 2rem 0 1rem; }
+        .md-content h3 { font-size: 1.25rem; margin: 1.5rem 0 0.75rem; }
+        .md-content p { margin: 1rem 0; }
+        .md-content pre { background: var(--bg); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 1rem 0; }
+        .md-content code { background: var(--bg); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; }
+        .md-content pre code { background: none; padding: 0; }
+        .md-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        .md-content th, .md-content td { padding: 0.75rem; border: 1px solid var(--border-color); text-align: left; }
+        .md-content th { background: var(--s1); }
+        .md-content ul, .md-content ol { margin: 1rem 0; padding-left: 2rem; }
+        .md-content li { margin: 0.5rem 0; }
+        .md-content a { color: var(--acc); text-decoration: none; }
+        .md-content a:hover { text-decoration: underline; }
+        .md-content strong { font-weight: 600; }
+        .md-content hr { border: none; border-top: 1px solid var(--border-color); margin: 2rem 0; }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-code"></i>
+                <span>AuraCode</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="../index.html">首页</a></li>
+                <li><a href="../index.html#features">功能</a></li>
+                <li><a href="../index.html#docs">文档</a></li>
+                <li><a href="../index.html#quickstart">快速开始</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 文档内容 -->
+    <div class="docs-container">
+        <aside class="docs-sidebar">
+            <div class="sidebar-section">
+                <h3>入门指南</h3>
+                <ul>
+                    <li><a href="quickstart.html">快速开始</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>用户指南</h3>
+                <ul>
+                    <li><a href="user-guide/chat.html">对话交互</a></li>
+                    <li><a href="user-guide/commands.html">命令参考</a></li>
+                    <li><a href="user-guide/tools.html">工具系统</a></li>
+                    <li><a href="user-guide/skills.html">技能系统</a></li>
+                    <li><a href="user-guide/memory.html">记忆系统</a></li>
+                    <li><a href="user-guide/permissions.html">权限管理</a></li>
+                    <li><a href="user-guide/mcp.html">MCP 协议</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>高级功能</h3>
+                <ul>
+                    <li><a href="advanced/bridge.html">Bridge 远程控制</a></li>
+                    <li><a href="advanced/hooks.html">钩子系统</a></li>
+                    <li><a href="advanced/plugins.html">插件系统</a></li>
+                    <li><a href="advanced/error-recovery.html">错误恢复</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>开发</h3>
+                <ul>
+                    <li><a href="development/architecture.html">架构总览</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <main class="docs-content">
+            <div class="docs-header">
+                <h1>Bridge 远程控制</h1>
+            </div>
+            <div class="md-content">
+                <h1>Bridge 远程控制</h1>
+
+<p>Bridge 是基于 FastAPI 的 REST + WebSocket 远程控制服务，支持从浏览器或其他客户端实时操控 AuraCode。</p>
+
+<p>---</p>
+
+<h2>启动 Bridge</h2>
+
+<pre><code class="language-bash"><h1>默认配置</h1>
+python cli.py --bridge
+
+<h1>自定义端口和最大会话数</h1>
+python cli.py --bridge --bridge-port 9000 --bridge-max-sessions 10
+
+<h1>指定认证 Token</h1>
+python cli.py --bridge --bridge-token my-secret-token
+</code></pre>
+
+<div class="md-table-row">| 参数 | 说明 | 默认值 |</div>
+<div class="md-table-row">|------|------|--------|</div>
+<div class="md-table-row">| <code>--bridge</code> | 启用 Bridge 模式 | <code>false</code> |</div>
+<div class="md-table-row">| <code>--bridge-port</code> | 服务端口 | <code>8765</code> |</div>
+<div class="md-table-row">| <code>--bridge-host</code> | 绑定地址 | <code>127.0.0.1</code> |</div>
+<div class="md-table-row">| <code>--bridge-max-sessions</code> | 最大并行会话数 | <code>5</code> |</div>
+<div class="md-table-row">| <code>--bridge-token</code> | 认证 Token | 自动生成 |</div>
+
+<p>---</p>
+
+<h2>REST API</h2>
+
+<h3>会话管理</h3>
+
+<div class="md-table-row">| 方法 | 路径 | 说明 |</div>
+<div class="md-table-row">|------|------|------|</div>
+<div class="md-table-row">| <code>POST</code> | <code>/sessions</code> | 创建新会话 |</div>
+<div class="md-table-row">| <code>GET</code> | <code>/sessions</code> | 列出所有会话 |</div>
+<div class="md-table-row">| <code>GET</code> | <code>/sessions/{id}</code> | 获取会话详情 |</div>
+<div class="md-table-row">| <code>DELETE</code> | <code>/sessions/{id}</code> | 关闭会话 |</div>
+
+<h3>消息与命令</h3>
+
+<div class="md-table-row">| 方法 | 路径 | 说明 |</div>
+<div class="md-table-row">|------|------|------|</div>
+<div class="md-table-row">| <code>POST</code> | <code>/sessions/{id}/message</code> | 发送消息 |</div>
+<div class="md-table-row">| <code>POST</code> | <code>/sessions/{id}/command</code> | 执行命令 |</div>
+
+<h3>系统</h3>
+
+<div class="md-table-row">| 方法 | 路径 | 说明 |</div>
+<div class="md-table-row">|------|------|------|</div>
+<div class="md-table-row">| <code>GET</code> | <code>/health</code> | 健康检查 |</div>
+<div class="md-table-row">| <code>GET</code> | <code>/status</code> | 系统状态 |</div>
+
+<p>---</p>
+
+<h2>WebSocket 实时事件</h2>
+
+<p>连接 <code>ws://host:port/ws?token=xxx</code> 即可接收实时事件推送：</p>
+
+<h3>事件类型</h3>
+
+<div class="md-table-row">| 事件 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>session_created</code> | 新会话创建 |</div>
+<div class="md-table-row">| <code>tool_use</code> | AI 调用工具 |</div>
+<div class="md-table-row">| <code>tool_result</code> | 工具执行结果 |</div>
+<div class="md-table-row">| <code>assistant_message</code> | AI 回复消息 |</div>
+<div class="md-table-row">| <code>token_usage</code> | Token 消耗统计 |</div>
+<div class="md-table-row">| <code>error</code> | 错误通知 |</div>
+<div class="md-table-row">| <code>session_complete</code> | 会话任务完成 |</div>
+
+<h3>事件示例</h3>
+
+<pre><code class="language-json">{
+  "type": "tool_use",
+  "data": {
+    "session_id": "abc123",
+    "tool": "read_file",
+    "input": {"path": "src/main.py", "start_line": 1, "end_line": 50}
+  }
+}
+</code></pre>
+
+<p>---</p>
+
+<h2>Web UI</h2>
+
+<p>内置 Web 控制面板（<code>bridge/test_bridge.html</code>），可直接在浏览器中操作：</p>
+
+<pre><code class="language-">http://localhost:8765/static/test_bridge.html
+</code></pre>
+
+<p>功能包括：
+- 会话列表与管理
+- 实时消息显示
+- 事件面板（工具调用、Token 消耗、错误通知）
+- 命令执行</p>
+
+<p>---</p>
+
+<h2>Token 认证</h2>
+
+<p>Bridge 使用 Bearer Token 进行认证：</p>
+
+<pre><code class="language-bash"><h1>REST 请求</h1>
+curl -H "Authorization: Bearer your-token" http://localhost:8765/sessions
+
+<h1>WebSocket 连接</h1>
+ws://localhost:8765/ws?token=your-token
+</code></pre>
+
+<p>---</p>
+
+<h2>多会话并行</h2>
+
+<p>Bridge 支持同时运行多个独立会话，每个会话有自己的上下文和状态：</p>
+
+<pre><code class="language-">> /bridge sessions
+
+<p>Bridge 会话 (3 个活跃 / 最大 5):
+  #1  session_abc  运行中  迭代 5/20  Token: 12,400
+  #2  session_def  等待中  迭代 0/20  Token: 0
+  #3  session_ghi  运行中  迭代 8/20  Token: 23,100
+</code></pre></p>
+
+<p>---</p>
+
+<h2>相关命令</h2>
+
+<div class="md-table-row">| 命令 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>/bridge</code> | Bridge 管理入口 |</div>
+<div class="md-table-row">| <code>/bridge sessions</code> | 查看活跃会话 |</div>
+<div class="md-table-row">| <code>/bridge status</code> | Bridge 服务状态 |</div>
+
+            </div>
+
+            <div class="docs-navigation">
+                <a href="../index.html" class="nav-btn prev">
+                    <i class="fas fa-arrow-left"></i>
+                    返回首页
+                </a>
+            </div>
+        </main>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2026 AuraCode. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+    <script src="../js/docs.js"></script>
+</body>
+</html>

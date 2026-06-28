@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>错误恢复 - AuraCode</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/docs.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .md-content { line-height: 1.8; }
+        .md-content h1 { font-size: 2rem; margin-bottom: 1rem; }
+        .md-content h2 { font-size: 1.5rem; margin: 2rem 0 1rem; }
+        .md-content h3 { font-size: 1.25rem; margin: 1.5rem 0 0.75rem; }
+        .md-content p { margin: 1rem 0; }
+        .md-content pre { background: var(--bg); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 1rem 0; }
+        .md-content code { background: var(--bg); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; }
+        .md-content pre code { background: none; padding: 0; }
+        .md-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        .md-content th, .md-content td { padding: 0.75rem; border: 1px solid var(--border-color); text-align: left; }
+        .md-content th { background: var(--s1); }
+        .md-content ul, .md-content ol { margin: 1rem 0; padding-left: 2rem; }
+        .md-content li { margin: 0.5rem 0; }
+        .md-content a { color: var(--acc); text-decoration: none; }
+        .md-content a:hover { text-decoration: underline; }
+        .md-content strong { font-weight: 600; }
+        .md-content hr { border: none; border-top: 1px solid var(--border-color); margin: 2rem 0; }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-code"></i>
+                <span>AuraCode</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="../index.html">首页</a></li>
+                <li><a href="../index.html#features">功能</a></li>
+                <li><a href="../index.html#docs">文档</a></li>
+                <li><a href="../index.html#quickstart">快速开始</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 文档内容 -->
+    <div class="docs-container">
+        <aside class="docs-sidebar">
+            <div class="sidebar-section">
+                <h3>入门指南</h3>
+                <ul>
+                    <li><a href="quickstart.html">快速开始</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>用户指南</h3>
+                <ul>
+                    <li><a href="user-guide/chat.html">对话交互</a></li>
+                    <li><a href="user-guide/commands.html">命令参考</a></li>
+                    <li><a href="user-guide/tools.html">工具系统</a></li>
+                    <li><a href="user-guide/skills.html">技能系统</a></li>
+                    <li><a href="user-guide/memory.html">记忆系统</a></li>
+                    <li><a href="user-guide/permissions.html">权限管理</a></li>
+                    <li><a href="user-guide/mcp.html">MCP 协议</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>高级功能</h3>
+                <ul>
+                    <li><a href="advanced/bridge.html">Bridge 远程控制</a></li>
+                    <li><a href="advanced/hooks.html">钩子系统</a></li>
+                    <li><a href="advanced/plugins.html">插件系统</a></li>
+                    <li><a href="advanced/error-recovery.html">错误恢复</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>开发</h3>
+                <ul>
+                    <li><a href="development/architecture.html">架构总览</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <main class="docs-content">
+            <div class="docs-header">
+                <h1>错误恢复</h1>
+            </div>
+            <div class="md-content">
+                <h1>错误恢复</h1>
+
+<p>auracode 实现了多层错误恢复机制，确保在 API 限流、网络故障、上下文溢出等场景下仍能正常工作。</p>
+
+<p>---</p>
+
+<h2>架构总览</h2>
+
+<pre><code class="language-">LLM 调用失败
+  │
+  ├── 第 1 层: API 级重试（_call_llm_streaming 内部，最多 8 次）
+  │     ├── 速率限制 → Retry-After / 错误消息提取 / 平方根退避
+  │     ├── 服务器过载 → 指数退避 1-32s
+  │     └── 超时/连接 → 指数退避 + 抖动
+  │
+  ├── 第 2 层: 轮次级恢复（run() 循环内）
+  │     ├── 上下文过长 → 压缩 + 重试
+  │     ├── 瞬时网络错误 → 等待 10s + 重试 1 次
+  │     └── 连续服务器错误 → Fallback 模型
+  │
+  ├── 第 3 层: 工具级恢复（_execute_tool 内）
+  │     ├── StopHook 拦截 → 恢复提示引导替代方案
+  │     ├── 幂等工具失败 → ToolEnhancer 自动重试
+  │     └── 权限拒绝 → 记录 + 提示
+  │
+  └── 第 4 层: 输出恢复
+        └── 输出截断 → 续写提示（最多 3 次）
+</code></pre>
+
+<p>---</p>
+
+<h2>第 1 层：API 级重试</h2>
+
+<p><code>_call_llm_streaming()</code> 内部实现，对每次 LLM 调用自动重试。</p>
+
+<h3>参数</h3>
+
+<div class="md-table-row">| 参数 | 值 | 说明 |</div>
+<div class="md-table-row">|------|-----|------|</div>
+<div class="md-table-row">| <code>max_retries</code> | 8 | 最大重试次数 |</div>
+<div class="md-table-row">| <code>MAX_BACKOFF_S</code> | 32s | 非速率限制退避上限 |</div>
+<div class="md-table-row">| <code>RATE_LIMIT_FLOOR_S</code> | 8s | 速率限制最低等待 |</div>
+<div class="md-table-row">| <code>RATE_LIMIT_CAP_S</code> | 60s | 速率限制最大等待 |</div>
+
+<h3>错误分类</h3>
+
+<p><code>_classify_error()</code> 按优先级分类：</p>
+
+<div class="md-table-row">| 分类 | HTTP 状态码 | 说明 |</div>
+<div class="md-table-row">|------|-------------|------|</div>
+<div class="md-table-row">| <code>rate_limit</code> | 429 | 速率限制 |</div>
+<div class="md-table-row">| <code>server_overload</code> | 529 / 500+overloaded | 服务器过载 |</div>
+<div class="md-table-row">| <code>timeout</code> | 408, 409 | 请求超时 |</div>
+<div class="md-table-row">| <code>auth</code> | 401, 403 | 认证失败（不重试） |</div>
+<div class="md-table-row">| <code>server_error</code> | 5xx | 服务器内部错误 |</div>
+<div class="md-table-row">| <code>prompt_too_long</code> | — | 上下文溢出 |</div>
+<div class="md-table-row">| <code>connection</code> | — | 网络连接问题 |</div>
+
+<p>分类优先级：HTTP 状态码 > 异常类型检查 > 关键词匹配。</p>
+
+<h3>退避策略</h3>
+
+<pre><code class="language-">速率限制:
+  1. Retry-After 响应头（+ 10% 抖动，上限 5 分钟）
+  2. 错误消息中的等待时间提示（如 GLM "Xs 后重试"）
+  3. 默认: 8 × √attempt 秒 + 0~5s 随机抖动
+
+<p>普通瞬时错误:
+  2^(attempt-1) 秒 + 25% 随机抖动，上限 32s
+  即: 1s → 2s → 4s → 8s → 16s → 32s
+</code></pre></p>
+
+<h3>重试事件</h3>
+
+<p>每次重试都会发射 <code>api_retry</code> 事件，Bridge 可实时展示：</p>
+
+<pre><code class="language-python">self._emit_event("api_retry", {
+    "attempt": attempt,
+    "max_retries": max_retries,
+    "wait_seconds": round(wait, 1),
+    "error": str(e),
+    "category": category,
+    "is_rate_limit": category == 'rate_limit',
+})
+</code></pre>
+
+<p>---</p>
+
+<h2>第 2 层：轮次级恢复</h2>
+
+<p><code>run()</code> 方法的 TAOR 循环内处理，在单次 API 重试耗尽后介入。</p>
+
+<h3>上下文过长恢复</h3>
+
+<p>当 LLM 返回 <code>context_length_exceeded</code> 错误时：</p>
+
+<p>1. 裁剪旧工具结果（<code>_snip_old_tool_results()</code>）
+2. 压缩消息历史（<code>_compact_messages()</code>）
+3. 自动重试当前轮次</p>
+
+<p>压缩后仍然失败则返回错误结果，不会无限重试。</p>
+
+<h3>瞬时网络错误恢复</h3>
+
+<p>超时、连接断开、服务器 5xx 等瞬时错误：</p>
+
+<p>- 等待 10 秒后重试当前轮次（最多 1 次）
+- 速率限制 (429) 不在此层重试（第 1 层已有 8 次）</p>
+
+<h3>Fallback 模型</h3>
+
+<p>连续服务器错误超过阈值时自动切换到备用模型：</p>
+
+<pre><code class="language-python"><h1>配置</h1>
+config = {
+    "model": "glm-4.7",
+    "fallback_model": "glm-4-flash",  # 备用模型
+}
+
+<h1>触发条件: 连续 2 次 5xx 服务器错误</h1>
+_MAX_CONSECUTIVE_SERVER_ERRORS = 2
+</code></pre>
+
+<p>切换后后续请求自动使用 fallback 模型，直到会话结束或手动切换。</p>
+
+<p>---</p>
+
+<h2>第 3 层：工具级恢复</h2>
+
+<h3>StopHook 恢复提示</h3>
+
+<p>当 PreToolUse 钩子阻止工具执行时，返回恢复提示引导 LLM 尝试替代方案：</p>
+
+<pre><code class="language-">Tool 'run_command' was blocked by safety hook.
+Reason: dangerous command detected.
+Please try an alternative approach or ask the user for guidance.
+</code></pre>
+
+<p>LLM 收到提示后会自动选择其他方法完成任务。</p>
+
+<h3>幂等工具自动重试</h3>
+
+<p><code>ToolEnhancer</code> 对幂等工具（如 <code>read_file</code>、<code>list_files</code>）自动重试：</p>
+
+<pre><code class="language-python"><h1>可重试工具列表</h1>
+retryable_tools = [
+    "read_file", "list_files", "search_content",
+    "get_diagnostics", "web_fetch", "web_search",
+]
+
+<h1>重试策略</h1>
+max_retries = 2
+base_delay = 0.5s
+backoff_factor = 2
+</code></pre>
+
+<p>非幂等工具（如 <code>write_file</code>、<code>run_command</code>）不自动重试，避免副作用。</p>
+
+<h3>工具输出裁剪</h3>
+
+<p>大型工具输出（如 diff 结果超过 4000 字符）自动裁剪未修改区域，保留关键变更部分。</p>
+
+<p>---</p>
+
+<h2>第 4 层：输出截断恢复</h2>
+
+<p>当 LLM 输出达到 <code>max_tokens</code> 上限被截断时：</p>
+
+<p>1. 向消息历史追加续写提示
+2. LLM 从中断处继续，无需道歉或回顾
+3. 最多恢复 3 次（<code>max_output_recovery_limit</code>）</p>
+
+<p>续写提示：
+<pre><code class="language-">Output token limit hit. Resume directly — no apology,
+no recap. Pick up mid-thought if that is where the cut happened.
+Break remaining work into smaller pieces.
+</code></pre></p>
+
+<p>---</p>
+
+<h2>会话持久化保护</h2>
+
+<p>无论何种错误，会话数据都会被安全保存：</p>
+
+<p>- <strong>CLI 模式</strong>：<code>try/finally</code> 包裹 <code>run()</code>，异常时也保存会话
+- <strong>Bridge 模式</strong>：<code>_run_loop</code> 的 <code>finally</code> 块自动保存会话
+- 可通过 <code>/resume</code> 命令恢复中断的会话</p>
+
+<p>---</p>
+
+<h2>事件通知</h2>
+
+<p>所有错误恢复过程都会发射事件，供 Bridge UI 和日志系统追踪：</p>
+
+<div class="md-table-row">| 事件 | 触发时机 | 关键字段 |</div>
+<div class="md-table-row">|------|----------|----------|</div>
+<div class="md-table-row">| <code>api_retry</code> | API 级重试 | attempt, wait_seconds, category |</div>
+<div class="md-table-row">| <code>turn_retry</code> | 轮次级重试 | turn, error, wait_seconds |</div>
+<div class="md-table-row">| <code>prompt_too_long_recovery</code> | 上下文压缩恢复 | messages_before |</div>
+<div class="md-table-row">| <code>fallback_model_activated</code> | Fallback 模型激活 | model, fallback_model |</div>
+
+<p>---</p>
+
+<h2>配置项</h2>
+
+<p>通过 <code>config.yaml</code> 或构造函数调整恢复行为：</p>
+
+<pre><code class="language-yaml">model: glm-4.7                    # 主模型
+fallback_model: glm-4-flash       # 备用模型
+max_iterations: 20                # TAOR 最大迭代
+max_output_recovery_limit: 3      # 输出截断恢复上限
+context_compact_threshold: auto   # 压缩阈值（auto=动态计算）
+</code></pre>
+
+            </div>
+
+            <div class="docs-navigation">
+                <a href="../index.html" class="nav-btn prev">
+                    <i class="fas fa-arrow-left"></i>
+                    返回首页
+                </a>
+            </div>
+        </main>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2026 AuraCode. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+    <script src="../js/docs.js"></script>
+</body>
+</html>

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>权限管理 - AuraCode</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/docs.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .md-content { line-height: 1.8; }
+        .md-content h1 { font-size: 2rem; margin-bottom: 1rem; }
+        .md-content h2 { font-size: 1.5rem; margin: 2rem 0 1rem; }
+        .md-content h3 { font-size: 1.25rem; margin: 1.5rem 0 0.75rem; }
+        .md-content p { margin: 1rem 0; }
+        .md-content pre { background: var(--bg); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 1rem 0; }
+        .md-content code { background: var(--bg); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; }
+        .md-content pre code { background: none; padding: 0; }
+        .md-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        .md-content th, .md-content td { padding: 0.75rem; border: 1px solid var(--border-color); text-align: left; }
+        .md-content th { background: var(--s1); }
+        .md-content ul, .md-content ol { margin: 1rem 0; padding-left: 2rem; }
+        .md-content li { margin: 0.5rem 0; }
+        .md-content a { color: var(--acc); text-decoration: none; }
+        .md-content a:hover { text-decoration: underline; }
+        .md-content strong { font-weight: 600; }
+        .md-content hr { border: none; border-top: 1px solid var(--border-color); margin: 2rem 0; }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-code"></i>
+                <span>AuraCode</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="../index.html">首页</a></li>
+                <li><a href="../index.html#features">功能</a></li>
+                <li><a href="../index.html#docs">文档</a></li>
+                <li><a href="../index.html#quickstart">快速开始</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 文档内容 -->
+    <div class="docs-container">
+        <aside class="docs-sidebar">
+            <div class="sidebar-section">
+                <h3>入门指南</h3>
+                <ul>
+                    <li><a href="quickstart.html">快速开始</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>用户指南</h3>
+                <ul>
+                    <li><a href="user-guide/chat.html">对话交互</a></li>
+                    <li><a href="user-guide/commands.html">命令参考</a></li>
+                    <li><a href="user-guide/tools.html">工具系统</a></li>
+                    <li><a href="user-guide/skills.html">技能系统</a></li>
+                    <li><a href="user-guide/memory.html">记忆系统</a></li>
+                    <li><a href="user-guide/permissions.html">权限管理</a></li>
+                    <li><a href="user-guide/mcp.html">MCP 协议</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>高级功能</h3>
+                <ul>
+                    <li><a href="advanced/bridge.html">Bridge 远程控制</a></li>
+                    <li><a href="advanced/hooks.html">钩子系统</a></li>
+                    <li><a href="advanced/plugins.html">插件系统</a></li>
+                    <li><a href="advanced/error-recovery.html">错误恢复</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>开发</h3>
+                <ul>
+                    <li><a href="development/architecture.html">架构总览</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <main class="docs-content">
+            <div class="docs-header">
+                <h1>权限管理</h1>
+            </div>
+            <div class="md-content">
+                <h1>权限管理</h1>
+
+<p>AuraCode 提供四级权限模式，通过参数级 allow/deny 规则精确控制 AI 的操作边界。</p>
+
+<p>---</p>
+
+<h2>权限模式</h2>
+
+<div class="md-table-row">| 模式 | 说明 | 适用场景 |</div>
+<div class="md-table-row">|------|------|----------|</div>
+<div class="md-table-row">| <code>normal</code> | 默认模式 — 危险操作需用户确认 | 日常开发 |</div>
+<div class="md-table-row">| <code>auto</code> | 自动模式 — 自动批准安全操作 | 信任环境/CI |</div>
+<div class="md-table-row">| <code>plan</code> | 计划模式 — 只读分析，不执行修改 | 代码审查/调研 |</div>
+<div class="md-table-row">| <code>bypass</code> | 绕过模式 — 跳过所有权限检查 | 调试/测试 |</div>
+
+<h3>切换模式</h3>
+
+<pre><code class="language-bash"><h1>启动时指定</h1>
+python cli.py --mode auto
+
+<h1>运行时切换</h1>
+> /permissions mode auto
+</code></pre>
+
+<p>---</p>
+
+<h2>规则配置</h2>
+
+<p>规则格式为 <code>工具名:参数模式</code>，支持通配符 <code>*</code>。</p>
+
+<h3>config.yaml</h3>
+
+<pre><code class="language-yaml">permissions:
+  mode: normal
+  allow_rules:
+    - "read_file:*"          # 允许读取所有文件
+    - "run_command:git *"    # 允许所有 git 命令
+    - "write_file:src/*"     # 只允许写 src/ 下的文件
+  deny_rules:
+    - "run_command:rm -rf"   # 禁止危险删除
+    - "run_command:sudo *"   # 禁止 sudo
+    - "write_file:*.env"     # 禁止修改环境变量文件
+</code></pre>
+
+<h3>运行时管理</h3>
+
+<pre><code class="language-">> /permissions
+
+<p>当前模式: normal</p>
+
+<p>Allow 规则:
+  ✅ read_file:*
+  ✅ run_command:git *
+  ✅ write_file:src/*</p>
+
+<p>Deny 规则:
+  ❌ run_command:rm -rf
+  ❌ run_command:sudo *
+  ❌ write_file:*.env
+</code></pre></p>
+
+<pre><code class="language-"><h1>添加规则</h1>
+> /permissions add allow "run_command:npm *"
+
+<h1>移除规则</h1>
+> /permissions remove deny "write_file:*.env"
+</code></pre>
+
+<p>---</p>
+
+<h2>规则匹配优先级</h2>
+
+<p>当 allow 和 deny 规则冲突时，<strong>deny 优先</strong>：</p>
+
+<pre><code class="language-">allow: "run_command:*"      # 允许所有命令
+deny:  "run_command:rm *"   # 但禁止 rm 命令
+
+<p>→ run_command: ls         ✅ 匹配 allow
+→ run_command: rm file    ❌ 匹配 deny（deny 优先）
+</code></pre></p>
+
+<p>---</p>
+
+<h2>危险操作确认</h2>
+
+<p>在 <code>normal</code> 模式下，以下操作会弹出确认提示：</p>
+
+<p>- 执行 Shell 命令（<code>run_command</code>）
+- 写入文件（<code>write_file</code>、<code>replace_in_file</code>）
+- 删除文件</p>
+
+<pre><code class="language-">⚠️  权限确认
+
+<p>  工具: run_command
+  参数: rm -rf build/</p>
+
+<p>  当前无匹配的 allow 规则，是否允许?
+  [y] 允许  [n] 拒绝  [a] 本次会话始终允许此操作
+</code></pre></p>
+
+<p>---</p>
+
+<h2>相关命令</h2>
+
+<div class="md-table-row">| 命令 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>/permissions</code> | 查看当前权限配置 |</div>
+<div class="md-table-row">| <code>/permissions mode <mode></code> | 切换权限模式 |</div>
+<div class="md-table-row">| <code>/permissions add allow <rule></code> | 添加 allow 规则 |</div>
+<div class="md-table-row">| <code>/permissions add deny <rule></code> | 添加 deny 规则 |</div>
+<div class="md-table-row">| <code>/permissions remove allow <rule></code> | 移除 allow 规则 |</div>
+<div class="md-table-row">| <code>/permissions remove deny <rule></code> | 移除 deny 规则 |</div>
+
+            </div>
+
+            <div class="docs-navigation">
+                <a href="../index.html" class="nav-btn prev">
+                    <i class="fas fa-arrow-left"></i>
+                    返回首页
+                </a>
+            </div>
+        </main>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2026 AuraCode. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+    <script src="../js/docs.js"></script>
+</body>
+</html>

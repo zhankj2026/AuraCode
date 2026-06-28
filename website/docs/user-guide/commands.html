@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>命令参考 - AuraCode</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/docs.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .md-content { line-height: 1.8; }
+        .md-content h1 { font-size: 2rem; margin-bottom: 1rem; }
+        .md-content h2 { font-size: 1.5rem; margin: 2rem 0 1rem; }
+        .md-content h3 { font-size: 1.25rem; margin: 1.5rem 0 0.75rem; }
+        .md-content p { margin: 1rem 0; }
+        .md-content pre { background: var(--bg); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 1rem 0; }
+        .md-content code { background: var(--bg); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; }
+        .md-content pre code { background: none; padding: 0; }
+        .md-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        .md-content th, .md-content td { padding: 0.75rem; border: 1px solid var(--border-color); text-align: left; }
+        .md-content th { background: var(--s1); }
+        .md-content ul, .md-content ol { margin: 1rem 0; padding-left: 2rem; }
+        .md-content li { margin: 0.5rem 0; }
+        .md-content a { color: var(--acc); text-decoration: none; }
+        .md-content a:hover { text-decoration: underline; }
+        .md-content strong { font-weight: 600; }
+        .md-content hr { border: none; border-top: 1px solid var(--border-color); margin: 2rem 0; }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-code"></i>
+                <span>AuraCode</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="../index.html">首页</a></li>
+                <li><a href="../index.html#features">功能</a></li>
+                <li><a href="../index.html#docs">文档</a></li>
+                <li><a href="../index.html#quickstart">快速开始</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 文档内容 -->
+    <div class="docs-container">
+        <aside class="docs-sidebar">
+            <div class="sidebar-section">
+                <h3>入门指南</h3>
+                <ul>
+                    <li><a href="quickstart.html">快速开始</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>用户指南</h3>
+                <ul>
+                    <li><a href="user-guide/chat.html">对话交互</a></li>
+                    <li><a href="user-guide/commands.html">命令参考</a></li>
+                    <li><a href="user-guide/tools.html">工具系统</a></li>
+                    <li><a href="user-guide/skills.html">技能系统</a></li>
+                    <li><a href="user-guide/memory.html">记忆系统</a></li>
+                    <li><a href="user-guide/permissions.html">权限管理</a></li>
+                    <li><a href="user-guide/mcp.html">MCP 协议</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>高级功能</h3>
+                <ul>
+                    <li><a href="advanced/bridge.html">Bridge 远程控制</a></li>
+                    <li><a href="advanced/hooks.html">钩子系统</a></li>
+                    <li><a href="advanced/plugins.html">插件系统</a></li>
+                    <li><a href="advanced/error-recovery.html">错误恢复</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>开发</h3>
+                <ul>
+                    <li><a href="development/architecture.html">架构总览</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <main class="docs-content">
+            <div class="docs-header">
+                <h1>命令参考</h1>
+            </div>
+            <div class="md-content">
+                <h1>命令参考</h1>
+
+<p>在对话模式中输入 <code>/命令名</code> 即可执行。AuraCode 内置 46 条命令，覆盖开发全流程。</p>
+
+<p>---</p>
+
+<h2>核心交互</h2>
+
+<div class="md-table-row">| 命令 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>/help</code> (<code>?</code>) | 查看所有可用命令及简要说明 |</div>
+<div class="md-table-row">| <code>/status</code> | 当前会话状态（模型、Token、迭代次数、费用）|</div>
+<div class="md-table-row">| <code>/clear</code> | 清空对话历史，重新开始 |</div>
+<div class="md-table-row">| <code>/compact</code> | LLM 驱动压缩对话历史，保留关键摘要 |</div>
+<div class="md-table-row">| <code>/context</code> | Token 分布可视化与上下文使用情况 |</div>
+<div class="md-table-row">| <code>/cost</code> | 会话费用追踪（按模型独立计价）|</div>
+<div class="md-table-row">| <code>/model <name></code> | 运行时切换模型，支持历史回滚 |</div>
+<div class="md-table-row">| <code>/new</code> | 创建新会话 |</div>
+<div class="md-table-row">| <code>/reset</code> | 重置当前会话 |</div>
+
+<p>---</p>
+
+<h2>Git 工作流</h2>
+
+<div class="md-table-row">| 命令 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>/commit</code> | AI 分析当前变更，智能生成 Git 提交信息并执行 |</div>
+<div class="md-table-row">| <code>/diff</code> | 查看 Git 暂存区与工作区差异 |</div>
+<div class="md-table-row">| <code>/review</code> | 代码审查 — 变更影响分析 + 依赖图展示 |</div>
+<div class="md-table-row">| <code>/security-review</code> | 安全漏洞扫描 — 16 类检查规则 + 严重性分级 |</div>
+<div class="md-table-row">| <code>/worktree</code> | Git Worktree 隔离工作区管理 |</div>
+
+<h3>示例</h3>
+
+<pre><code class="language-">> /commit
+
+<p>分析变更:
+  - 修改 src/auth.py (添加 JWT 验证)
+  - 新增 src/middleware.py</p>
+
+<p>建议提交信息:
+  feat(auth): 添加 JWT Token 验证中间件</p>
+
+<p>是否提交? [Y/n]
+</code></pre></p>
+
+<pre><code class="language-">> /security-review
+
+<p>扫描结果:
+  🔴 高危 (1): src/auth.py:45 - 硬编码密钥
+  🟡 中危 (2): src/api.py:12 - 未验证的 URL 重定向
+  🟢 低危 (3): src/db.py:8 - SQL 拼接（已参数化）
+</code></pre></p>
+
+<p>---</p>
+
+<h2>会话管理</h2>
+
+<div class="md-table-row">| 命令 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>/resume</code> | 恢复历史会话（含离开摘要）|</div>
+<div class="md-table-row">| <code>/history</code> | 会话历史列表与全文搜索 |</div>
+<div class="md-table-row">| <code>/rewind</code> | 会话回退 — Checkpoint 撤销上 N 轮对话 |</div>
+<div class="md-table-row">| <code>/export</code> | 导出对话为 Markdown / JSON 文件 |</div>
+<div class="md-table-row">| <code>/plan</code> | 进入任务规划模式 — 分步计划制定与追踪 |</div>
+
+<h3>示例</h3>
+
+<pre><code class="language-">> /resume --all
+
+<p>会话历史 (共 15 条):
+  #1  2024-01-15  重构 auth 模块      12轮  $0.08
+  #2  2024-01-14  修复分页 bug         5轮  $0.03
+  ...</p>
+
+<p>输入编号恢复。
+</code></pre></p>
+
+<p>---</p>
+
+<h2>代码质量</h2>
+
+<div class="md-table-row">| 命令 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>/analyze</code> | 项目级代码分析（结构、复杂度、依赖）|</div>
+<div class="md-table-row">| <code>/lint</code> | 代码规范检查 |</div>
+<div class="md-table-row">| <code>/test</code> | 运行项目测试 |</div>
+<div class="md-table-row">| <code>/benchmark</code> | 性能基准测试与历史对比 |</div>
+<div class="md-table-row">| <code>/verify</code> | 验证代码变更是否正确（Skill）|</div>
+<div class="md-table-row">| <code>/simplify</code> | 三路并行代码审查与简化建议（Skill）|</div>
+<div class="md-table-row">| <code>/debug</code> | 调试会话问题诊断（Skill）|</div>
+<div class="md-table-row">| <code>/doctor</code> | 环境诊断与健康检查 |</div>
+
+<h3>示例</h3>
+
+<pre><code class="language-">> /benchmark
+
+<p>运行基准测试...
+  ✅ test_query   1.23s (上次: 1.45s, ↓15%)
+  ⚠️ test_parse   3.89s (上次: 2.10s, ↑85%)
+  ✅ test_save    0.54s (上次: 0.52s, +4%)
+</code></pre></p>
+
+<p>---</p>
+
+<h2>系统管理</h2>
+
+<div class="md-table-row">| 命令 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>/config-edit</code> | 运行时热编辑配置文件（立即生效）|</div>
+<div class="md-table-row">| <code>/permissions</code> | 权限规则管理（查看/添加/移除/模式切换）|</div>
+<div class="md-table-row">| <code>/hooks</code> | Hook 管理 — 配置查看、执行日志、热重载 |</div>
+<div class="md-table-row">| <code>/plugins</code> | 插件系统管理（列表/启用/禁用）|</div>
+<div class="md-table-row">| <code>/mcp</code> | MCP 服务器管理（连接/断开/工具列表）|</div>
+<div class="md-table-row">| <code>/memory</code> | 记忆管理（查看/搜索/编辑/删除/导出）|</div>
+<div class="md-table-row">| <code>/tools</code> | 工具使用统计与调用追踪 |</div>
+<div class="md-table-row">| <code>/init</code> | 初始化项目文档 <code>AURACODE.md</code> |</div>
+
+<h3>示例</h3>
+
+<pre><code class="language-">> /permissions
+
+<p>当前模式: normal</p>
+
+<p>Allow 规则:
+  ✅ read_file:*
+  ✅ run_command:git *</p>
+
+<p>Deny 规则:
+  ❌ run_command:rm -rf
+  ❌ run_command:sudo *</p>
+
+<p>用法: /permissions add allow "write_file:src/*"
+</code></pre></p>
+
+<p>---</p>
+
+<h2>代理与技能</h2>
+
+<div class="md-table-row">| 命令 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>/skills</code> | 列出所有可用技能 |</div>
+<div class="md-table-row">| <code>/activate <name></code> | 激活领域技能 |</div>
+<div class="md-table-row">| <code>/deactivate <name></code> | 停用领域技能 |</div>
+<div class="md-table-row">| <code>/active</code> | 查看已激活的技能 |</div>
+<div class="md-table-row">| <code>/subagents</code> | 子代理管理（列表/统计/终止）|</div>
+<div class="md-table-row">| <code>/bridge</code> | Bridge 远程控制管理 |</div>
+<div class="md-table-row">| <code>/cron</code> | 定时任务管理 |</div>
+<div class="md-table-row">| <code>/batch</code> | 大规模并行变更编排（Skill）|</div>
+
+<h3>示例</h3>
+
+<pre><code class="language-">> /activate git-workflow
+
+<p>✅ 技能 'git-workflow' 已激活
+  描述: Git 工作流规范
+  触发: 涉及 Git 操作时
+</code></pre></p>
+
+<p>---</p>
+
+<h2>其他</h2>
+
+<div class="md-table-row">| 命令 | 说明 |</div>
+<div class="md-table-row">|------|------|</div>
+<div class="md-table-row">| <code>/tips</code> | 功能发现提示（展示你还未使用的功能）|</div>
+<div class="md-table-row">| <code>/update-config</code> | 配置管理（Hooks/权限/环境变量）|</div>
+
+            </div>
+
+            <div class="docs-navigation">
+                <a href="../index.html" class="nav-btn prev">
+                    <i class="fas fa-arrow-left"></i>
+                    返回首页
+                </a>
+            </div>
+        </main>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2026 AuraCode. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+    <script src="../js/docs.js"></script>
+</body>
+</html>
