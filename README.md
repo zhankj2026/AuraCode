@@ -704,5 +704,5 @@ python -m pytest tests/test_phase3_mcp_advanced.py -v
 ## 📮 联系方式
 
 - 📖 文档：`docs/` 目录
-- 💬 问题反馈：GitHub Issues
-- 🌟 项目地址：GitHub Repository
+- 💬 问题反馈：GitHub Issues /Gitee Issues
+- 🌟 项目地址：https://gitee.com/creating2018/auracode 
