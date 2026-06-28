@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>AuraCode Bridge 移动端</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--bg:#0d1117;--s1:#161b22;--s2:#1c2128;--bd:#30363d;--tx:#e6edf3;--tx2:#8b949e;--acc:#58a6ff;--gn:#3fb950;--rd:#f85149;--yl:#d29922;--pp:#bc8cff}
+body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--tx);height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;font-size:14px}
+
+/* Header */
+.header{background:var(--s1);border-bottom:1px solid var(--bd);padding:12px 16px;flex-shrink:0}
+.header h1{font-size:16px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.conn-row{display:flex;gap:8px;align-items:center}
+.conn-row input{flex:1;background:var(--bg);border:1px solid var(--bd);color:var(--tx);padding:8px 10px;border-radius:6px;font-size:13px}
+.conn-row input:focus{outline:none;border-color:var(--acc)}
+.btn{padding:8px 14px;border-radius:6px;border:1px solid var(--bd);background:var(--s1);color:var(--tx);cursor:pointer;font-size:13px;font-weight:500;transition:.15s;white-space:nowrap}
+.btn:active{transform:scale(0.95)}
+.btn.primary{background:#238636;border-color:#238636;color:#fff}
+.btn.danger{border-color:var(--rd);color:var(--rd)}
+.btn:disabled{opacity:0.4;pointer-events:none}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.dot.on{background:var(--gn);box-shadow:0 0 6px var(--gn)}.dot.off{background:var(--rd)}
+.status-text{font-size:12px;color:var(--tx2);margin-left:auto}
+
+/* Tabs */
+.tabs{display:flex;background:var(--s1);border-bottom:1px solid var(--bd);flex-shrink:0}
+.tab{flex:1;padding:10px;text-align:center;font-size:13px;font-weight:500;color:var(--tx2);border-bottom:2px solid transparent;cursor:pointer;transition:.15s}
+.tab.active{color:var(--acc);border-bottom-color:var(--acc)}
+.tab:active{background:rgba(88,166,255,0.05)}
+
+/* Content Area */
+.content{flex:1;overflow:hidden;position:relative}
+.pane{position:absolute;inset:0;display:none;flex-direction:column;overflow:hidden}
+.pane.active{display:flex}
+
+/* Sessions Pane */
+.session-list{flex:1;overflow-y:auto;padding:12px}
+.session-card{background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:12px;margin-bottom:8px;cursor:pointer;transition:.15s}
+.session-card:active{border-color:var(--acc);background:rgba(88,166,255,0.05)}
+.session-card.active{border-color:var(--acc);background:rgba(88,166,255,0.08)}
+.s-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.s-id{font-size:11px;color:var(--tx2);font-family:monospace}
+.s-title{font-size:14px;font-weight:500;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.s-meta{display:flex;gap:8px;font-size:11px;color:var(--tx2)}
+.badge{padding:2px 6px;border-radius:10px;font-size:10px;font-weight:600}
+.badge.idle{background:rgba(139,148,158,0.2);color:var(--tx2)}
+.badge.running{background:rgba(63,185,80,0.2);color:var(--gn)}
+.badge.requires_action{background:rgba(210,153,34,0.2);color:var(--yl)}
+.badge.completed{background:rgba(88,166,255,0.2);color:var(--acc)}
+.badge.failed{background:rgba(248,81,73,0.2);color:var(--rd)}
+
+.new-session{background:var(--s1);border-top:1px solid var(--bd);padding:12px;flex-shrink:0}
+.new-session input,.new-session select{width:100%;background:var(--bg);border:1px solid var(--bd);color:var(--tx);padding:8px 10px;border-radius:6px;font-size:13px;margin-bottom:8px}
+.new-session input:focus,.new-session select:focus{outline:none;border-color:var(--acc)}
+
+/* Terminal Pane */
+.terminal{flex:1;overflow-y:auto;padding:12px;font-family:'Cascadia Code','Fira Code',monospace;font-size:12px;line-height:1.5;background:#0a0e14}
+.msg{margin-bottom:4px;word-wrap:break-word;white-space:pre-wrap}
+.msg.user{color:#79c0ff}.msg.ai{color:var(--tx)}.msg.think{color:var(--tx2);font-style:italic}
+.msg.tool{color:var(--yl)}.msg.result{color:var(--gn)}.msg.error{color:var(--rd)}.msg.sys{color:var(--tx2)}
+.msg .tag{display:inline-block;padding:1px 5px;border-radius:3px;font-size:10px;font-weight:600;margin-right:4px}
+.tag.exec{background:rgba(210,153,34,0.2);color:var(--yl)}.tag.ok{background:rgba(63,185,80,0.2);color:var(--gn)}
+.tag.err{background:rgba(248,81,73,0.2);color:var(--rd)}
+
+.input-bar{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--bd);background:var(--s1);flex-shrink:0}
+.input-bar textarea{flex:1;background:var(--bg);border:1px solid var(--bd);color:var(--tx);padding:8px 10px;border-radius:6px;font-size:13px;font-family:inherit;resize:none;min-height:40px;max-height:100px}
+.input-bar textarea:focus{outline:none;border-color:var(--acc)}
+
+/* Files Pane */
+.files-header{padding:10px 12px;border-bottom:1px solid var(--bd);background:var(--s1);font-size:12px;color:var(--tx2);flex-shrink:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.files-header .back{color:var(--acc);cursor:pointer}
+.file-list{flex:1;overflow-y:auto}
+.file-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid rgba(48,54,61,0.3);cursor:pointer}
+.file-item:active{background:rgba(88,166,255,0.05)}
+.file-icon{font-size:16px;width:24px;text-align:center;flex-shrink:0}
+.file-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.file-size{color:var(--tx2);font-size:11px;flex-shrink:0}
+
+.file-viewer{display:none;flex-direction:column;flex:1;overflow:hidden}
+.file-viewer.show{display:flex}
+.file-viewer .fv-header{padding:8px 12px;border-bottom:1px solid var(--bd);font-size:12px;color:var(--tx2);display:flex;align-items:center;gap:8px}
+.file-viewer .fv-header .back{color:var(--acc);cursor:pointer}
+.file-viewer pre{flex:1;overflow:auto;padding:12px;font-family:monospace;font-size:11px;line-height:1.5;color:var(--tx);background:var(--bg);margin:0}
+.file-viewer pre .lnum{color:var(--tx2);display:inline-block;width:30px;text-align:right;margin-right:8px;user-select:none}
+
+/* Network Pane */
+.net-summary{display:flex;gap:12px;padding:10px 12px;border-bottom:1px solid var(--bd);background:var(--s1);font-size:12px;color:var(--tx2);flex-shrink:0}
+.net-summary b{color:var(--tx);font-size:13px}
+.net-list{flex:1;overflow-y:auto}
+.net-item{padding:10px 12px;border-bottom:1px solid rgba(48,54,61,0.3);cursor:pointer}
+.net-item:active{background:rgba(88,166,255,0.05)}
+.net-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.net-model{font-weight:500;font-size:13px}
+.net-stats{display:flex;gap:12px;font-size:11px;color:var(--tx2)}
+.net-detail{display:none;background:var(--s2);margin:4px 12px;padding:10px;border-radius:6px;font-size:11px;line-height:1.6}
+.net-detail.show{display:block}
+.net-detail pre{background:var(--bg);padding:8px;border-radius:4px;overflow-x:auto;font-size:10px;margin:4px 0}
+
+/* Permission Dialog */
+.perm-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;justify-content:center;align-items:flex-end}
+.perm-overlay.show{display:flex}
+.perm-dialog{background:var(--s1);border-radius:12px 12px 0 0;padding:16px;width:100%;max-height:80vh;overflow-y:auto}
+.perm-dialog h3{font-size:15px;margin-bottom:10px;color:var(--yl)}
+.perm-info{background:var(--bg);padding:12px;border-radius:6px;margin-bottom:14px;font-size:12px}
+.perm-info .row{margin-bottom:4px}
+.perm-info .label{color:var(--tx2);min-width:50px;display:inline-block}
+.perm-actions{display:flex;gap:10px}
+.perm-actions .btn{flex:1;padding:12px}
+
+/* Bottom Bar */
+.bottom-bar{display:flex;align-items:center;gap:10px;padding:6px 12px;background:var(--s1);border-top:1px solid var(--bd);font-size:10px;color:var(--tx2);flex-shrink:0}
+
+/* Empty State */
+.empty{display:flex;align-items:center;justify-content:center;height:100%;color:var(--tx2);font-size:13px;flex-direction:column;gap:8px;text-align:center;padding:20px}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <h1>🔌 AuraCode Bridge</h1>
+  <div class="conn-row">
+    <input id="sUrl" value="http://127.0.0.1:8765" placeholder="服务器地址">
+    <button class="btn primary" id="connBtn" onclick="toggleConn()">连接</button>
+    <span class="dot off" id="connDot"></span>
+    <span class="status-text" id="connStatus">未连接</span>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" data-tab="sessions" onclick="switchTab('sessions')">📋 会话</div>
+  <div class="tab" data-tab="terminal" onclick="switchTab('terminal')">💬 终端</div>
+  <div class="tab" data-tab="files" onclick="switchTab('files')">📁 文件</div>
+  <div class="tab" data-tab="network" onclick="switchTab('network')">📡 网络</div>
+</div>
+
+<!-- Content -->
+<div class="content">
+  <!-- Sessions -->
+  <div class="pane active" id="pane-sessions">
+    <div class="session-list" id="sessList">
+      <div class="empty">📱<br>点击连接按钮开始<br>管理您的 AI 会话</div>
+    </div>
+    <div class="new-session" id="newSessForm" style="display:none">
+      <input id="nDir" placeholder="工作目录 (.)">
+      <input id="nModel" placeholder="模型 (glm-4-plus)">
+      <input id="nKey" placeholder="API Key" type="password">
+      <select id="nPerm">
+        <option value="auto">auto - 自动批准</option>
+        <option value="normal">normal - 需确认</option>
+        <option value="bypass">bypass - 跳过检查</option>
+        <option value="plan">plan - 只读模式</option>
+      </select>
+      <button class="btn primary" style="width:100%" onclick="createSession()">+ 创建新会话</button>
+    </div>
+  </div>
+
+  <!-- Terminal -->
+  <div class="pane" id="pane-terminal">
+    <div class="terminal" id="terminal">
+      <div class="empty">💬<br>选择会话后<br>在此查看对话内容</div>
+    </div>
+    <div class="input-bar">
+      <textarea id="msgInput" placeholder="输入消息..." rows="1"></textarea>
+      <button class="btn primary" onclick="sendMsg()">发送</button>
+    </div>
+  </div>
+
+  <!-- Files -->
+  <div class="pane" id="pane-files">
+    <div class="files-header" id="filesNav">
+      <span class="back" onclick="browseTo('')">📂 根目录</span>
+    </div>
+    <div class="file-list" id="fileList">
+      <div class="empty">📁<br>选择会话后<br>浏览项目文件</div>
+    </div>
+    <div class="file-viewer" id="fileViewer">
+      <div class="fv-header">
+        <span class="back" onclick="closeFile()">← 返回</span>
+        <span id="fvName"></span>
+      </div>
+      <pre id="fvContent"></pre>
+    </div>
+  </div>
+
+  <!-- Network -->
+  <div class="pane" id="pane-network">
+    <div class="net-summary">
+      <div>调用: <b id="netCalls">0</b></div>
+      <div>Token: <b id="netTokens">0</b></div>
+      <div>耗时: <b id="netTime">0s</b></div>
+    </div>
+    <div class="net-list" id="netList">
+      <div class="empty">📡<br>等待 LLM 请求...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Permission Dialog -->
+<div class="perm-overlay" id="permOverlay" onclick="if(event.target===this)closePerm()">
+  <div class="perm-dialog">
+    <h3>🔐 权限审批</h3>
+    <div class="perm-info" id="permInfo"></div>
+    <div class="perm-actions">
+      <button class="btn danger" onclick="permResp('deny')">❌ 拒绝</button>
+      <button class="btn primary" onclick="permResp('allow')">✅ 允许</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom Bar -->
+<div class="bottom-bar">
+  <span id="sb1">未连接</span>
+  <span id="sb2">会话: 0</span>
+  <span id="sb3">事件: 0</span>
+  <span style="margin-left:auto" id="sb4"></span>
+</div>
+
+<script>
+let ws=null,sess={},asid=null,evts=[],rnd=0,pPerm=null;
+let dedup=new Set(),tcDedup=new Set(),trDedup=new Set();
+let fileRoot='',filePath='';
+let netCalls=[],netTotalTokens=0,netTotalMs=0;
+let connected=false;
+
+const $=id=>document.getElementById(id);
+const now=()=>new Date().toLocaleTimeString('zh-CN',{hour12:false});
+const short=s=>s.substring(0,8);
+const esc=s=>{const d=document.createElement('div');d.textContent=s||'';return d.innerHTML};
+const url=()=>$('sUrl').value.replace(/\/$/,'');
+const hd=()=>({'Authorization':`Bearer ${$('sTok')?.value||''}`,'Content-Type':'application/json'});
+
+async function api(m,p,body){
+  const o={method:m,headers:hd()};
+  if(body)o.body=JSON.stringify(body);
+  const r=await fetch(url()+p,o);
+  if(!r.ok)throw new Error(`${r.status}: ${await r.text()}`);
+  return r.json();
+}
+
+// ── Connection ──
+function toggleConn(){connected?disconnect():connect()}
+
+function connect(){
+  try{
+    const u=url(),w=u.replace(/^http/,'ws')+'/ws/events';
+    ws=new WebSocket(w);
+    ws.onopen=()=>{
+      connected=true;
+      $('connBtn').textContent='断开';
+      $('connBtn').classList.add('danger');
+      $('connDot').className='dot on';
+      $('connStatus').textContent='已连接';
+      $('sb1').textContent='✅ 已连接';
+      $('newSessForm').style.display='block';
+      addMsg('sys','── WebSocket 已连接 ──');
+      refreshSessions();
+    };
+    ws.onclose=()=>{
+      connected=false;
+      $('connBtn').textContent='连接';
+      $('connBtn').classList.remove('danger');
+      $('connDot').className='dot off';
+      $('connStatus').textContent='未连接';
+      $('sb1').textContent='❌ 已断开';
+      $('newSessForm').style.display='none';
+    };
+    ws.onerror=()=>$('connStatus').textContent='错误';
+    ws.onmessage=e=>{try{handle(JSON.parse(e.data))}catch(err){console.error(err)}};
+  }catch(e){alert('连接失败: '+e.message)}
+}
+
+function disconnect(){
+  if(ws){ws.close();ws=null}
+  connected=false;
+  $('connBtn').textContent='连接';
+  $('connBtn').classList.remove('danger');
+  $('connDot').className='dot off';
+  $('connStatus').textContent='未连接';
+  $('sb1').textContent='❌ 已断开';
+  $('newSessForm').style.display='none';
+}
+
+// ── Tabs ──
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
+  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('active',p.id===`pane-${name}`));
+}
+
+// ── Terminal ──
+function addMsg(cls,text,tag){
+  const el=$('terminal'),empty=el.querySelector('.empty');
+  if(empty)empty.remove();
+  const d=document.createElement('div');
+  d.className='msg '+cls;
+  if(tag)d.innerHTML=`<span class="tag ${tag}">${tag}</span>`+esc(text);
+  else d.textContent=text;
+  el.appendChild(d);
+  el.scrollTop=el.scrollHeight;
+}
+
+function addUserMsg(text){
+  const el=$('terminal'),empty=el.querySelector('.empty');
+  if(empty)empty.remove();
+  const d=document.createElement('div');
+  d.className='msg user';
+  d.innerHTML=`<b>[${rnd+1}]></b> `+esc(text);
+  el.appendChild(d);
+  el.scrollTop=el.scrollHeight;
+}
+
+function clearTerm(){
+  $('terminal').innerHTML='<div class="empty">💬<br>选择会话后<br>在此查看对话内容</div>';
+  rnd=0;dedup.clear();tcDedup.clear();trDedup.clear();
+}
+
+// ── Sessions ──
+async function refreshSessions(){
+  try{
+    const l=await api('GET','/api/sessions');
+    sess={};l.forEach(s=>sess[s.session_id]=s);
+    renderSess();
+    $('sb2').textContent=`会话: ${l.length}`;
+  }catch(e){console.error(e)}
+}
+
+function renderSess(){
+  const el=$('sessList'),ids=Object.keys(sess);
+  if(!ids.length){
+    el.innerHTML='<div class="empty">📋<br>暂无会话<br>点击下方创建新会话</div>';
+    return;
+  }
+  el.innerHTML=ids.map(id=>{
+    const s=sess[id],a=id===asid;
+    return`<div class="session-card ${a?'active':''}" onclick="selSess('${id}')">
+      <div class="s-header"><span class="s-id">${short(id)}</span><span class="badge ${s.state}">${s.state}</span></div>
+      <div class="s-title">${esc(s.title||'(新会话)')}</div>
+      <div class="s-meta"><span>${s.model||'-'}</span><span>R${s.round_count||0}</span></div>
+    </div>`;
+  }).join('');
+}
+
+function selSess(id){
+  asid=id;
+  renderSess();
+  clearTerm();
+  switchTab('terminal');
+  fileRoot=sess[id]?.work_dir||'.';
+  filePath='';
+  browseTo('');
+  
+  api('GET',`/api/sessions/${id}/events`).then(evts=>{
+    evts.forEach(e=>{
+      if(e.type==='user_message')addUserMsg(e.data.content||'');
+      else if(e.type==='assistant_message')addMsg('ai',e.data.content||'');
+      else if(e.type==='result')showResult(e);
+      else if(e.type==='output'&&e.data.text)addMsg('sys',e.data.text);
+      else if(['turn_start','turn_complete','tool_execute','tool_complete','context_compacted','fallback_activated','aborted','llm_call'].includes(e.type))handle(e);
+      else if(e.type==='session_stopped')addMsg('sys','🏁 会话已停止');
+    });
+  }).catch(e=>console.error(e));
+}
+
+async function createSession(){
+  try{
+    const k=$('nKey').value.trim();
+    if(!k&&!confirm('API Key 未填写，继续？'))return;
+    const body={
+      work_dir:$('nDir').value.trim()||'.',
+      model:$('nModel').value.trim()||'glm-4-plus',
+      permission_mode:$('nPerm').value,
+      api_key:k||''
+    };
+    const r=await api('POST','/api/sessions',body);
+    await refreshSessions();
+    selSess(r.session_id);
+    addMsg('sys',`── 会话已创建: ${short(r.session_id)} ──`);
+  }catch(e){alert('创建失败: '+e.message)}
+}
+
+// ── Chat ──
+async function sendMsg(){
+  if(!asid){alert('请先选择会话');return}
+  const inp=$('msgInput'),c=inp.value.trim();
+  if(!c)return;
+  inp.value='';
+  inp.style.height='auto';
+  addUserMsg(c);
+  try{
+    await api('POST',`/api/sessions/${asid}/message`,{content:c});
+  }catch(e){addMsg('error','发送失败: '+e.message)}
+}
+
+// ── Events ──
+function handle(e){
+  evts.push(e);
+  $('sb3').textContent=`事件: ${evts.length}`;
+  
+  if(e.session_id&&['session_created','session_started','session_stopped','session_error','result','turn_complete','aborted'].includes(e.type))refreshSessions();
+  if(e.session_id!==asid)return;
+  
+  switch(e.type){
+    case 'turn_start':
+      rnd=e.data.turn||(rnd+1);
+      addMsg('think',`🤔 思考中... (轮次 ${rnd})`);
+      break;
+    case 'turn_complete':
+      const p=e.data.content_preview||'';
+      if(p)addMsg('ai',p);
+      break;
+    case 'tool_execute':
+      addMsg('tool',`⚙️ 执行: ${e.data.tool_name||'?'}`,'exec');
+      break;
+    case 'tool_complete':
+      const ok=e.data.success!==false;
+      addMsg(ok?'result':'error',`${ok?'✅':'❌'} ${e.data.tool_name||'?'}` ,ok?'ok':'err');
+      break;
+    case 'assistant_message':
+      const c=e.data.content||'';
+      if(!dedup.has(c)){dedup.add(c);addMsg('ai',c)}
+      break;
+    case 'result':showResult(e);break;
+    case 'context_compacted':
+      addMsg('sys',`🗜️ 上下文压缩: ${e.data.messages_before} → ${e.data.messages_after} 条`);
+      break;
+    case 'llm_call':addNetCall(e.data);break;
+    case 'permission_request':showPerm(e);break;
+  }
+}
+
+function showResult(e){
+  const d=e.data,st=d.status||(d.success?'success':'error');
+  addMsg('sys',`┌─ ${st==='success'?'✅':'❌'} 结果: ${st} ──`);
+  if(d.result)addMsg('sys',d.result.substring(0,300));
+  if(d.error)addMsg('error',`❌ ${d.error}`);
+  addMsg('sys','└───────────────────');
+}
+
+// ── Files ──
+async function browseTo(path){
+  if(!asid)return;
+  filePath=path;
+  const parts=path?path.split(/[/\\]/).filter(Boolean):[];
+  let nav='<span class="back" onclick="browseTo(\'\')">📂 root</span>';
+  let acc='';
+  parts.forEach((p,i)=>{
+    acc+=(acc?'/':'')+p;
+    const a=acc;
+    nav+=` › <span class="back" onclick="browseTo('${a}')">${esc(p)}</span>`;
+  });
+  $('filesNav').innerHTML=nav;
+  $('fileViewer').classList.remove('show');
+  $('fileList').style.display='';
+  $('filesNav').style.display='';
+  
+  try{
+    const r=await api('GET',`/api/sessions/${asid}/files?path=${encodeURIComponent(path||'.')}`);
+    const el=$('fileList');
+    if(!r.entries.length){
+      el.innerHTML='<div class="empty">📂<br>空目录</div>';
+      return;
+    }
+    el.innerHTML=r.entries.map(e=>{
+      const isDir=e.type==='dir';
+      const ic=isDir?'📁':fileIcon(e.name);
+      const sz=isDir?'':fmtSize(e.size);
+      const np=path?(path+'/'+e.name):e.name;
+      return`<div class="file-item" onclick="${isDir?`browseTo('${esc(np)}')`:`viewFile('${esc(np)}','${esc(e.name)}')`}">
+        <span class="file-icon">${ic}</span>
+        <span class="file-name">${esc(e.name)}</span>
+        <span class="file-size">${sz}</span>
+      </div>`;
+    }).join('');
+  }catch(e){
+    $('fileList').innerHTML=`<div class="empty" style="color:var(--rd)">❌ ${e.message}</div>`;
+  }
+}
+
+async function viewFile(path,name){
+  if(!asid)return;
+  try{
+    const r=await api('GET',`/api/sessions/${asid}/files/content?path=${encodeURIComponent(path)}`);
+    $('fvName').textContent=`${name} (${r.lines}行)`;
+    const lines=r.content.split('\n');
+    $('fvContent').innerHTML=lines.map((l,i)=>`<span class="lnum">${i+1}</span>${esc(l)}`).join('\n');
+    $('fileList').style.display='none';
+    $('filesNav').style.display='none';
+    $('fileViewer').classList.add('show');
+  }catch(e){alert('读取失败: '+e.message)}
+}
+
+function closeFile(){
+  $('fileViewer').classList.remove('show');
+  $('fileList').style.display='';
+  $('filesNav').style.display='';
+  browseTo(filePath);
+}
+
+function fileIcon(n){
+  const ext=n.split('.').pop().toLowerCase();
+  return{py:'🐍',js:'📜',ts:'📜',html:'🌐',css:'🎨',json:'📋',md:'📝',yml:'⚙️',sh:'🖥️'}[ext]||'📄';
+}
+
+function fmtSize(b){
+  if(b<1024)return b+'B';
+  if(b<1048576)return(b/1024).toFixed(1)+'K';
+  return(b/1048576).toFixed(1)+'M';
+}
+
+// ── Network ──
+function addNetCall(d){
+  netCalls.push(d);
+  netTotalTokens+=(d.response?.total_tokens||0);
+  netTotalMs+=(d.duration_ms||0);
+  $('netCalls').textContent=netCalls.length;
+  $('netTokens').textContent=fmtNum(netTotalTokens);
+  $('netTime').textContent=(netTotalMs/1000).toFixed(1)+'s';
+  
+  const el=$('netList'),empty=el.querySelector('.empty');
+  if(empty)empty.remove();
+  
+  const idx=netCalls.length;
+  const rq=d.request||{},rs=d.response||{};
+  const dur=d.duration_ms||0;
+  
+  const item=document.createElement('div');
+  item.className='net-item';
+  item.onclick=function(){
+    const det=this.querySelector('.net-detail');
+    if(det)det.classList.toggle('show');
+  };
+  item.innerHTML=`
+    <div class="net-row">
+      <span class="net-model">#${idx} ${esc(rq.model||'')}</span>
+      <span style="font-size:11px;color:var(--tx2)">${(dur/1000).toFixed(1)}s</span>
+    </div>
+    <div class="net-stats">
+      <span>📨 ${rq.message_count||0}</span>
+      <span>🔧 ${rq.tool_count||0}</span>
+      <span>🎫 ${fmtNum(rs.total_tokens||0)}</span>
+      <span>${rs.finish_reason||'?'}</span>
+    </div>
+    <div class="net-detail">
+      <div><b>请求:</b></div>
+      <pre>model: ${esc(rq.model||'')}
+messages: ${rq.message_count||0} 条
+tools: ${rq.tool_count||0} 个
+temperature: ${rq.temperature}
+max_tokens: ${rq.max_tokens}</pre>
+      <div><b>响应:</b></div>
+      <pre>finish_reason: ${rs.finish_reason||'N/A'}
+prompt_tokens: ${fmtNum(rs.prompt_tokens||0)}
+completion_tokens: ${fmtNum(rs.completion_tokens||0)}
+total_tokens: ${fmtNum(rs.total_tokens||0)}</pre>
+    </div>
+  `;
+  el.appendChild(item);
+  el.scrollTop=el.scrollHeight;
+}
+
+function fmtNum(n){
+  if(n>=1e6)return(n/1e6).toFixed(1)+'M';
+  if(n>=1e3)return(n/1e3).toFixed(1)+'K';
+  return String(n);
+}
+
+// ── Permission ──
+function showPerm(e){
+  pPerm={session_id:e.session_id,request_id:e.data.request_id};
+  $('permInfo').innerHTML=`
+    <div class="row"><span class="label">会话:</span>${short(e.session_id)}</div>
+    <div class="row"><span class="label">工具:</span>${esc(e.data.tool_name)}</div>
+    <div class="row"><span class="label">描述:</span>${esc(e.data.description)}</div>
+    <pre style="background:var(--bg);padding:8px;border-radius:4px;font-size:10px;margin-top:8px;overflow-x:auto">${esc(JSON.stringify(e.data.tool_input,null,2))}</pre>
+  `;
+  $('permOverlay').classList.add('show');
+}
+
+function closePerm(){
+  $('permOverlay').classList.remove('show');
+  pPerm=null;
+}
+
+async function permResp(b){
+  if(!pPerm)return;
+  try{
+    await api('POST',`/api/sessions/${pPerm.session_id}/permission`,{
+      request_id:pPerm.request_id,
+      behavior:b
+    });
+    addMsg('sys',`🔐 权限: ${b==='allow'?'✅ 允许':'❌ 拒绝'}`);
+  }catch(e){alert(e.message)}
+  closePerm();
+}
+
+// ── Init ──
+$('msgInput').addEventListener('input',function(){
+  this.style.height='auto';
+  this.style.height=Math.min(this.scrollHeight,100)+'px';
+});
+
+setInterval(()=>$('sb4').textContent=now(),1000);
+$('sb4').textContent=now();
+</script>
+</body>
+</html>
