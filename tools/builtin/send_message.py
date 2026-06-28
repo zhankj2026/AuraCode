@@ -1,7 +1,7 @@
 """
 SendMessage 工具 - 继续已存在的 Subagent 对话（P0 核心功能）
 
-对标 Claude Code 的 SendMessageTool，允许 Coordinator 向已完成的 Subagent
+参考标准实现 SendMessageTool，允许 Coordinator 向已完成的 Subagent
 发送后续指令，利用其已有的上下文继续工作。
 
 核心能力:
@@ -55,7 +55,7 @@ def _create_task_notification(
     result: str = "",
     usage: Dict[str, int] = None
 ) -> Dict[str, Any]:
-    """创建任务通知（对标 Claude Code 的 <task-notification> XML）"""
+    """创建任务通知（参考标准实现 <task-notification> XML）"""
     notification = {
         "task_id": agent_id,
         "status": status,
@@ -74,7 +74,7 @@ def send_message_handler(
     summary: str = ""
 ) -> str:
     """
-    向已存在的 Subagent 发送消息，继续其对话（对标 Claude Code SendMessageTool）
+    向已存在的 Subagent 发送消息，继续其对话（参考标准SendMessageTool）
     
     使用场景:
     1. Subagent 完成研究后，继续指示其实施修复
@@ -254,7 +254,7 @@ def get_task_notifications_handler(
     clear: bool = True
 ) -> str:
     """
-    获取所有待处理的任务通知（对标 Claude Code 的 <task-notification>）
+    获取所有待处理的任务通知（参考标准实现 <task-notification>）
     
     Args:
         clear: 是否清空已读取的通知（默认 True）

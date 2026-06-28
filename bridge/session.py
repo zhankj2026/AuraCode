@@ -136,7 +136,7 @@ class ThreadLocalErrWriter(io.TextIOBase):
             return list(self._ring)
 
 
-# ── 工具摘要映射（对标 Claude Code sessionRunner.ts TOOL_VERBS）──────────
+# ── 工具摘要映射 ──
 
 TOOL_VERBS = {
     "read_file": "Reading", "write_file": "Writing",
@@ -337,7 +337,7 @@ class BridgeSession:
         self._round_count = 0  # 已处理的消息轮次数
         self._session_store = SessionStore()  # 会话持久化
 
-        # 活动追踪（对标 Claude Code SessionActivity ring buffer）
+        # 活动追踪
         self.current_activity: Optional[Dict[str, Any]] = None
         self._recent_activities: List[SessionActivity] = []  # ring buffer, max 10
         self._activities_lock = threading.Lock()
@@ -389,7 +389,7 @@ class BridgeSession:
         """
         中断当前正在执行的 turn（不终止会话线程）。
 
-        对标 Claude Code 的 interrupt control_request。
+        参考标准实现 interrupt control_request。
         如果 AgentLoop 正在运行 run()，会触发 abort；
         run() 返回后清除 abort 标志，会话保持 IDLE 等待下一条消息。
         """
@@ -411,7 +411,7 @@ class BridgeSession:
         """
         热切换模型（仅在会话空闲时生效）。
 
-        对标 Claude Code 的 set_model control_request。
+        参考标准实现 set_model control_request。
         """
         if self.state != SessionState.IDLE:
             return False  # 正在运行中不能切换
@@ -649,7 +649,7 @@ class BridgeSession:
                     f"Bridge session saved: {self.session_id} "
                     f"({meta.message_count} msgs, {self._round_count} rounds)"
                 )
-                # 发射会话归档事件（对标 Claude Code archiveSession）
+                # 发射会话归档事件
                 self._emit(BridgeEvent(
                     type=BridgeEventType.SESSION_ARCHIVED.value,
                     session_id=self.session_id,
@@ -726,7 +726,7 @@ class BridgeSession:
             else:
                 result_data["result"] = ""
 
-            # 轮次完成事件（= Claude Code 的 result 消息）
+            # 轮次完成事件
             # 注意：一轮完成 ≠ 会话结束。会话保持 IDLE 等待下一条用户消息。
             self.state = SessionState.IDLE
             self._clear_activity()
@@ -762,7 +762,7 @@ class BridgeSession:
 
         将 AgentLoop._emit_event() 发出的事件转换为 BridgeEvent 并推送到 WebSocket。
         事件在 run() 执行过程中实时触发，无需等待整轮完成。
-        同时维护活动追踪 ring buffer（对标 Claude Code SessionActivity）。
+        同时维护活动追踪 ring buffer。
         """
         event_type = event.get("type", "")
         event_data = event.get("data", {})
@@ -792,7 +792,7 @@ class BridgeSession:
             ))
             logger.debug(f"Agent event → Bridge: {event_type} turn={event.get('turn')}")
 
-        # ── 活动追踪（对标 Claude Code sessionRunner.ts extractActivities）──
+        # ── 活动追踪 ──
         if event_type == "tool_execute":
             tool_name = event_data.get("tool_name", "")
             arguments = event_data.get("arguments", {})

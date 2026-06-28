@@ -1,5 +1,5 @@
 """
-TaskManager — 结构化任务管理六件套（对标 Claude Code TaskCreate/Get/List/Update/Stop）
+TaskManager — 结构化任务管理六件套（参考标准TaskCreate/Get/List/Update/Stop）
 
 提供 task_create / task_get / task_update / task_list / task_stop 五个工具，
 支持层级任务、依赖关系(blocks/blockedBy)、进度追踪、activeForm 进行时描述。
@@ -29,7 +29,7 @@ def task_create_handler(
     tags: str = "",
 ) -> str:
     """
-    创建新任务（对标 Claude Code TaskCreateTool）。
+    创建新任务（参考标准TaskCreateTool）。
 
     Args:
         subject: 任务标题（推荐，祈使句式如 'Implement X'）
@@ -98,7 +98,7 @@ def _resolve_task(task_id: str) -> Optional[str]:
 
 def task_get_handler(task_id: str) -> str:
     """
-    按 ID 获取任务完整详情（对标 Claude Code TaskGetTool）。
+    按 ID 获取任务完整详情（参考标准TaskGetTool）。
 
     Args:
         task_id: 任务 ID（支持前缀匹配）
@@ -157,7 +157,7 @@ def task_update_handler(
     team_name: str = "",
 ) -> str:
     """
-    更新任务状态/内容（对标 Claude Code TaskUpdateTool）。
+    更新任务状态/内容（参考标准TaskUpdateTool）。
 
     Args:
         task_id: 任务 ID（支持前缀匹配）
@@ -204,7 +204,7 @@ def task_update_handler(
                     parent["progress"] = 100
                     changes.append(f"parent [{task['parent_id']}] auto-completed")
 
-    # 内容更新（对标 Claude Code TaskUpdateTool 的 subject/description 参数）
+    # 内容更新（参考标准TaskUpdateTool 的 subject/description 参数）
     if subject:
         old_title = task["title"]
         task["title"] = subject

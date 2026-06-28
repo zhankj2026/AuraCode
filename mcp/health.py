@@ -1,7 +1,7 @@
 """
 MCP 服务器健康检查机制
 
-对标 Claude Code 的服务器状态分类和健康检查：
+参考标准实现服务器状态分类和健康检查：
 - ConnectedMCPServer: ✅ 已连接
 - FailedMCPServer: ❌ 连接失败
 - NeedsAuthMCPServer: 🔐 需要认证

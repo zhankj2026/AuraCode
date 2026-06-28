@@ -155,7 +155,7 @@ def test_available_agent_types():
 
     manager = SubagentManager()
 
-    # Switch to project directory to load .claude/agents
+    # Switch to project directory to load .auracode/agents
     original_dir = os.getcwd()
     try:
         os.chdir(project_root)

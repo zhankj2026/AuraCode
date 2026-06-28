@@ -1,7 +1,7 @@
 """
 Batch Skill - 大规模并行变更编排（P2 高级功能）
 
-对标 Claude Code 的 /batch 命令，实现：
+参考标准实现 /batch 命令，实现：
 1. 大规模重构/迁移的规划与执行
 2. 5-30 个并行 Worker 在隔离的 git worktree 中工作
 3. 自动创建 PR
@@ -123,7 +123,7 @@ def batch_skill_handler(
     auto_execute: bool = False
 ) -> str:
     """
-    执行 Batch Skill（对标 Claude Code 的 /batch 命令）
+    执行 Batch Skill（参考标准实现 /batch 命令）
     
     流程:
     Phase 1: Research & Plan（研究与规划）

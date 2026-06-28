@@ -23,9 +23,9 @@ def load_project_context(project_root: str = ".") -> str:
     context_parts = []
     
     # 1. 加载 AURACODE.md
-    claude_md_content = load_claude_md(project_root)
-    if claude_md_content:
-        context_parts.append(f"## 项目约定\n\n{claude_md_content}")
+    AURACODE_md_content = load_AURACODE_md(project_root)
+    if AURACODE_md_content:
+        context_parts.append(f"## 项目约定\n\n{AURACODE_md_content}")
     
     # 2. 检测技术栈
     tech_stack = detect_tech_stack(project_root)
@@ -44,7 +44,7 @@ def load_project_context(project_root: str = ".") -> str:
     return ""
 
 
-def load_claude_md(project_root: str) -> Optional[str]:
+def load_AURACODE_md(project_root: str) -> Optional[str]:
     """
     加载 AURACODE.md 文件
     
@@ -59,10 +59,10 @@ def load_claude_md(project_root: str) -> Optional[str]:
         文件内容,如果不存在则返回 None
     """
     # 优先搜索 .auracode/ 目录
-    claude_dir_path = os.path.join(project_root, ".auracode", "AURACODE.md")
-    if os.path.exists(claude_dir_path):
+    AURACODE_dir_path = os.path.join(project_root, ".auracode", "AURACODE.md")
+    if os.path.exists(AURACODE_dir_path):
         try:
-            with open(claude_dir_path, "r", encoding="utf-8") as f:
+            with open(AURACODE_dir_path, "r", encoding="utf-8") as f:
                 content = f.read().strip()
                 if content:
                     return content

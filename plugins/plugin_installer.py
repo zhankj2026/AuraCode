@@ -1,7 +1,7 @@
 """
 Plugin Installer — 从 marketplace 安装/卸载/更新插件
 
-对标 Claude Code pluginLoader.ts + headlessPluginInstall.ts
+参考标准pluginLoader.ts + headlessPluginInstall.ts
 
 功能:
 - install_plugin: git clone 插件到缓存目录

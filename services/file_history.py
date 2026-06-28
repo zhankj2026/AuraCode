@@ -5,7 +5,7 @@
 备份存储在 ~/.auracode/file-history/ 目录下。
 
 设计参考:
-- Claude Code: ~/.claude/file-history/ (按会话组织的文件快照)
+- Claude Code: ~/.auracode/file-history/ (按会话组织的文件快照)
 - 每次 track_edit 时备份原始文件
 - 支持 apply_snapshot 恢复
 """

@@ -1,7 +1,7 @@
 """
 MCPB (MCP Bundle) 文件格式支持
 
-对标 Claude Code 的 .mcpb bundle 格式，支持打包分发 MCP 服务器配置。
+参考标准实现 .mcpb bundle 格式，支持打包分发 MCP 服务器配置。
 
 .mcpb 文件是一个 JSON 格式的配置文件，包含：
 - 包元数据（名称、版本、描述）
@@ -15,7 +15,7 @@ MCPB (MCP Bundle) 文件格式支持
 3. 企业级 MCP 服务器集合
 4. Skill 依赖的 MCP 服务器自动安装
 
-参考：Claude Code 的 .mcpb 文件格式
+参考：标准 .mcpb 文件格式
 """
 
 import json
@@ -172,7 +172,7 @@ class McpbBundle:
     """
     MCPB 包（MCP Bundle）
     
-    对标 Claude Code 的 .mcpb 文件格式，用于打包分发 MCP 服务器配置。
+    参考标准实现 .mcpb 文件格式，用于打包分发 MCP 服务器配置。
     
     文件结构：
     ```json

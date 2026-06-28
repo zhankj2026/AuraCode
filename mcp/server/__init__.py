@@ -1,7 +1,7 @@
 """
 MCP Server - 将 AuraCode 作为 MCP Server 运行
 
-对标 Claude Code 的 src/entrypoints/mcp.ts，实现：
+参考标准实现 src/entrypoints/mcp.ts，实现：
 1. StdioServerTransport Server
 2. 工具暴露机制（将 AuraCode 工具转为 MCP 工具）
 3. 工具调用代理（接收外部请求并调用内置工具）

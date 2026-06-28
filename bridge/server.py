@@ -187,7 +187,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # ── 优雅关闭（对标 Claude Code teardown 流程）──
+    # ── 优雅关闭流程 ──
     # 1. 广播 server_shutting_down 事件，让 WS 客户端提前感知
     shutdown_event = BridgeEvent(
         type=BridgeEventType.SERVER_SHUTTING_DOWN.value,
@@ -359,7 +359,7 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
         """
         中断当前 turn（不终止会话）。
 
-        对标 Claude Code 的 interrupt control_request。
+        参考标准实现 interrupt control_request。
         """
         session = _manager.get_session(session_id)
         if not session:
@@ -382,7 +382,7 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
         """
         热切换模型（仅空闲时生效）。
 
-        对标 Claude Code 的 set_model control_request。
+        参考标准实现 set_model control_request。
         """
         session = _manager.get_session(session_id)
         if not session:
@@ -548,7 +548,7 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
         单会话事件流 WebSocket。
 
         支持断线重连：通过 last_seq 参数只推送断线期间的新事件，
-        避免全量重放（对标 Claude Code BoundedUUIDSet echo 去重）。
+        避免全量重放（参考标准 echo 去重机制）。
         """
         # Token 验证
         if not token or token != _auth.get_token():

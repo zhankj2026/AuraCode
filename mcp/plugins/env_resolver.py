@@ -58,8 +58,8 @@ def substitute_plugin_vars(value: str, plugin: Any) -> str:
     Substitute plugin-specific variables.
 
     Supported variables:
-    - ${CLAUDE_PLUGIN_ROOT}: Plugin directory path
-    - ${CLAUDE_PLUGIN_DATA}: Plugin data directory path
+    - ${AURACODE_PLUGIN_ROOT}: Plugin directory path
+    - ${AURACODE_PLUGIN_DATA}: Plugin data directory path
 
     Args:
         value: The string to substitute.
@@ -75,7 +75,7 @@ def substitute_plugin_vars(value: str, plugin: Any) -> str:
     plugin_source = getattr(plugin, "source", "")
 
     # Replace plugin root
-    value = value.replace("${CLAUDE_PLUGIN_ROOT}", plugin_root)
+    value = value.replace("${AURACODE_PLUGIN_ROOT}", plugin_root)
 
     # Replace plugin data directory
     if plugin_source:
@@ -83,7 +83,7 @@ def substitute_plugin_vars(value: str, plugin: Any) -> str:
         plugin_data = os.path.expanduser(
             f"~/.config/auracode/plugins/{plugin_source}"
         )
-        value = value.replace("${CLAUDE_PLUGIN_DATA}", plugin_data)
+        value = value.replace("${AURACODE_PLUGIN_DATA}", plugin_data)
 
     return value
 
@@ -142,7 +142,7 @@ def resolve_mcp_env(
     Resolve environment variables in an MCP configuration.
 
     Resolution order:
-    1. Plugin-specific variables (${CLAUDE_PLUGIN_ROOT}, ${CLAUDE_PLUGIN_DATA})
+    1. Plugin-specific variables (${AURACODE_PLUGIN_ROOT}, ${AURACODE_PLUGIN_DATA})
     2. User config variables (${user_config.KEY})
     3. System environment variables (${VAR}, $VAR)
 

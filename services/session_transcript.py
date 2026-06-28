@@ -1,7 +1,7 @@
 """
 JSONL 增量会话转录 (Session Transcript)
 
-对标 Claude Code: ~/.claude/projects/{sanitized-cwd}/{sessionId}.jsonl
+参考标准~/.auracode/projects/{sanitized-cwd}/{sessionId}.jsonl
 每条消息以 JSONL 格式增量写入，一行一条，支持崩溃恢复和高效读取。
 
 存储结构:
@@ -36,7 +36,7 @@ def _auracode_home() -> str:
 def _sanitize_path(path: str) -> str:
     """
     将项目路径转为安全的目录名。
-    对标 Claude Code sanitizePath(): 非字母数字替换为 '-'
+    参考标准sanitizePath(): 非字母数字替换为 '-'
     """
     # 规范化路径
     normalized = os.path.normpath(os.path.abspath(path))

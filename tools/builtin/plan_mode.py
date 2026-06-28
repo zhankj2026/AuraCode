@@ -1,12 +1,12 @@
 """
-PlanMode 工具 - 计划模式状态管理（对标 Claude Code EnterPlanMode/ExitPlanMode）
+PlanMode 工具 - 计划模式状态管理（参考标准EnterPlanMode/ExitPlanMode）
 
 核心机制:
 - Plan 文件持久化: 进入计划模式时生成 plan 文件路径，模型用 write_file 写入方案
 - ExitPlanMode 读回: 退出时自动读取 plan 文件内容，展示给用户审批
 - 用户审批门控: 方案必须经过用户确认才能开始实施
 - 周期性提醒: AgentLoop 每 N 轮注入 plan_mode 提醒，防止模型忘记处于计划模式
-- EnterPlanMode prompt: 7 类触发条件，对标 Claude Code
+- EnterPlanMode prompt: 7 类触发条件，参考标准
 """
 
 import os
@@ -203,7 +203,7 @@ def build_plan_mode_reminder() -> str:
 
 def enter_plan_mode_handler(reason: str = "") -> str:
     """
-    进入计划模式（对标 Claude Code EnterPlanMode）。
+    进入计划模式（参考标准EnterPlanMode）。
 
     在计划模式下，只能使用只读工具探索代码库并设计实现方案，
     方案必须写入指定的 plan 文件，完成后调用 exit_plan_mode 提交给用户审批。
@@ -223,7 +223,7 @@ def enter_plan_mode_handler(reason: str = "") -> str:
     set_plan_mode(True, reason=reason, plan_file=plan_file)
     logger.info(f"进入计划模式: reason={reason}, plan_file={plan_file}")
 
-    # 构建返回消息（对标 Claude Code 的 tool_result）
+    # 构建返回消息（参考标准实现 tool_result）
     msg = (
         "Entered plan mode. Focus on exploring the codebase and designing "
         "an implementation approach.\n\n"
@@ -245,7 +245,7 @@ def enter_plan_mode_handler(reason: str = "") -> str:
 
 def exit_plan_mode_handler(plan_summary: str = "") -> str:
     """
-    退出计划模式，提交方案给用户审批（对标 Claude Code ExitPlanMode）。
+    退出计划模式，提交方案给用户审批（参考标准ExitPlanMode）。
 
     自动读取 plan 文件内容。如果 plan 文件存在，将完整内容展示给用户；
     如果 plan 文件为空，则使用 plan_summary 参数。

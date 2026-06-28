@@ -1,5 +1,5 @@
 """
-内置插件注册表 — 对应 Claude Code builtinPlugins.ts
+内置插件注册表 — 对应标准builtinPlugins.ts
 
 设计理念:
 - 内置插件通过代码硬编码注册（不是目录扫描）
@@ -49,7 +49,7 @@ class BuiltinPluginDefinition:
     """
     内置插件定义
 
-    对应 Claude Code 的 BuiltinPluginDefinition 接口。
+    对应标准BuiltinPluginDefinition 接口。
     一个内置插件可携带工具、Hook、MCP Server 三类组件。
     """
     name: str
@@ -77,7 +77,7 @@ class LoadedPlugin:
     """
     已加载的插件实例（统一格式，内置/市场通用）
 
-    对应 Claude Code 的 LoadedPlugin 接口。
+    对应标准LoadedPlugin 接口。
     """
     name: str
     manifest: Dict[str, Any]          # {name, description, version}
@@ -214,7 +214,7 @@ def get_builtin_plugins() -> Tuple[List[LoadedPlugin], List[LoadedPlugin]]:
     """
     获取所有内置插件，按启用/禁用分组
 
-    is_available() 返回 False 的插件不出现（对应 Claude Code 的省略逻辑）
+    is_available() 返回 False 的插件不出现（对应标准省略逻辑）
 
     Returns:
         (enabled_list, disabled_list)

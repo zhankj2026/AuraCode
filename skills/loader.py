@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Skill:
     """
-    Skill 数据结构（增强版，对标 Claude Code Command 类型）
+    Skill 数据结构（增强版）
 
     Attributes:
         name: Skill 名称
@@ -708,7 +708,7 @@ class SkillManager:
         """
         执行 prompt 中的 Shell 命令（!`...` 语法）。
 
-        对标 Claude Code 的 executeShellCommandsInPrompt。
+        参考标准实现 executeShellCommandsInPrompt。
         将 !`command` 替换为命令输出。
 
         Args:

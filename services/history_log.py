@@ -5,7 +5,7 @@
 用于跨会话搜索、统计和使用模式分析。
 
 设计参考:
-- Claude Code: ~/.claude/history.jsonl (每行一条交互摘要)
+- Claude Code: ~/.auracode/history.jsonl (每行一条交互摘要)
 """
 
 import json

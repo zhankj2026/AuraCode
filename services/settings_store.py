@@ -5,7 +5,7 @@
 支持项目级覆盖 (.auracode/settings.json)。
 
 设计参考:
-- Claude Code: ~/.claude/settings.json (全局) + .claude/settings.json (项目级)
+- Claude Code: ~/.auracode/settings.json (全局) + .auracode/settings.json (项目级)
 - 支持热重载、文件锁、时间戳备份
 """
 

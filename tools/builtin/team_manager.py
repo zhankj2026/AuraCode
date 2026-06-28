@@ -1,7 +1,7 @@
 """
 TeamManager — 团队管理模式（P1 核心功能）
 
-对标 Claude Code 的 TeamCreate/TeamDelete/Teammate 系统，实现：
+参考标准实现 TeamCreate/TeamDelete/Teammate 系统，实现：
 1. 创建和管理团队（Team）
 2. 启动队友（Teammate）
 3. 团队配置持久化
@@ -139,7 +139,7 @@ def team_create_handler(
     lead_agent_type: str = "general"
 ) -> str:
     """
-    创建新团队（对标 Claude Code TeamCreateTool）
+    创建新团队（参考标准TeamCreateTool）
     
     流程:
     1. 创建团队配置
@@ -218,7 +218,7 @@ def team_create_handler(
 
 def team_delete_handler(team_name: str) -> str:
     """
-    删除团队（对标 Claude Code TeamDeleteTool）
+    删除团队（参考标准TeamDeleteTool）
     
     Args:
         team_name: 团队名称
@@ -259,7 +259,7 @@ def team_spawn_handler(
     initial_prompt: str = ""
 ) -> str:
     """
-    启动队友加入团队（对标 Claude Code Agent tool with team_name）
+    启动队友加入团队（参考标准Agent tool with team_name）
     
     Args:
         team_name: 团队名称

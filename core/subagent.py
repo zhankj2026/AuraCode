@@ -68,7 +68,7 @@ class AgentDefinition:
     """
     Agent 定义文件解析器
 
-    解析 .claude/agents/*.md 文件格式的 agent 定义
+    解析 .auracode/agents/*.md 文件格式的 agent 定义
     """
 
     @staticmethod
@@ -169,7 +169,7 @@ class AgentDefinition:
             return None
 
     @staticmethod
-    def load_agents_directory(directory: str = ".claude/agents") -> Dict[str, Dict]:
+    def load_agents_directory(directory: str = ".auracode/agents") -> Dict[str, Dict]:
         """
         加载目录中的所有 agent 定义
 
@@ -1022,7 +1022,7 @@ class SubagentOrchestrator:
         """
         执行阶段化工作流（Dynamic Workflows 核心方法）
 
-        对标 Claude Code Dynamic Workflows 的执行引擎。
+        参考标准 Dynamic Workflows 的执行引擎。
 
         流程:
         1. 验证脚本正确性

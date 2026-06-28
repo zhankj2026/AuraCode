@@ -2,7 +2,7 @@
 消息管理系统
 
 系统使用扁平消息历史,所有消息按时间顺序存储在列表中。
-支持 system/user/assistant/tool 四种角色,符合 OpenAI/Claude API 规范。
+支持 system/user/assistant/tool 四种角色,符合主流 LLM API 规范。
 """
 
 from typing import List, Dict, Any, Literal
@@ -54,7 +54,7 @@ def create_tool_result_message(content: str) -> Message:
     """
     创建工具结果消息(以 user 角色返回)
     
-    注意: OpenAI/Claude API 要求 user 和 assistant 必须交替出现,
+    注意: 主流 LLM API 要求 user 和 assistant 必须交替出现,
     工具结果是"环境反馈",不是助手的主动行为,所以归类为 user 消息。
     
     Args:

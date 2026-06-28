@@ -1,7 +1,7 @@
 """
 项目级配置存储 (Project Store)
 
-对标 Claude Code: ~/.claude/projects/{sanitized-cwd}/.config.json
+参考标准~/.auracode/projects/{sanitized-cwd}/.config.json
 每个项目目录维护独立的配置，包括:
 - 允许的工具列表
 - MCP 服务器配置

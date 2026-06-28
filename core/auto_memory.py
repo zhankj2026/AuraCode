@@ -1,5 +1,5 @@
 """
-自动记忆提取引擎 — 对标 Claude Code extractMemories.ts
+自动记忆提取引擎
 
 设计理念:
 - 每轮 query loop 结束时（LLM 产生最终回复、无工具调用）自动运行
@@ -8,7 +8,7 @@
 - 节流控制: 可配置每 N 轮才执行一次提取
 - 后台线程运行: 不阻塞主响应返回
 
-触发时机 (对应 Claude Code stopHooks.ts):
+触发时机:
     agent_loop.run() → 无工具调用 → 任务完成 → _extract_memories_background()
 
 用法:
@@ -190,7 +190,7 @@ class AutoMemoryExtractor:
     """
     自动记忆提取器
 
-    对标 Claude Code extractMemories.ts 的 initExtractMemories() + runExtraction()。
+    参考标准 extractMemories 的 initExtractMemories() + runExtraction()。
     使用闭包状态跟踪: 上次处理的消息索引、提取节流计数、防重入锁。
 
     触发方式:
@@ -465,7 +465,7 @@ class AutoMemoryExtractor:
     ) -> bool:
         """
         检查主 Agent 在本轮是否已通过 save_memory 工具写入了记忆。
-        对应 Claude Code hasMemoryWritesSince()。
+        对应 hasMemoryWritesSince()。
 
         检查方式:
         1. 查看 tool_calls 中是否有 save_memory 调用

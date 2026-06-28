@@ -1,7 +1,7 @@
 """
 Simplify Skill - 三路并行代码审查（P2 高级功能）
 
-对标 Claude Code 的 /simplify 命令，实现：
+参考标准实现 /simplify 命令，实现：
 1. 并行启动 3 个审查 Agent
 2. 三个独立视角：
    - Code Reuse Review（代码复用审查）
@@ -133,7 +133,7 @@ def simplify_skill_handler(
     focus_areas: str = "all"
 ) -> str:
     """
-    执行 Simplify Skill（对标 Claude Code 的 /simplify 命令）
+    执行 Simplify Skill（参考标准实现 /simplify 命令）
     
     流程:
     Phase 1: 识别变更

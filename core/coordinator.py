@@ -86,7 +86,7 @@ class CoordinatorMode:
     
     def handle_task_notification(self, notification: Dict[str, Any]) -> str:
         """
-        处理 Worker 任务通知（对标 Claude Code 的 <task-notification>）
+        处理 Worker 任务通知（参考标准实现 <task-notification>）
         
         Args:
             notification: 任务通知字典
@@ -279,7 +279,7 @@ class CoordinatorMode:
         """
         决策：Continue（SendMessage）还是 Spawn（新 Agent）
         
-        决策矩阵（对标 Claude Code）:
+        决策矩阵（参考标准实现）:
         
         | 情况 | 机制 | 原因 |
         |------|------|------|
@@ -395,7 +395,7 @@ coordinator = CoordinatorMode()
 
 def get_coordinator_system_prompt() -> str:
     """
-    获取 Coordinator 系统提示词（对标 Claude Code 的 getCoordinatorSystemPrompt）
+    获取 Coordinator 系统提示词（参考标准实现 getCoordinatorSystemPrompt）
     
     包含:
     - 角色定义
@@ -498,7 +498,7 @@ def load_workflow_script(self, workflow_script) -> str:
     """
     加载工作流脚本（Dynamic Workflows 核心方法）
     
-    对标 Claude Code Dynamic Workflows 的脚本加载机制。
+    参考标准 Dynamic Workflows 的脚本加载机制。
     
     Args:
         workflow_script: WorkflowScript 对象或字典

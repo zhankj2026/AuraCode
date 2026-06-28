@@ -1,7 +1,7 @@
 """
 会话环境脚本 (Session Environment)
 
-对标 Claude Code: ~/.claude/session-env/{sessionId}/
+参考标准~/.auracode/session-env/{sessionId}/
 存储 Hook 产生的环境脚本（如 venv/conda 激活），使 shell 环境在会话内持久化。
 
 存储结构:

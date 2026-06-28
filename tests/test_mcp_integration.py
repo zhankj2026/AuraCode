@@ -216,7 +216,7 @@ class TestMcpAsync:
 
         plugin = type("Plugin", (), {"path": "/test/path", "source": "test-plugin"})
 
-        result = substitute_plugin_vars("${CLAUDE_PLUGIN_ROOT}", plugin)
+        result = substitute_plugin_vars("${AURACODE_PLUGIN_ROOT}", plugin)
         assert "/test/path" in result
 
 

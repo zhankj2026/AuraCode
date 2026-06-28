@@ -7,7 +7,7 @@ Workflow Tools - Dynamic Workflows 工具集（Phase 3）
 3. save_workflow: 保存工作流脚本
 4. execute_saved_workflow: 执行已保存的工作流
 
-对标 Claude Code Dynamic Workflows 的用户接口。
+参考标准Dynamic Workflows 的用户接口。
 """
 import logging
 from typing import Dict, Any, Optional
@@ -22,7 +22,7 @@ def dynamic_workflow_handler(
     save_script: bool = False
 ) -> str:
     """
-    动态生成并执行工作流（对标 Claude Code Dynamic Workflows）
+    动态生成并执行工作流（参考标准Dynamic Workflows）
     
     流程:
     1. LLM 分析任务，生成工作流脚本

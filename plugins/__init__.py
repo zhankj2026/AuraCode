@@ -3,7 +3,7 @@
 
 五层架构:
 - base.py: ToolPlugin 抽象基类（插件必须继承）
-- builtin.py: 内置插件注册表（对应 Claude Code builtinPlugins.ts）
+- builtin.py: 内置插件注册表（对应标准builtinPlugins.ts）
 - loader.py: 目录扫描 + 多源加载器（含 marketplace）
 - registry.py: 插件注册中心 + 事件总线 + 依赖解析
 - marketplace.py: Marketplace 管理器 (Git clone 来源)

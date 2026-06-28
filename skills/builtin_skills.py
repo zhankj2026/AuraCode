@@ -5,8 +5,8 @@
 动态生成 prompt 的 Skill。与声明式 SKILL.md 并存。
 
 当前内置编程式 Skill:
-- api-dev: 语言检测 + API 开发辅助（对标 Claude Code claudeApi.ts）
-- lorem-ipsum: 长上下文测试填充（对标 Claude Code loremIpsum.ts）
+- api-dev: 语言检测 + API 开发辅助
+- lorem-ipsum: 长上下文测试填充
 """
 
 import os
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════
-# 语言检测器（对标 Claude Code claudeApi.ts detectLanguage）
+# 语言检测器
 # ═══════════════════════════════════════════════════════════
 
 LANGUAGE_INDICATORS: Dict[str, List[str]] = {

@@ -129,9 +129,9 @@ class ModelPricing:
     cache_read_per_mtok: float = 0.3  # $0.3/M tokens
     cache_write_per_mtok: float = 3.75  # $3.75/M tokens
 
-# 常见模型定价（参考 Claude/Anthropic + OpenAI 公开定价）
+# 常见模型定价（参考主流 LLM 公开定价）
 MODEL_PRICING: Dict[str, ModelPricing] = {
-    # Claude 系列
+    # 主流模型系列
     "claude-opus-4":     ModelPricing(15.0, 75.0, 1.5, 18.75),
     "claude-sonnet-4":   ModelPricing(3.0, 15.0, 0.3, 3.75),
     "claude-3.5-sonnet": ModelPricing(3.0, 15.0, 0.3, 3.75),

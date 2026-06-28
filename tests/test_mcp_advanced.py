@@ -300,10 +300,10 @@ class TestEnvironmentExpansion:
             "source": "test-plugin"
         })
 
-        result = substitute_plugin_vars("${CLAUDE_PLUGIN_ROOT}", plugin)
+        result = substitute_plugin_vars("${AURACODE_PLUGIN_ROOT}", plugin)
         assert result == "/test/plugin/path"
 
-        result = substitute_plugin_vars("${CLAUDE_PLUGIN_DATA}", plugin)
+        result = substitute_plugin_vars("${AURACODE_PLUGIN_DATA}", plugin)
         assert "test-plugin" in result
 
     def test_user_config_variable_substitution(self):

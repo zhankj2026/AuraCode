@@ -6,7 +6,7 @@ Phase 3 测试：MCP 高级功能
 2. 健康检查机制（状态分类/自动重连）
 3. DCR 完善（OAuth 动态客户端注册）
 
-对标 Claude Code 的 .mcpb bundle 格式和健康检查机制。
+参考标准实现 .mcpb bundle 格式和健康检查机制。
 """
 
 import json

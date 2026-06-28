@@ -1,7 +1,7 @@
 """
 文件级任务持久化 (Task Store)
 
-对标 Claude Code: ~/.claude/tasks/{taskListId}/{taskId}.json
+参考标准~/.auracode/tasks/{taskListId}/{taskId}.json
 每个任务独立保存为 JSON 文件，支持:
 - 跨进程并发安全（文件锁）
 - 崩溃恢复（文件级持久化）

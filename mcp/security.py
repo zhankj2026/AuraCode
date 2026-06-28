@@ -1,7 +1,7 @@
 """
 MCP Security Policy - MCP 服务器安全策略
 
-对标 Claude Code 的 src/services/mcp/config.ts 中的安全策略实现：
+参考标准实现 src/services/mcp/config.ts 中的安全策略实现：
 1. 允许列表 (Allowlist) - 只允许配置的服务器
 2. 拒绝列表 (Denylist) - 禁止特定服务器
 3. 命令精确匹配 - stdio 服务器的命令数组匹配

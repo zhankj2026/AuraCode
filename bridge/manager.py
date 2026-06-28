@@ -192,7 +192,7 @@ class BridgeSessionManager:
         """
         中断会话当前正在执行的 turn（不终止会话）。
 
-        对标 Claude Code 的 interrupt control_request。
+        参考标准实现 interrupt control_request。
         """
         with self._lock:
             session = self._sessions.get(session_id)
@@ -206,7 +206,7 @@ class BridgeSessionManager:
         """
         热切换会话模型（仅在空闲时生效）。
 
-        对标 Claude Code 的 set_model control_request。
+        参考标准实现 set_model control_request。
         """
         with self._lock:
             session = self._sessions.get(session_id)

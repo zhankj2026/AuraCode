@@ -1,5 +1,5 @@
 """
-Plugin Zip Cache — 对标 Claude Code zipCache.ts
+Plugin Zip Cache — 参考标准zipCache.ts
 
 功能:
 - 将插件目录打包为 .zip 归档存储

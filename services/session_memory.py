@@ -1,7 +1,7 @@
 """
 会话记忆摘要 (Session Memory)
 
-对标 Claude Code: projects/{cwd}/{sessionId}/session-memory/summary.md
+参考标准projects/{cwd}/{sessionId}/session-memory/summary.md
 每个会话维护一个 Markdown 格式的摘要文件，用于:
 
 1. 上下文压缩 (compact) — 用摘要替代旧消息，释放上下文窗口

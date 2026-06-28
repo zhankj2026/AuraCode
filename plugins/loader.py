@@ -33,7 +33,7 @@ class PluginLoader:
     插件加载器
 
     加载来源:
-    1. 内置插件 — builtin.py 注册表（程序化注册，对应 Claude Code builtinPlugins.ts）
+    1. 内置插件 — builtin.py 注册表（程序化注册，对应标准builtinPlugins.ts）
     2. 目录插件 — plugins/ 目录下 .py 文件（动态扫描）
     3. 项目级插件 — .auracode/plugins/ 目录
     4. 用户级插件 — ~/.auracode/plugins/ 目录
@@ -327,7 +327,7 @@ class PluginLoader:
         """
         启动时检查并自动安装官方 marketplace。
 
-        对标 Claude Code checkAndInstallOfficialMarketplace()。
+        参考标准checkAndInstallOfficialMarketplace()。
         首次启动自动 git clone 官方 marketplace，后续启动跳过。
         失败时指数退避重试（1h → 1w，最多 10 次）。
         """
@@ -406,7 +406,7 @@ class PluginLoader:
         """
         扫描插件目录下的 skills/ 子目录，自动注册到 SkillManager
 
-        对标 Claude Code loadPluginCommands.ts 中的 loadSkillsFromDirectory。
+        参考标准loadPluginCommands.ts 中的 loadSkillsFromDirectory。
         插件可以携带 skills/ 目录，其中每个子目录包含 SKILL.md。
 
         Args:

@@ -7,7 +7,7 @@ Workflow Types - Dynamic Workflows 类型定义
 - 中间结果存储
 - 收敛检查
 
-对标 Claude Code Dynamic Workflows 的脚本 Schema。
+参考标准 Dynamic Workflows 的脚本 Schema。
 """
 from dataclasses import dataclass, field
 from typing import Dict, List, Any, Optional
@@ -113,7 +113,7 @@ class WorkflowScript:
     """
     完整工作流脚本定义
     
-    对标 Claude Code Dynamic Workflows 的脚本结构。
+    参考标准 Dynamic Workflows 的脚本结构。
     
     属性:
         name: 工作流名称（唯一标识）

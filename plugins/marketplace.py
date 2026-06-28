@@ -1,5 +1,5 @@
 """
-Marketplace 管理器 — 对标 Claude Code marketplaceManager.ts
+Marketplace 管理器 — 参考标准marketplaceManager.ts
 
 功能:
 - 注册/删除/更新 marketplace (Git clone 来源)
@@ -31,7 +31,7 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 # ── 官方 Marketplace 常量 ────────────────────────────────────
-# 对标 Claude Code officialMarketplace.ts
+# 参考业界标准实现
 
 OFFICIAL_MARKETPLACE_NAME = "auracode-plugins-official"
 OFFICIAL_MARKETPLACE_SOURCE = {
@@ -44,7 +44,7 @@ OFFICIAL_MARKETPLACE_SOURCE = {
 ENV_DISABLE_OFFICIAL_AUTOINSTALL = "AURACODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL"
 
 # ── 重试配置 ──────────────────────────────────────────────────
-# 对标 Claude Code officialMarketplaceStartupCheck.ts RETRY_CONFIG
+# 参考业界标准实现
 
 RETRY_CONFIG = {
     "max_attempts": 10,
@@ -465,7 +465,7 @@ class MarketplaceManager:
         """
         启动时检查并自动安装官方 marketplace。
 
-        对标 Claude Code checkAndInstallOfficialMarketplace()。
+        参考标准checkAndInstallOfficialMarketplace()。
         简化版: 无 GCS 镜像、无企业策略检查、无 analytics。
 
         流程:

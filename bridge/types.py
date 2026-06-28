@@ -114,8 +114,8 @@ class SessionConfig:
 
 @dataclass
 class SessionActivity:
-    """会话活动（对标 Claude Code SessionActivity）"""
-    type: str           # "tool_start" | "text" | "result" | "error"
+    """
+参考标准实现，    type: str           # "tool_start" | "text" | "result" | "error"
     summary: str        # e.g. "Editing src/foo.py", "Running grep"
     timestamp: float = field(default_factory=time.time)
 

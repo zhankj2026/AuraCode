@@ -88,10 +88,10 @@ class AgentLoop:
         if not api_key:
             raise ValueError("未设置 API Key,请设置 OPENAI_API_KEY 环境变量")
 
-        # ── 超时配置（对标 Claude Code 600s）──
+        # ── 超时配置 ──
         # OpenAI SDK timeout = httpx 连接+首字节等待时间。
         # LLM streaming 场景下，复杂任务首 token 延迟可能 > 60s，
-        # Claude Code 设置 600s (10min)，我们默认 300s (5min)。
+        # 业界标准设置 600s (10min)，我们默认 300s (5min)。
         # 优先级: config > 环境变量 API_TIMEOUT_MS > 默认 300s
         if "api_timeout" in config:
             api_timeout = float(config["api_timeout"])
@@ -158,7 +158,7 @@ class AgentLoop:
                 logger.warning(f"Memory system initialization failed: {e}")
                 self.memory_enabled = False
 
-        # 7.5 自动记忆提取器（对标 Claude Code extractMemories.ts）
+        # 7.5 自动记忆提取器
         self.auto_memory_extractor = None
         if self.memory_enabled and self.memory_manager:
             try:
@@ -172,7 +172,7 @@ class AgentLoop:
             except Exception as e:
                 logger.warning(f"Auto-memory extractor init failed: {e}")
 
-        # 7.6 会话持久化存储（对标 Claude Code sessionStorage / session-env / tasks）
+        # 7.6 会话持久化存储
         self._session_transcript = None
         self._session_memory = None
         self._session_env = None
@@ -481,7 +481,7 @@ class AgentLoop:
 
                     # 任务完成
                     logger.info("No tool calls, task completed")
-                    # 自动记忆提取（对标 Claude Code handleStopHooks → extractMemories）
+                    # 自动记忆提取
                     self._trigger_auto_memory_extraction()
                     # 关闭会话持久化存储
                     self._close_session_persistence()
@@ -762,7 +762,7 @@ class AgentLoop:
         # 第 5 层: 工具说明
         parts.append(self._tools_description())
 
-        # 第 5.5 层: 计划模式指示（对标 Claude Code plan_mode attachment）
+        # 第 5.5 层: 计划模式指示
         try:
             from tools.builtin.plan_mode import (
                 is_plan_mode_active, get_plan_mode_reason,
@@ -977,7 +977,7 @@ class AgentLoop:
 - 仅在用户明确要求时使用表情符号。除非被要求，否则避免在所有沟通中使用表情符号。
 - 你的回答应简短扼要。
 - 当引用特定函数或代码片段时，包含模式`文件路径:行号`，以便用户轻松导航到源代码位置。
-- 当引用GitHub issue或pull request时，使用`owner/repo#123`格式（例如`anthropics/claude-code#100`），以便它们呈现为可点击的链接。
+- 当引用GitHub issue或pull request时，使用`owner/repo#123`格式（例如`owner/repo#100`），以便它们呈现为可点击的链接。
 - 在工具调用之前不要使用冒号。你的工具调用可能不会直接显示在输出中，因此像"让我读取文件："后跟读取工具调用的文本应该只是"让我读取文件。"（句号结尾）。
 
 ## 会话特定指南
@@ -1046,7 +1046,7 @@ class AgentLoop:
 5. 保护用户隐私,不要泄露敏感信息"""
     
     # ── 错误分类与重试策略 ──────────────────────────────────────────
-    # 参考 Claude Code withRetry.ts 的分层错误处理设计
+    # 参考标准实现
 
     _MAX_API_RETRIES = 10         # API 级最大重试次数（对标 withRetry.ts DEFAULT_MAX_RETRIES=10）
     _MAX_BACKOFF_S = 32           # 非速率限制退避上限（秒）
@@ -2389,7 +2389,7 @@ class AgentLoop:
 
     def _trigger_auto_memory_extraction(self):
         """
-        触发后台自动记忆提取（对标 Claude Code handleStopHooks → extractMemories）。
+        触发后台自动记忆提取。
 
         在 query loop 结束时调用（任务完成 / 达到最大轮次），
         后台线程分析对话记录并提取值得跨会话保留的信息。

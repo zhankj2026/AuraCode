@@ -115,7 +115,7 @@ class McpWebSocketIDEServerConfig:
 
 @dataclass
 class McpClaudeAIProxyServerConfig:
-    """Configuration for Claude.ai proxy servers."""
+    """AI 代理服务器配置。"""
 
     type: str = "claudeai-proxy"
     url: str = ""
