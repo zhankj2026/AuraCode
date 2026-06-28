@@ -8,23 +8,181 @@
     <link rel="stylesheet" href="../css/docs.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        .md-content { line-height: 1.8; }
-        .md-content h1 { font-size: 2rem; margin-bottom: 1rem; }
-        .md-content h2 { font-size: 1.5rem; margin: 2rem 0 1rem; }
-        .md-content h3 { font-size: 1.25rem; margin: 1.5rem 0 0.75rem; }
-        .md-content p { margin: 1rem 0; }
-        .md-content pre { background: var(--bg); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 1rem 0; }
-        .md-content code { background: var(--bg); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; }
-        .md-content pre code { background: none; padding: 0; }
-        .md-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-        .md-content th, .md-content td { padding: 0.75rem; border: 1px solid var(--border-color); text-align: left; }
-        .md-content th { background: var(--s1); }
-        .md-content ul, .md-content ol { margin: 1rem 0; padding-left: 2rem; }
-        .md-content li { margin: 0.5rem 0; }
-        .md-content a { color: var(--acc); text-decoration: none; }
-        .md-content a:hover { text-decoration: underline; }
-        .md-content strong { font-weight: 600; }
-        .md-content hr { border: none; border-top: 1px solid var(--border-color); margin: 2rem 0; }
+        /* Markdown 内容样式 */
+        .md-content { 
+            line-height: 1.8;
+            color: var(--text-primary);
+        }
+        
+        /* 标题样式 */
+        .md-content h1 { 
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin: 2rem 0 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--border-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .md-content h2 { 
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 2.5rem 0 1rem;
+            padding-left: 1rem;
+            border-left: 4px solid var(--primary-color);
+        }
+        .md-content h3 { 
+            font-size: 1.35rem;
+            font-weight: 600;
+            margin: 2rem 0 0.75rem;
+            color: var(--primary-color);
+        }
+        
+        /* 段落样式 */
+        .md-paragraph {
+            margin: 1.25rem 0;
+            line-height: 1.8;
+        }
+        
+        /* 代码块样式 */
+        .code-block {
+            background: var(--darker-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .code-block::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border-radius: 0.75rem 0.75rem 0 0;
+        }
+        .code-block code {
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+        .inline-code {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.35rem;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.85em;
+            color: var(--primary-color);
+        }
+        
+        /* 表格样式 */
+        .md-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 1.5rem 0;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .md-table thead {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        }
+        .md-table th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: white;
+        }
+        .md-table td {
+            padding: 0.875rem 1rem;
+            border-top: 1px solid var(--border-color);
+            background: var(--card-bg);
+        }
+        .md-table tbody tr:hover td {
+            background: rgba(99, 102, 241, 0.05);
+        }
+        
+        /* 引用块样式 */
+        .md-quote {
+            border-left: 4px solid var(--primary-color);
+            background: rgba(99, 102, 241, 0.05);
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 列表样式 */
+        .md-list {
+            margin: 1.25rem 0;
+            padding-left: 2rem;
+        }
+        .md-list li {
+            margin: 0.75rem 0;
+            line-height: 1.7;
+            position: relative;
+        }
+        .md-list li::marker {
+            color: var(--primary-color);
+        }
+        
+        /* 链接样式 */
+        .md-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .md-link:hover {
+            color: var(--secondary-color);
+            border-bottom-color: var(--secondary-color);
+        }
+        
+        /* 粗体和斜体 */
+        .md-strong {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .md-em {
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 分隔线 */
+        .md-hr {
+            border: none;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+            margin: 2.5rem 0;
+        }
+        
+        /* 面包屑导航 */
+        .breadcrumb-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .breadcrumb-link:hover {
+            text-decoration: underline;
+        }
+        .breadcrumb-sep {
+            color: var(--text-secondary);
+            margin: 0 0.5rem;
+        }
+        .breadcrumb-item {
+            color: var(--text-secondary);
+            text-transform: capitalize;
+        }
     </style>
 </head>
 <body>
@@ -89,43 +247,43 @@
             <div class="md-content">
                 <h1>对话交互</h1>
 
-<p>AuraCode 的核心交互方式是多轮对话。AI 代理在每一轮中会分析你的需求，自动调用合适的工具完成任务，并将结果呈现给你。</p>
+<p class="md-paragraph">AuraCode 的核心交互方式是多轮对话。AI 代理在每一轮中会分析你的需求，自动调用合适的工具完成任务，并将结果呈现给你。</p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>工作模式</h2>
 
-<p>AuraCode 提供三种启动模式：</p>
+<p class="md-paragraph">AuraCode 提供三种启动模式：</p>
 
 <h3>对话模式（默认）</h3>
 
-<pre><code class="language-bash">python cli.py
+<pre class="code-block"><code class="language-bash">python cli.py
 python cli.py "你的问题"
 </code></pre>
 
-<p>进入交互式 REPL，持续对话直到完成目标。</p>
+<p class="md-paragraph">进入交互式 REPL，持续对话直到完成目标。</p>
 
 <h3>命令模式</h3>
 
-<pre><code class="language-bash">python cli.py -c <command> [args...]
+<pre class="code-block"><code class="language-bash">python cli.py -c <command> [args...]
 </code></pre>
 
-<p>执行单条命令后退出，适合脚本与 CI/CD 集成。</p>
+<p class="md-paragraph">执行单条命令后退出，适合脚本与 CI/CD 集成。</p>
 
 <h3>Bridge 远程控制模式</h3>
 
-<pre><code class="language-bash">python cli.py --bridge --bridge-port 9000
+<pre class="code-block"><code class="language-bash">python cli.py --bridge --bridge-port 9000
 </code></pre>
 
-<p>启动 REST + WebSocket 服务，可从浏览器或其他客户端远程操控。详见 <a href="../advanced/bridge.md">Bridge 远程控制</a>。</p>
+<p class="md-paragraph">启动 REST + WebSocket 服务，可从浏览器或其他客户端远程操控。详见 <a href="../advanced/bridge.md" class="md-link">Bridge 远程控制</a>。</p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>对话循环</h2>
 
-<p>AuraCode 采用 <strong>TAOR 循环</strong>（Think → Act → Observe → Repeat）：</p>
+<p class="md-paragraph">AuraCode 采用 <strong class="md-strong">TAOR 循环</strong>（Think → Act → Observe → Repeat）：</p>
 
-<pre><code class="language-">用户提问
+<pre class="code-block"><code class="language-">用户提问
   ↓
 [Think]  AI 分析需求，规划下一步
   ↓
@@ -136,90 +294,95 @@ python cli.py "你的问题"
 [Repeat]  重复直到任务完成，返回最终结果
 </code></pre>
 
-<p>每一轮迭代都会消耗 Token，默认最多 20 轮（可配置）。</p>
+<p class="md-paragraph">每一轮迭代都会消耗 Token，默认最多 20 轮（可配置）。</p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>流式输出</h2>
 
-<p>AI 回复默认以流式方式逐字显示，无需等待完整响应。可通过 <code>/model</code> 命令切换模型。</p>
+<p class="md-paragraph">AI 回复默认以流式方式逐字显示，无需等待完整响应。可通过 <code class="inline-code">/model</code> 命令切换模型。</p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>上下文管理</h2>
 
-<p>对话过程中，所有消息（用户输入 + AI 回复 + 工具结果）共同构成上下文窗口。</p>
+<p class="md-paragraph">对话过程中，所有消息（用户输入 + AI 回复 + 工具结果）共同构成上下文窗口。</p>
 
-<div class="md-table-row">| 命令 | 作用 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <code>/context</code> | 查看当前 Token 分布与使用情况 |</div>
-<div class="md-table-row">| <code>/compact</code> | LLM 驱动压缩历史，保留关键摘要 |</div>
-<div class="md-table-row">| <code>/clear</code> | 清空对话历史，重新开始 |</div>
-
+<table class="md-table">
+<thead><tr><th>命令</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">/context</code></td><td>查看当前 Token 分布与使用情况</td></tr>
+<tr><td><code class="inline-code">/compact</code></td><td>LLM 驱动压缩历史，保留关键摘要</td></tr>
+<tr><td><code class="inline-code">/clear</code></td><td>清空对话历史，重新开始</td></tr>
+</tbody></table>
 <h3>自动压缩</h3>
 
-<p>当上下文接近窗口上限（默认 200,000 Token）时，AuraCode 会自动触发压缩：
-- 旧的工具结果被裁剪（只保留关键变更区域）
-- 早期对话被压缩为摘要
-- base64 图片被剥离</p>
+<p class="md-paragraph">当上下文接近窗口上限（默认 200,000 Token）时，AuraCode 会自动触发压缩：
+<ul class="md-list">
+<li>旧的工具结果被裁剪（只保留关键变更区域）</li>
+<li>早期对话被压缩为摘要</li>
+<li>base64 图片被剥离</li>
+</ul></p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>会话持久化</h2>
 
-<p>每次对话结束后自动保存，可通过 <code>/resume</code> 恢复：</p>
+<p class="md-paragraph">每次对话结束后自动保存，可通过 <code class="inline-code">/resume</code> 恢复：</p>
 
-<pre><code class="language-">> /resume
+<pre class="code-block"><code class="language-">> /resume
 
-<p>最近会话:
+<p class="md-paragraph">最近会话:
   1. 2024-01-15 14:30 - 重构 auth 模块 (12 轮, $0.08)
   2. 2024-01-15 10:15 - 修复 bug #234 (5 轮, $0.03)</p>
 
-<p>输入编号恢复，或 /resume --all 查看全部
+<p class="md-paragraph">输入编号恢复，或 /resume --all 查看全部
 </code></pre></p>
 
-<p>会话文件存储在 <code>~/.auracode/sessions/</code>。</p>
+<p class="md-paragraph">会话文件存储在 <code class="inline-code">~/.auracode/sessions/</code>。</p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>会话回退</h2>
 
-<p>如果 AI 的某步操作不符合预期，可以回退到之前的检查点：</p>
+<p class="md-paragraph">如果 AI 的某步操作不符合预期，可以回退到之前的检查点：</p>
 
-<pre><code class="language-">> /rewind
+<pre class="code-block"><code class="language-">> /rewind
 
-<p>已回退到检查点 #3（撤销最近 2 轮对话）
+<p class="md-paragraph">已回退到检查点 #3（撤销最近 2 轮对话）
 </code></pre></p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>CLI 参数</h2>
 
-<div class="md-table-row">| 参数 | 说明 | 默认值 |</div>
-<div class="md-table-row">|------|------|--------|</div>
-<div class="md-table-row">| <code>prompt</code> | 初始输入 | - |</div>
-<div class="md-table-row">| <code>--mode</code> | 权限模式: <code>normal</code> / <code>auto</code> / <code>plan</code> / <code>bypass</code> | <code>normal</code> |</div>
-<div class="md-table-row">| <code>--model</code> | LLM 模型名称 | <code>glm-4.7</code> |</div>
-<div class="md-table-row">| <code>--base-url</code> | API Base URL | 环境变量 |</div>
-<div class="md-table-row">| <code>--max-iterations</code> | 最大迭代次数 | <code>20</code> |</div>
-<div class="md-table-row">| <code>-c, --command</code> | 命令模式 | - |</div>
-<div class="md-table-row">| <code>-v, --verbose</code> | 显示详细日志 | <code>false</code> |</div>
-<div class="md-table-row">| <code>--bridge</code> | 启动 Bridge 服务 | <code>false</code> |</div>
-<div class="md-table-row">| <code>--bridge-port</code> | Bridge 端口 | <code>8765</code> |</div>
-<div class="md-table-row">| <code>--bridge-host</code> | Bridge 绑定地址 | <code>127.0.0.1</code> |</div>
-
-<p>---</p>
+<table class="md-table">
+<thead><tr><th>参数</th><th>说明</th><th>默认值</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">prompt</code></td><td>初始输入</td><td>-</td></tr>
+<tr><td><code class="inline-code">--mode</code></td><td>权限模式: <code class="inline-code">normal</code> / <code class="inline-code">auto</code> / <code class="inline-code">plan</code> / <code class="inline-code">bypass</code></td><td><code class="inline-code">normal</code></td></tr>
+<tr><td><code class="inline-code">--model</code></td><td>LLM 模型名称</td><td><code class="inline-code">glm-4.7</code></td></tr>
+<tr><td><code class="inline-code">--base-url</code></td><td>API Base URL</td><td>环境变量</td></tr>
+<tr><td><code class="inline-code">--max-iterations</code></td><td>最大迭代次数</td><td><code class="inline-code">20</code></td></tr>
+<tr><td><code class="inline-code">-c, --command</code></td><td>命令模式</td><td>-</td></tr>
+<tr><td><code class="inline-code">-v, --verbose</code></td><td>显示详细日志</td><td><code class="inline-code">false</code></td></tr>
+<tr><td><code class="inline-code">--bridge</code></td><td>启动 Bridge 服务</td><td><code class="inline-code">false</code></td></tr>
+<tr><td><code class="inline-code">--bridge-port</code></td><td>Bridge 端口</td><td><code class="inline-code">8765</code></td></tr>
+<tr><td><code class="inline-code">--bridge-host</code></td><td>Bridge 绑定地址</td><td><code class="inline-code">127.0.0.1</code></td></tr>
+</tbody></table>
+<hr class="md-hr">
 
 <h2>相关命令</h2>
 
-<div class="md-table-row">| 命令 | 说明 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <code>/status</code> | 当前会话状态 |</div>
-<div class="md-table-row">| <code>/cost</code> | 会话费用追踪 |</div>
-<div class="md-table-row">| <code>/model</code> | 切换模型 |</div>
-<div class="md-table-row">| <code>/export</code> | 导出对话为文件 |</div>
-<div class="md-table-row">| <code>/history</code> | 会话历史管理 |</div>
-
+<table class="md-table">
+<thead><tr><th>命令</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">/status</code></td><td>当前会话状态</td></tr>
+<tr><td><code class="inline-code">/cost</code></td><td>会话费用追踪</td></tr>
+<tr><td><code class="inline-code">/model</code></td><td>切换模型</td></tr>
+<tr><td><code class="inline-code">/export</code></td><td>导出对话为文件</td></tr>
+<tr><td><code class="inline-code">/history</code></td><td>会话历史管理</td></tr>
+</tbody></table>
             </div>
 
             <div class="docs-navigation">

@@ -8,23 +8,181 @@
     <link rel="stylesheet" href="../css/docs.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        .md-content { line-height: 1.8; }
-        .md-content h1 { font-size: 2rem; margin-bottom: 1rem; }
-        .md-content h2 { font-size: 1.5rem; margin: 2rem 0 1rem; }
-        .md-content h3 { font-size: 1.25rem; margin: 1.5rem 0 0.75rem; }
-        .md-content p { margin: 1rem 0; }
-        .md-content pre { background: var(--bg); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 1rem 0; }
-        .md-content code { background: var(--bg); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; }
-        .md-content pre code { background: none; padding: 0; }
-        .md-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-        .md-content th, .md-content td { padding: 0.75rem; border: 1px solid var(--border-color); text-align: left; }
-        .md-content th { background: var(--s1); }
-        .md-content ul, .md-content ol { margin: 1rem 0; padding-left: 2rem; }
-        .md-content li { margin: 0.5rem 0; }
-        .md-content a { color: var(--acc); text-decoration: none; }
-        .md-content a:hover { text-decoration: underline; }
-        .md-content strong { font-weight: 600; }
-        .md-content hr { border: none; border-top: 1px solid var(--border-color); margin: 2rem 0; }
+        /* Markdown 内容样式 */
+        .md-content { 
+            line-height: 1.8;
+            color: var(--text-primary);
+        }
+        
+        /* 标题样式 */
+        .md-content h1 { 
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin: 2rem 0 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--border-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .md-content h2 { 
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 2.5rem 0 1rem;
+            padding-left: 1rem;
+            border-left: 4px solid var(--primary-color);
+        }
+        .md-content h3 { 
+            font-size: 1.35rem;
+            font-weight: 600;
+            margin: 2rem 0 0.75rem;
+            color: var(--primary-color);
+        }
+        
+        /* 段落样式 */
+        .md-paragraph {
+            margin: 1.25rem 0;
+            line-height: 1.8;
+        }
+        
+        /* 代码块样式 */
+        .code-block {
+            background: var(--darker-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .code-block::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border-radius: 0.75rem 0.75rem 0 0;
+        }
+        .code-block code {
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+        .inline-code {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.35rem;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.85em;
+            color: var(--primary-color);
+        }
+        
+        /* 表格样式 */
+        .md-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 1.5rem 0;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .md-table thead {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        }
+        .md-table th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: white;
+        }
+        .md-table td {
+            padding: 0.875rem 1rem;
+            border-top: 1px solid var(--border-color);
+            background: var(--card-bg);
+        }
+        .md-table tbody tr:hover td {
+            background: rgba(99, 102, 241, 0.05);
+        }
+        
+        /* 引用块样式 */
+        .md-quote {
+            border-left: 4px solid var(--primary-color);
+            background: rgba(99, 102, 241, 0.05);
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 列表样式 */
+        .md-list {
+            margin: 1.25rem 0;
+            padding-left: 2rem;
+        }
+        .md-list li {
+            margin: 0.75rem 0;
+            line-height: 1.7;
+            position: relative;
+        }
+        .md-list li::marker {
+            color: var(--primary-color);
+        }
+        
+        /* 链接样式 */
+        .md-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .md-link:hover {
+            color: var(--secondary-color);
+            border-bottom-color: var(--secondary-color);
+        }
+        
+        /* 粗体和斜体 */
+        .md-strong {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .md-em {
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 分隔线 */
+        .md-hr {
+            border: none;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+            margin: 2.5rem 0;
+        }
+        
+        /* 面包屑导航 */
+        .breadcrumb-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .breadcrumb-link:hover {
+            text-decoration: underline;
+        }
+        .breadcrumb-sep {
+            color: var(--text-secondary);
+            margin: 0 0.5rem;
+        }
+        .breadcrumb-item {
+            color: var(--text-secondary);
+            text-transform: capitalize;
+        }
     </style>
 </head>
 <body>
@@ -89,28 +247,28 @@
             <div class="md-content">
                 <h1>MCP 协议集成</h1>
 
-<p>AuraCode 完整实现了 <a href="https://modelcontextprotocol.io/">Model Context Protocol</a> 客户端，可以连接外部 MCP 服务器，动态扩展工具能力。</p>
+<p class="md-paragraph">AuraCode 完整实现了 <a href="https://modelcontextprotocol.io/" class="md-link">Model Context Protocol</a> 客户端，可以连接外部 MCP 服务器，动态扩展工具能力。</p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>概述</h2>
 
-<p>MCP 允许你将外部工具和服务接入 AuraCode，例如数据库查询、第三方 API、文件系统等。MCP 工具与内置工具统一调用，对 AI 透明。</p>
+<p class="md-paragraph">MCP 允许你将外部工具和服务接入 AuraCode，例如数据库查询、第三方 API、文件系统等。MCP 工具与内置工具统一调用，对 AI 透明。</p>
 
-<pre><code class="language-">AuraCode
+<pre class="code-block"><code class="language-">AuraCode
   └── MCP Manager
         ├── 服务器 A (stdio)  → 数据库工具
         ├── 服务器 B (SSE)    → 文件系统工具
         └── 服务器 C (WS)     → 自定义 API
 </code></pre>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>配置</h2>
 
-<p>在 <code>config.yaml</code> 中添加 MCP 服务器：</p>
+<p class="md-paragraph">在 <code class="inline-code">config.yaml</code> 中添加 MCP 服务器：</p>
 
-<pre><code class="language-yaml">mcp:
+<pre class="code-block"><code class="language-yaml">mcp:
   servers:
     # 使用 stdio 传输
     postgres:
@@ -120,14 +278,14 @@
       env:
         DATABASE_URL: "postgresql://user:pass@localhost/db"
 
-<p>    # 使用 SSE 传输
+<p class="md-paragraph">    # 使用 SSE 传输
     filesystem:
       command: "node"
       args: ["fs-server.js"]
       transport: sse
       url: "http://localhost:3001"</p>
 
-<p>    # 使用 WebSocket 传输
+<p class="md-paragraph">    # 使用 WebSocket 传输
     custom-api:
       command: "python"
       args: ["mcp_server.py"]
@@ -138,83 +296,85 @@
 
 <h3>传输方式</h3>
 
-<div class="md-table-row">| 方式 | 说明 | 适用场景 |</div>
-<div class="md-table-row">|------|------|----------|</div>
-<div class="md-table-row">| <code>stdio</code> | 标准输入/输出 | 本地进程 |</div>
-<div class="md-table-row">| <code>sse</code> | Server-Sent Events | HTTP 服务 |</div>
-<div class="md-table-row">| <code>websocket</code> | WebSocket 双向通信 | 实时交互 |</div>
-
-<p>---</p>
+<table class="md-table">
+<thead><tr><th>方式</th><th>说明</th><th>适用场景</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">stdio</code></td><td>标准输入/输出</td><td>本地进程</td></tr>
+<tr><td><code class="inline-code">sse</code></td><td>Server-Sent Events</td><td>HTTP 服务</td></tr>
+<tr><td><code class="inline-code">websocket</code></td><td>WebSocket 双向通信</td><td>实时交互</td></tr>
+</tbody></table>
+<hr class="md-hr">
 
 <h2>管理命令</h2>
 
-<pre><code class="language-">> /mcp list
+<pre class="code-block"><code class="language-">> /mcp list
 
-<p>MCP 服务器 (3 个):
+<p class="md-paragraph">MCP 服务器 (3 个):
   ✅ postgres        stdio    已连接   工具: 4
   ✅ filesystem      sse      已连接   工具: 6
   ❌ custom-api      ws       未连接</p>
 
-<p>> /mcp connect custom-api</p>
+<blockquote class="md-quote">/mcp connect custom-api</blockquote>
 
-<p>正在连接 custom-api...
+<p class="md-paragraph">正在连接 custom-api...
 ✅ 已连接，注册了 3 个工具</p>
 
-<p>> /mcp disconnect postgres</p>
+<blockquote class="md-quote">/mcp disconnect postgres</blockquote>
 
-<p>✅ 已断开 postgres</p>
+<p class="md-paragraph">✅ 已断开 postgres</p>
 
-<p>> /mcp tools postgres</p>
+<blockquote class="md-quote">/mcp tools postgres</blockquote>
 
-<p>postgres 提供的工具:
+<p class="md-paragraph">postgres 提供的工具:
   - query       执行 SQL 查询
   - list_tables 列出所有表
   - describe    查看表结构
   - insert      插入数据
 </code></pre></p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>动态工具注册</h2>
 
-<p>MCP 服务器提供的工具会自动注册到 AuraCode 的工具系统，与内置工具统一调用：</p>
+<p class="md-paragraph">MCP 服务器提供的工具会自动注册到 AuraCode 的工具系统，与内置工具统一调用：</p>
 
-<pre><code class="language-">> 查询 users 表中最近注册的 10 个用户
+<pre class="code-block"><code class="language-">> 查询 users 表中最近注册的 10 个用户
 
-<p>[AI 自动调用 MCP 工具]:
+<p class="md-paragraph">[AI 自动调用 MCP 工具]:
   tool: postgres.query
   input: {"sql": "SELECT * FROM users ORDER BY created_at DESC LIMIT 10"}
 </code></pre></p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>调用链追踪</h2>
 
-<p>MCP 工具调用过程可观测，便于调试：</p>
+<p class="md-paragraph">MCP 工具调用过程可观测，便于调试：</p>
 
-<pre><code class="language-">[MCP] postgres.query
+<pre class="code-block"><code class="language-">[MCP] postgres.query
   请求: {"sql": "SELECT count(*) FROM orders"}
   响应: {"rows": [{"count": 1523}]}
   耗时: 45ms
 </code></pre>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>服务器自动发现</h2>
 
-<p>启动时 AuraCode 会自动扫描并连接配置中的所有 MCP 服务器，支持自动重连。</p>
+<p class="md-paragraph">启动时 AuraCode 会自动扫描并连接配置中的所有 MCP 服务器，支持自动重连。</p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>相关命令</h2>
 
-<div class="md-table-row">| 命令 | 说明 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <code>/mcp list</code> | 列出所有 MCP 服务器 |</div>
-<div class="md-table-row">| <code>/mcp connect <name></code> | 连接服务器 |</div>
-<div class="md-table-row">| <code>/mcp disconnect <name></code> | 断开服务器 |</div>
-<div class="md-table-row">| <code>/mcp tools <name></code> | 查看服务器提供的工具 |</div>
-
+<table class="md-table">
+<thead><tr><th>命令</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">/mcp list</code></td><td>列出所有 MCP 服务器</td></tr>
+<tr><td><code class="inline-code">/mcp connect <name></code></td><td>连接服务器</td></tr>
+<tr><td><code class="inline-code">/mcp disconnect <name></code></td><td>断开服务器</td></tr>
+<tr><td><code class="inline-code">/mcp tools <name></code></td><td>查看服务器提供的工具</td></tr>
+</tbody></table>
             </div>
 
             <div class="docs-navigation">

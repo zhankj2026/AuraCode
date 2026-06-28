@@ -8,23 +8,181 @@
     <link rel="stylesheet" href="../css/docs.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        .md-content { line-height: 1.8; }
-        .md-content h1 { font-size: 2rem; margin-bottom: 1rem; }
-        .md-content h2 { font-size: 1.5rem; margin: 2rem 0 1rem; }
-        .md-content h3 { font-size: 1.25rem; margin: 1.5rem 0 0.75rem; }
-        .md-content p { margin: 1rem 0; }
-        .md-content pre { background: var(--bg); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 1rem 0; }
-        .md-content code { background: var(--bg); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; }
-        .md-content pre code { background: none; padding: 0; }
-        .md-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-        .md-content th, .md-content td { padding: 0.75rem; border: 1px solid var(--border-color); text-align: left; }
-        .md-content th { background: var(--s1); }
-        .md-content ul, .md-content ol { margin: 1rem 0; padding-left: 2rem; }
-        .md-content li { margin: 0.5rem 0; }
-        .md-content a { color: var(--acc); text-decoration: none; }
-        .md-content a:hover { text-decoration: underline; }
-        .md-content strong { font-weight: 600; }
-        .md-content hr { border: none; border-top: 1px solid var(--border-color); margin: 2rem 0; }
+        /* Markdown 内容样式 */
+        .md-content { 
+            line-height: 1.8;
+            color: var(--text-primary);
+        }
+        
+        /* 标题样式 */
+        .md-content h1 { 
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin: 2rem 0 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--border-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .md-content h2 { 
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 2.5rem 0 1rem;
+            padding-left: 1rem;
+            border-left: 4px solid var(--primary-color);
+        }
+        .md-content h3 { 
+            font-size: 1.35rem;
+            font-weight: 600;
+            margin: 2rem 0 0.75rem;
+            color: var(--primary-color);
+        }
+        
+        /* 段落样式 */
+        .md-paragraph {
+            margin: 1.25rem 0;
+            line-height: 1.8;
+        }
+        
+        /* 代码块样式 */
+        .code-block {
+            background: var(--darker-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .code-block::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border-radius: 0.75rem 0.75rem 0 0;
+        }
+        .code-block code {
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+        .inline-code {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.35rem;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.85em;
+            color: var(--primary-color);
+        }
+        
+        /* 表格样式 */
+        .md-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 1.5rem 0;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .md-table thead {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        }
+        .md-table th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: white;
+        }
+        .md-table td {
+            padding: 0.875rem 1rem;
+            border-top: 1px solid var(--border-color);
+            background: var(--card-bg);
+        }
+        .md-table tbody tr:hover td {
+            background: rgba(99, 102, 241, 0.05);
+        }
+        
+        /* 引用块样式 */
+        .md-quote {
+            border-left: 4px solid var(--primary-color);
+            background: rgba(99, 102, 241, 0.05);
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 列表样式 */
+        .md-list {
+            margin: 1.25rem 0;
+            padding-left: 2rem;
+        }
+        .md-list li {
+            margin: 0.75rem 0;
+            line-height: 1.7;
+            position: relative;
+        }
+        .md-list li::marker {
+            color: var(--primary-color);
+        }
+        
+        /* 链接样式 */
+        .md-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .md-link:hover {
+            color: var(--secondary-color);
+            border-bottom-color: var(--secondary-color);
+        }
+        
+        /* 粗体和斜体 */
+        .md-strong {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .md-em {
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 分隔线 */
+        .md-hr {
+            border: none;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+            margin: 2.5rem 0;
+        }
+        
+        /* 面包屑导航 */
+        .breadcrumb-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .breadcrumb-link:hover {
+            text-decoration: underline;
+        }
+        .breadcrumb-sep {
+            color: var(--text-secondary);
+            margin: 0 0.5rem;
+        }
+        .breadcrumb-item {
+            color: var(--text-secondary);
+            text-transform: capitalize;
+        }
     </style>
 </head>
 <body>
@@ -89,37 +247,38 @@
             <div class="md-content">
                 <h1>权限管理</h1>
 
-<p>AuraCode 提供四级权限模式，通过参数级 allow/deny 规则精确控制 AI 的操作边界。</p>
+<p class="md-paragraph">AuraCode 提供四级权限模式，通过参数级 allow/deny 规则精确控制 AI 的操作边界。</p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>权限模式</h2>
 
-<div class="md-table-row">| 模式 | 说明 | 适用场景 |</div>
-<div class="md-table-row">|------|------|----------|</div>
-<div class="md-table-row">| <code>normal</code> | 默认模式 — 危险操作需用户确认 | 日常开发 |</div>
-<div class="md-table-row">| <code>auto</code> | 自动模式 — 自动批准安全操作 | 信任环境/CI |</div>
-<div class="md-table-row">| <code>plan</code> | 计划模式 — 只读分析，不执行修改 | 代码审查/调研 |</div>
-<div class="md-table-row">| <code>bypass</code> | 绕过模式 — 跳过所有权限检查 | 调试/测试 |</div>
-
+<table class="md-table">
+<thead><tr><th>模式</th><th>说明</th><th>适用场景</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">normal</code></td><td>默认模式 — 危险操作需用户确认</td><td>日常开发</td></tr>
+<tr><td><code class="inline-code">auto</code></td><td>自动模式 — 自动批准安全操作</td><td>信任环境/CI</td></tr>
+<tr><td><code class="inline-code">plan</code></td><td>计划模式 — 只读分析，不执行修改</td><td>代码审查/调研</td></tr>
+<tr><td><code class="inline-code">bypass</code></td><td>绕过模式 — 跳过所有权限检查</td><td>调试/测试</td></tr>
+</tbody></table>
 <h3>切换模式</h3>
 
-<pre><code class="language-bash"><h1>启动时指定</h1>
+<pre class="code-block"><code class="language-bash"># 启动时指定
 python cli.py --mode auto
 
 <h1>运行时切换</h1>
-> /permissions mode auto
+<blockquote class="md-quote">/permissions mode auto</blockquote>
 </code></pre>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>规则配置</h2>
 
-<p>规则格式为 <code>工具名:参数模式</code>，支持通配符 <code>*</code>。</p>
+<p class="md-paragraph">规则格式为 <code class="inline-code">工具名:参数模式</code>，支持通配符 <code class="inline-code">*</code>。</p>
 
 <h3>config.yaml</h3>
 
-<pre><code class="language-yaml">permissions:
+<pre class="code-block"><code class="language-yaml">permissions:
   mode: normal
   allow_rules:
     - "read_file:*"          # 允许读取所有文件
@@ -133,73 +292,76 @@ python cli.py --mode auto
 
 <h3>运行时管理</h3>
 
-<pre><code class="language-">> /permissions
+<pre class="code-block"><code class="language-">> /permissions
 
-<p>当前模式: normal</p>
+<p class="md-paragraph">当前模式: normal</p>
 
-<p>Allow 规则:
+<p class="md-paragraph">Allow 规则:
   ✅ read_file:*
   ✅ run_command:git *
   ✅ write_file:src/*</p>
 
-<p>Deny 规则:
+<p class="md-paragraph">Deny 规则:
   ❌ run_command:rm -rf
   ❌ run_command:sudo *
   ❌ write_file:*.env
 </code></pre></p>
 
-<pre><code class="language-"><h1>添加规则</h1>
-> /permissions add allow "run_command:npm *"
+<pre class="code-block"><code class="language-"># 添加规则
+<blockquote class="md-quote">/permissions add allow "run_command:npm *"</blockquote>
 
 <h1>移除规则</h1>
-> /permissions remove deny "write_file:*.env"
+<blockquote class="md-quote">/permissions remove deny "write_file:*.env"</blockquote>
 </code></pre>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>规则匹配优先级</h2>
 
-<p>当 allow 和 deny 规则冲突时，<strong>deny 优先</strong>：</p>
+<p class="md-paragraph">当 allow 和 deny 规则冲突时，<strong class="md-strong">deny 优先</strong>：</p>
 
-<pre><code class="language-">allow: "run_command:*"      # 允许所有命令
+<pre class="code-block"><code class="language-">allow: "run_command:*"      # 允许所有命令
 deny:  "run_command:rm *"   # 但禁止 rm 命令
 
-<p>→ run_command: ls         ✅ 匹配 allow
+<p class="md-paragraph">→ run_command: ls         ✅ 匹配 allow
 → run_command: rm file    ❌ 匹配 deny（deny 优先）
 </code></pre></p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>危险操作确认</h2>
 
-<p>在 <code>normal</code> 模式下，以下操作会弹出确认提示：</p>
+<p class="md-paragraph">在 <code class="inline-code">normal</code> 模式下，以下操作会弹出确认提示：</p>
 
-<p>- 执行 Shell 命令（<code>run_command</code>）
-- 写入文件（<code>write_file</code>、<code>replace_in_file</code>）
-- 删除文件</p>
+<ul class="md-list">
+<li>执行 Shell 命令（<code class="inline-code">run_command</code>）</li>
+<li>写入文件（<code class="inline-code">write_file</code>、<code class="inline-code">replace_in_file</code>）</li>
+<li>删除文件</li>
+</ul>
 
-<pre><code class="language-">⚠️  权限确认
+<pre class="code-block"><code class="language-">⚠️  权限确认
 
-<p>  工具: run_command
+<p class="md-paragraph">  工具: run_command
   参数: rm -rf build/</p>
 
-<p>  当前无匹配的 allow 规则，是否允许?
+<p class="md-paragraph">  当前无匹配的 allow 规则，是否允许?
   [y] 允许  [n] 拒绝  [a] 本次会话始终允许此操作
 </code></pre></p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>相关命令</h2>
 
-<div class="md-table-row">| 命令 | 说明 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <code>/permissions</code> | 查看当前权限配置 |</div>
-<div class="md-table-row">| <code>/permissions mode <mode></code> | 切换权限模式 |</div>
-<div class="md-table-row">| <code>/permissions add allow <rule></code> | 添加 allow 规则 |</div>
-<div class="md-table-row">| <code>/permissions add deny <rule></code> | 添加 deny 规则 |</div>
-<div class="md-table-row">| <code>/permissions remove allow <rule></code> | 移除 allow 规则 |</div>
-<div class="md-table-row">| <code>/permissions remove deny <rule></code> | 移除 deny 规则 |</div>
-
+<table class="md-table">
+<thead><tr><th>命令</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">/permissions</code></td><td>查看当前权限配置</td></tr>
+<tr><td><code class="inline-code">/permissions mode <mode></code></td><td>切换权限模式</td></tr>
+<tr><td><code class="inline-code">/permissions add allow <rule></code></td><td>添加 allow 规则</td></tr>
+<tr><td><code class="inline-code">/permissions add deny <rule></code></td><td>添加 deny 规则</td></tr>
+<tr><td><code class="inline-code">/permissions remove allow <rule></code></td><td>移除 allow 规则</td></tr>
+<tr><td><code class="inline-code">/permissions remove deny <rule></code></td><td>移除 deny 规则</td></tr>
+</tbody></table>
             </div>
 
             <div class="docs-navigation">

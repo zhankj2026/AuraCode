@@ -8,23 +8,181 @@
     <link rel="stylesheet" href="../css/docs.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        .md-content { line-height: 1.8; }
-        .md-content h1 { font-size: 2rem; margin-bottom: 1rem; }
-        .md-content h2 { font-size: 1.5rem; margin: 2rem 0 1rem; }
-        .md-content h3 { font-size: 1.25rem; margin: 1.5rem 0 0.75rem; }
-        .md-content p { margin: 1rem 0; }
-        .md-content pre { background: var(--bg); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 1rem 0; }
-        .md-content code { background: var(--bg); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; }
-        .md-content pre code { background: none; padding: 0; }
-        .md-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-        .md-content th, .md-content td { padding: 0.75rem; border: 1px solid var(--border-color); text-align: left; }
-        .md-content th { background: var(--s1); }
-        .md-content ul, .md-content ol { margin: 1rem 0; padding-left: 2rem; }
-        .md-content li { margin: 0.5rem 0; }
-        .md-content a { color: var(--acc); text-decoration: none; }
-        .md-content a:hover { text-decoration: underline; }
-        .md-content strong { font-weight: 600; }
-        .md-content hr { border: none; border-top: 1px solid var(--border-color); margin: 2rem 0; }
+        /* Markdown 内容样式 */
+        .md-content { 
+            line-height: 1.8;
+            color: var(--text-primary);
+        }
+        
+        /* 标题样式 */
+        .md-content h1 { 
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin: 2rem 0 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--border-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .md-content h2 { 
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 2.5rem 0 1rem;
+            padding-left: 1rem;
+            border-left: 4px solid var(--primary-color);
+        }
+        .md-content h3 { 
+            font-size: 1.35rem;
+            font-weight: 600;
+            margin: 2rem 0 0.75rem;
+            color: var(--primary-color);
+        }
+        
+        /* 段落样式 */
+        .md-paragraph {
+            margin: 1.25rem 0;
+            line-height: 1.8;
+        }
+        
+        /* 代码块样式 */
+        .code-block {
+            background: var(--darker-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .code-block::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border-radius: 0.75rem 0.75rem 0 0;
+        }
+        .code-block code {
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+        .inline-code {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.35rem;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.85em;
+            color: var(--primary-color);
+        }
+        
+        /* 表格样式 */
+        .md-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 1.5rem 0;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .md-table thead {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        }
+        .md-table th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: white;
+        }
+        .md-table td {
+            padding: 0.875rem 1rem;
+            border-top: 1px solid var(--border-color);
+            background: var(--card-bg);
+        }
+        .md-table tbody tr:hover td {
+            background: rgba(99, 102, 241, 0.05);
+        }
+        
+        /* 引用块样式 */
+        .md-quote {
+            border-left: 4px solid var(--primary-color);
+            background: rgba(99, 102, 241, 0.05);
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 列表样式 */
+        .md-list {
+            margin: 1.25rem 0;
+            padding-left: 2rem;
+        }
+        .md-list li {
+            margin: 0.75rem 0;
+            line-height: 1.7;
+            position: relative;
+        }
+        .md-list li::marker {
+            color: var(--primary-color);
+        }
+        
+        /* 链接样式 */
+        .md-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .md-link:hover {
+            color: var(--secondary-color);
+            border-bottom-color: var(--secondary-color);
+        }
+        
+        /* 粗体和斜体 */
+        .md-strong {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .md-em {
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 分隔线 */
+        .md-hr {
+            border: none;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+            margin: 2.5rem 0;
+        }
+        
+        /* 面包屑导航 */
+        .breadcrumb-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .breadcrumb-link:hover {
+            text-decoration: underline;
+        }
+        .breadcrumb-sep {
+            color: var(--text-secondary);
+            margin: 0 0.5rem;
+        }
+        .breadcrumb-item {
+            color: var(--text-secondary);
+            text-transform: capitalize;
+        }
     </style>
 </head>
 <body>
@@ -89,35 +247,37 @@
             <div class="md-content">
                 <h1>快速开始</h1>
 
-<p>本文带你用 5 分钟完成 AuraCode 的安装与首次使用，体验核心交互能力。</p>
+<p class="md-paragraph">本文带你用 5 分钟完成 AuraCode 的安装与首次使用，体验核心交互能力。</p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>1. 安装</h2>
 
 <h3>环境要求</h3>
 
-<p>- Python 3.10+
-- pip</p>
+<ul class="md-list">
+<li>Python 3.10+</li>
+<li>pip</li>
+</ul>
 
 <h3>安装步骤</h3>
 
-<pre><code class="language-bash"><h1>进入 auracode 目录</h1>
+<pre class="code-block"><code class="language-bash"># 进入 auracode 目录
 cd auracode
 
 <h1>安装依赖</h1>
 pip install -r requirements.txt
 </code></pre>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>2. 配置 API Key</h2>
 
-<p>AuraCode 需要一个 LLM API Key 才能运行。推荐两种方式：</p>
+<p class="md-paragraph">AuraCode 需要一个 LLM API Key 才能运行。推荐两种方式：</p>
 
 <h3>方式一：环境变量（推荐）</h3>
 
-<pre><code class="language-bash"><h1>Linux/macOS</h1>
+<pre class="code-block"><code class="language-bash"># Linux/macOS
 export OPENAI_API_KEY="your-api-key-here"
 
 <h1>Windows PowerShell</h1>
@@ -126,13 +286,13 @@ $env:OPENAI_API_KEY = "your-api-key-here"
 
 <h3>方式二：写入配置文件</h3>
 
-<pre><code class="language-bash"><h1>复制配置模板</h1>
+<pre class="code-block"><code class="language-bash"># 复制配置模板
 cp config.example.yaml config.yaml
 </code></pre>
 
-<p>编辑 <code>config.yaml</code>，填入 API 信息：</p>
+<p class="md-paragraph">编辑 <code class="inline-code">config.yaml</code>，填入 API 信息：</p>
 
-<pre><code class="language-yaml">llm:
+<pre class="code-block"><code class="language-yaml">llm:
   provider: openai
   model: glm-4.7
   base_url: https://open.bigmodel.cn/api/paas/v4
@@ -140,103 +300,106 @@ cp config.example.yaml config.yaml
   temperature: 0.2
 </code></pre>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>3. 启动对话</h2>
 
 <h3>多轮对话模式</h3>
 
-<pre><code class="language-bash"><h1>直接启动</h1>
+<pre class="code-block"><code class="language-bash"># 直接启动
 python cli.py
 
 <h1>带初始提问启动</h1>
 python cli.py "帮我分析这个项目的目录结构"
 </code></pre>
 
-<p>启动后进入交互界面，直接输入问题即可：</p>
+<p class="md-paragraph">启动后进入交互界面，直接输入问题即可：</p>
 
-<pre><code class="language-">> 帮我找出项目中所有的 Python 文件，并统计数量
+<pre class="code-block"><code class="language-">> 帮我找出项目中所有的 Python 文件，并统计数量
 </code></pre>
 
-<p>AI 会自动调用工具（<code>glob</code>、<code>run_command</code> 等）完成任务并返回结果。</p>
+<p class="md-paragraph">AI 会自动调用工具（<code class="inline-code">glob</code>、<code class="inline-code">run_command</code> 等）完成任务并返回结果。</p>
 
 <h3>命令模式</h3>
 
-<p>无需进入交互界面，直接执行单条命令：</p>
+<p class="md-paragraph">无需进入交互界面，直接执行单条命令：</p>
 
-<pre><code class="language-bash"><h1>分析项目</h1>
+<pre class="code-block"><code class="language-bash"># 分析项目
 python cli.py -c analyze .
 
 <h1>查看状态</h1>
 python cli.py -c status
 </code></pre>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>4. 使用斜杠命令</h2>
 
-<p>在对话模式中输入 <code>/</code> 开头的命令可触发特殊功能：</p>
+<p class="md-paragraph">在对话模式中输入 <code class="inline-code">/</code> 开头的命令可触发特殊功能：</p>
 
-<div class="md-table-row">| 命令 | 作用 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <code>/help</code> | 查看所有可用命令 |</div>
-<div class="md-table-row">| <code>/status</code> | 查看当前会话状态（Token 用量、模型等）|</div>
-<div class="md-table-row">| <code>/cost</code> | 查看本次会话费用 |</div>
-<div class="md-table-row">| <code>/clear</code> | 清空对话历史，重新开始 |</div>
-<div class="md-table-row">| <code>/compact</code> | 压缩对话历史，保留关键摘要 |</div>
-<div class="md-table-row">| <code>/commit</code> | AI 分析变更并生成 Git 提交 |</div>
-<div class="md-table-row">| <code>/model</code> | 运行时切换模型 |</div>
+<table class="md-table">
+<thead><tr><th>命令</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">/help</code></td><td>查看所有可用命令</td></tr>
+<tr><td><code class="inline-code">/status</code></td><td>查看当前会话状态（Token 用量、模型等）</td></tr>
+<tr><td><code class="inline-code">/cost</code></td><td>查看本次会话费用</td></tr>
+<tr><td><code class="inline-code">/clear</code></td><td>清空对话历史，重新开始</td></tr>
+<tr><td><code class="inline-code">/compact</code></td><td>压缩对话历史，保留关键摘要</td></tr>
+<tr><td><code class="inline-code">/commit</code></td><td>AI 分析变更并生成 Git 提交</td></tr>
+<tr><td><code class="inline-code">/model</code></td><td>运行时切换模型</td></tr>
+</tbody></table>
+示例：
 
-<p>示例：</p>
+<pre class="code-block"><code class="language-">> /status
 
-<pre><code class="language-">> /status
-
-<p>会话状态:
+<p class="md-paragraph">会话状态:
   模型: glm-4.7
   Token: 已用 3,200 / 200,000
   迭代: 2/20
   费用: $0.012
 </code></pre></p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>5. 权限控制</h2>
 
-<p>默认使用 <code>normal</code> 模式，危险操作（如执行 Shell 命令）会弹出确认提示。</p>
+<p class="md-paragraph">默认使用 <code class="inline-code">normal</code> 模式，危险操作（如执行 Shell 命令）会弹出确认提示。</p>
 
-<pre><code class="language-bash"><h1>使用自动模式（自动批准安全操作）</h1>
+<pre class="code-block"><code class="language-bash"># 使用自动模式（自动批准安全操作）
 python cli.py --mode auto
 
 <h1>使用只读计划模式（不执行任何修改）</h1>
 python cli.py --mode plan
 </code></pre>
 
-<p>详见 <a href="user-guide/permissions.md">权限管理</a>。</p>
+<p class="md-paragraph">详见 <a href="user-guide/permissions.md" class="md-link">权限管理</a>。</p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>6. 下一步</h2>
 
-<p>完成基本体验后，可以深入了解各项功能：</p>
+<p class="md-paragraph">完成基本体验后，可以深入了解各项功能：</p>
 
-<p>- <a href="user-guide/chat.md">对话交互</a> — 了解完整的对话交互机制
-- <a href="user-guide/tools.md">工具系统</a> — 探索 53 个内置工具
-- <a href="user-guide/commands.md">命令参考</a> — 46 条命令完整说明
-- <a href="advanced/bridge.md">Bridge 远程控制</a> — 从浏览器远程操控</p>
+<ul class="md-list">
+<li><a href="user-guide/chat.md" class="md-link">对话交互</a> — 了解完整的对话交互机制</li>
+<li><a href="user-guide/tools.md" class="md-link">工具系统</a> — 探索 53 个内置工具</li>
+<li><a href="user-guide/commands.md" class="md-link">命令参考</a> — 46 条命令完整说明</li>
+<li><a href="advanced/bridge.md" class="md-link">Bridge 远程控制</a> — 从浏览器远程操控</li>
+</ul>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>常见问题</h2>
 
-<p><strong>Q: 如何更换模型？</strong>
-A: 运行时使用 <code>/model <模型名></code> 切换，或修改 <code>config.yaml</code> 中的 <code>llm.model</code>。</p>
+<strong class="md-strong">Q: 如何更换模型？</strong>
+A: 运行时使用 <code class="inline-code">/model <模型名></code> 切换，或修改 <code class="inline-code">config.yaml</code> 中的 <code class="inline-code">llm.model</code>。
 
-<p><strong>Q: 遇到 429 Too Many Requests 怎么办？</strong>
-A: AuraCode 内置指数退避重试（最多 5 次），一般无需手动处理。可配置 Fallback 模型作为备选。</p>
+<strong class="md-strong">Q: 遇到 429 Too Many Requests 怎么办？</strong>
+A: AuraCode 内置指数退避重试（最多 5 次），一般无需手动处理。可配置 Fallback 模型作为备选。
 
-<p><strong>Q: 如何保存会话？</strong>
-A: 会话自动持久化到 <code>~/.auracode/sessions/</code>，下次用 <code>/resume</code> 恢复。
-</p>
+<strong class="md-strong">Q: 如何保存会话？</strong>
+A: 会话自动持久化到 <code class="inline-code">~/.auracode/sessions/</code>，下次用 <code class="inline-code">/resume</code> 恢复。
+
             </div>
 
             <div class="docs-navigation">

@@ -8,52 +8,90 @@ import re
 from pathlib import Path
 
 def markdown_to_html(md_content, title="AuraCode 文档"):
-    """简单的 Markdown 转 HTML"""
+    """Markdown 转 HTML（改进版）"""
     # 提取标题（第一个 # 标题）
     title_match = re.search(r'^# (.+)$', md_content, re.MULTILINE)
     if title_match:
         title = title_match.group(1)
     
-    # 转换 Markdown 为 HTML（简化版）
+    # 转换 Markdown 为 HTML
     html_content = md_content
     
-    # 转换标题
+    # 1. 转换代码块（优先处理，避免内部内容被误转换）
+    def convert_code_block(match):
+        lang = match.group(1) or ''
+        code = match.group(2)
+        return f'<pre class="code-block"><code class="language-{lang}">{code}</code></pre>'
+    html_content = re.sub(r'```(\w*)?\n(.*?)```', convert_code_block, html_content, flags=re.DOTALL)
+    
+    # 2. 转换表格
+    def convert_table(match):
+        table_text = match.group(0)
+        lines = table_text.strip().split('\n')
+        if len(lines) < 2:
+            return table_text
+        
+        # 移除分隔线
+        rows = [line for line in lines if not re.match(r'^[\s\|:-]+$', line)]
+        if len(rows) < 2:
+            return table_text
+        
+        html = '<table class="md-table">\n'
+        # 表头
+        headers = [cell.strip() for cell in rows[0].split('|') if cell.strip()]
+        html += '<thead><tr>' + ''.join([f'<th>{h}</th>' for h in headers]) + '</tr></thead>\n'
+        # 表体
+        html += '<tbody>\n'
+        for row in rows[1:]:
+            cells = [cell.strip() for cell in row.split('|') if cell.strip()]
+            if cells:
+                html += '<tr>' + ''.join([f'<td>{c}</td>' for c in cells]) + '</tr>\n'
+        html += '</tbody></table>'
+        return html
+    
+    html_content = re.sub(r'(\|[^\n]+\|\n)+', convert_table, html_content)
+    
+    # 3. 转换标题
     html_content = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html_content, flags=re.MULTILINE)
     html_content = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html_content, flags=re.MULTILINE)
     html_content = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html_content, flags=re.MULTILINE)
     
-    # 转换链接
-    html_content = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', html_content)
+    # 4. 转换引用块
+    html_content = re.sub(r'^> (.+)$', r'<blockquote class="md-quote">\1</blockquote>', html_content, flags=re.MULTILINE)
     
-    # 转换代码块
-    html_content = re.sub(r'```(\w+)?\n(.*?)```', r'<pre><code class="language-\1">\2</code></pre>', html_content, flags=re.DOTALL)
+    # 5. 转换列表
+    html_content = re.sub(r'^[-*] (.+)$', r'<li>\1</li>', html_content, flags=re.MULTILINE)
+    html_content = re.sub(r'(<li>.*</li>\n?)+', lambda m: f'<ul class="md-list">\n{m.group(0)}</ul>\n', html_content)
     
-    # 转换行内代码
-    html_content = re.sub(r'`([^`]+)`', r'<code>\1</code>', html_content)
+    # 6. 转换链接
+    html_content = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2" class="md-link">\1</a>', html_content)
     
-    # 转换粗体和斜体
-    html_content = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html_content)
-    html_content = re.sub(r'\*(.+?)\*', r'<em>\1</em>', html_content)
+    # 7. 转换行内代码
+    html_content = re.sub(r'`([^`]+)`', r'<code class="inline-code">\1</code>', html_content)
     
-    # 转换表格（简化）
-    html_content = re.sub(r'\|(.+)\|', r'<div class="md-table-row">|\1|</div>', html_content)
+    # 8. 转换粗体和斜体
+    html_content = re.sub(r'\*\*(.+?)\*\*', r'<strong class="md-strong">\1</strong>', html_content)
+    html_content = re.sub(r'\*(.+?)\*', r'<em class="md-em">\1</em>', html_content)
     
-    # 转换段落（双换行）
+    # 9. 转换分隔线
+    html_content = re.sub(r'^---+$', r'<hr class="md-hr">', html_content, flags=re.MULTILINE)
+    
+    # 10. 转换段落（双换行）
     paragraphs = html_content.split('\n\n')
     html_content = '\n\n'.join([
-        f'<p>{p}</p>' if not p.startswith('<h') and not p.startswith('<pre') and not p.startswith('<div') else p
+        f'<p class="md-paragraph">{p}</p>' if not p.startswith('<') else p
         for p in paragraphs
     ])
     
     return title, html_content
 
 def generate_html_page(title, content, doc_path=""):
-    """生成完整的 HTML 页面"""
+    """生成完整的 HTML 页面（美化版）"""
     # 生成面包屑导航
-    breadcrumb = '<span>📂 <a href="../index.html">首页</a></span>'
+    breadcrumb = '<a href="../index.html" class="breadcrumb-link"><i class="fas fa-home"></i> 首页</a>'
     if doc_path:
         parts = doc_path.split('/')
-        breadcrumb += ''.join([f'<span class="sep">/</span><span>{p}</span>' for p in parts])
+        breadcrumb += ''.join([f'<span class="breadcrumb-sep">/</span><span class="breadcrumb-item">{p.replace(".html", "")}</span>' for p in parts])
     
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -65,23 +103,181 @@ def generate_html_page(title, content, doc_path=""):
     <link rel="stylesheet" href="../css/docs.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        .md-content {{ line-height: 1.8; }}
-        .md-content h1 {{ font-size: 2rem; margin-bottom: 1rem; }}
-        .md-content h2 {{ font-size: 1.5rem; margin: 2rem 0 1rem; }}
-        .md-content h3 {{ font-size: 1.25rem; margin: 1.5rem 0 0.75rem; }}
-        .md-content p {{ margin: 1rem 0; }}
-        .md-content pre {{ background: var(--bg); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 1rem 0; }}
-        .md-content code {{ background: var(--bg); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; }}
-        .md-content pre code {{ background: none; padding: 0; }}
-        .md-content table {{ width: 100%; border-collapse: collapse; margin: 1rem 0; }}
-        .md-content th, .md-content td {{ padding: 0.75rem; border: 1px solid var(--border-color); text-align: left; }}
-        .md-content th {{ background: var(--s1); }}
-        .md-content ul, .md-content ol {{ margin: 1rem 0; padding-left: 2rem; }}
-        .md-content li {{ margin: 0.5rem 0; }}
-        .md-content a {{ color: var(--acc); text-decoration: none; }}
-        .md-content a:hover {{ text-decoration: underline; }}
-        .md-content strong {{ font-weight: 600; }}
-        .md-content hr {{ border: none; border-top: 1px solid var(--border-color); margin: 2rem 0; }}
+        /* Markdown 内容样式 */
+        .md-content {{ 
+            line-height: 1.8;
+            color: var(--text-primary);
+        }}
+        
+        /* 标题样式 */
+        .md-content h1 {{ 
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin: 2rem 0 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--border-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }}
+        .md-content h2 {{ 
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 2.5rem 0 1rem;
+            padding-left: 1rem;
+            border-left: 4px solid var(--primary-color);
+        }}
+        .md-content h3 {{ 
+            font-size: 1.35rem;
+            font-weight: 600;
+            margin: 2rem 0 0.75rem;
+            color: var(--primary-color);
+        }}
+        
+        /* 段落样式 */
+        .md-paragraph {{
+            margin: 1.25rem 0;
+            line-height: 1.8;
+        }}
+        
+        /* 代码块样式 */
+        .code-block {{
+            background: var(--darker-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+            position: relative;
+        }}
+        .code-block::before {{
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border-radius: 0.75rem 0.75rem 0 0;
+        }}
+        .code-block code {{
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }}
+        .inline-code {{
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.35rem;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.85em;
+            color: var(--primary-color);
+        }}
+        
+        /* 表格样式 */
+        .md-table {{
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 1.5rem 0;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }}
+        .md-table thead {{
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        }}
+        .md-table th {{
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: white;
+        }}
+        .md-table td {{
+            padding: 0.875rem 1rem;
+            border-top: 1px solid var(--border-color);
+            background: var(--card-bg);
+        }}
+        .md-table tbody tr:hover td {{
+            background: rgba(99, 102, 241, 0.05);
+        }}
+        
+        /* 引用块样式 */
+        .md-quote {{
+            border-left: 4px solid var(--primary-color);
+            background: rgba(99, 102, 241, 0.05);
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+            font-style: italic;
+            color: var(--text-secondary);
+        }}
+        
+        /* 列表样式 */
+        .md-list {{
+            margin: 1.25rem 0;
+            padding-left: 2rem;
+        }}
+        .md-list li {{
+            margin: 0.75rem 0;
+            line-height: 1.7;
+            position: relative;
+        }}
+        .md-list li::marker {{
+            color: var(--primary-color);
+        }}
+        
+        /* 链接样式 */
+        .md-link {{
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }}
+        .md-link:hover {{
+            color: var(--secondary-color);
+            border-bottom-color: var(--secondary-color);
+        }}
+        
+        /* 粗体和斜体 */
+        .md-strong {{
+            font-weight: 700;
+            color: var(--text-primary);
+        }}
+        .md-em {{
+            font-style: italic;
+            color: var(--text-secondary);
+        }}
+        
+        /* 分隔线 */
+        .md-hr {{
+            border: none;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+            margin: 2.5rem 0;
+        }}
+        
+        /* 面包屑导航 */
+        .breadcrumb-link {{
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }}
+        .breadcrumb-link:hover {{
+            text-decoration: underline;
+        }}
+        .breadcrumb-sep {{
+            color: var(--text-secondary);
+            margin: 0 0.5rem;
+        }}
+        .breadcrumb-item {{
+            color: var(--text-secondary);
+            text-transform: capitalize;
+        }}
     </style>
 </head>
 <body>

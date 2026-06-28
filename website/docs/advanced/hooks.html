@@ -8,23 +8,181 @@
     <link rel="stylesheet" href="../css/docs.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        .md-content { line-height: 1.8; }
-        .md-content h1 { font-size: 2rem; margin-bottom: 1rem; }
-        .md-content h2 { font-size: 1.5rem; margin: 2rem 0 1rem; }
-        .md-content h3 { font-size: 1.25rem; margin: 1.5rem 0 0.75rem; }
-        .md-content p { margin: 1rem 0; }
-        .md-content pre { background: var(--bg); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 1rem 0; }
-        .md-content code { background: var(--bg); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; }
-        .md-content pre code { background: none; padding: 0; }
-        .md-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-        .md-content th, .md-content td { padding: 0.75rem; border: 1px solid var(--border-color); text-align: left; }
-        .md-content th { background: var(--s1); }
-        .md-content ul, .md-content ol { margin: 1rem 0; padding-left: 2rem; }
-        .md-content li { margin: 0.5rem 0; }
-        .md-content a { color: var(--acc); text-decoration: none; }
-        .md-content a:hover { text-decoration: underline; }
-        .md-content strong { font-weight: 600; }
-        .md-content hr { border: none; border-top: 1px solid var(--border-color); margin: 2rem 0; }
+        /* Markdown 内容样式 */
+        .md-content { 
+            line-height: 1.8;
+            color: var(--text-primary);
+        }
+        
+        /* 标题样式 */
+        .md-content h1 { 
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin: 2rem 0 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--border-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .md-content h2 { 
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 2.5rem 0 1rem;
+            padding-left: 1rem;
+            border-left: 4px solid var(--primary-color);
+        }
+        .md-content h3 { 
+            font-size: 1.35rem;
+            font-weight: 600;
+            margin: 2rem 0 0.75rem;
+            color: var(--primary-color);
+        }
+        
+        /* 段落样式 */
+        .md-paragraph {
+            margin: 1.25rem 0;
+            line-height: 1.8;
+        }
+        
+        /* 代码块样式 */
+        .code-block {
+            background: var(--darker-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .code-block::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border-radius: 0.75rem 0.75rem 0 0;
+        }
+        .code-block code {
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+        .inline-code {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.35rem;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.85em;
+            color: var(--primary-color);
+        }
+        
+        /* 表格样式 */
+        .md-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 1.5rem 0;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .md-table thead {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        }
+        .md-table th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: white;
+        }
+        .md-table td {
+            padding: 0.875rem 1rem;
+            border-top: 1px solid var(--border-color);
+            background: var(--card-bg);
+        }
+        .md-table tbody tr:hover td {
+            background: rgba(99, 102, 241, 0.05);
+        }
+        
+        /* 引用块样式 */
+        .md-quote {
+            border-left: 4px solid var(--primary-color);
+            background: rgba(99, 102, 241, 0.05);
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 列表样式 */
+        .md-list {
+            margin: 1.25rem 0;
+            padding-left: 2rem;
+        }
+        .md-list li {
+            margin: 0.75rem 0;
+            line-height: 1.7;
+            position: relative;
+        }
+        .md-list li::marker {
+            color: var(--primary-color);
+        }
+        
+        /* 链接样式 */
+        .md-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .md-link:hover {
+            color: var(--secondary-color);
+            border-bottom-color: var(--secondary-color);
+        }
+        
+        /* 粗体和斜体 */
+        .md-strong {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .md-em {
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 分隔线 */
+        .md-hr {
+            border: none;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+            margin: 2.5rem 0;
+        }
+        
+        /* 面包屑导航 */
+        .breadcrumb-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .breadcrumb-link:hover {
+            text-decoration: underline;
+        }
+        .breadcrumb-sep {
+            color: var(--text-secondary);
+            margin: 0 0.5rem;
+        }
+        .breadcrumb-item {
+            color: var(--text-secondary);
+            text-transform: capitalize;
+        }
     </style>
 </head>
 <body>
@@ -89,49 +247,50 @@
             <div class="md-content">
                 <h1>钩子系统</h1>
 
-<p>钩子（Hooks）是配置驱动的事件回调机制，让你在 AI 操作的关键节点插入自定义逻辑。</p>
+<p class="md-paragraph">钩子（Hooks）是配置驱动的事件回调机制，让你在 AI 操作的关键节点插入自定义逻辑。</p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>事件类型</h2>
 
-<div class="md-table-row">| 事件 | 触发时机 |</div>
-<div class="md-table-row">|------|----------|</div>
-<div class="md-table-row">| <code>PreToolUse</code> | 工具调用前（可拦截）|</div>
-<div class="md-table-row">| <code>PostToolUse</code> | 工具调用后 |</div>
-<div class="md-table-row">| <code>Stop</code> | 代理循环结束 |</div>
-<div class="md-table-row">| <code>ToolError</code> | 工具执行出错 |</div>
-<div class="md-table-row">| <code>UserMessage</code> | 用户消息接收 |</div>
-<div class="md-table-row">| <code>PreCompact</code> | 上下文压缩前 |</div>
-<div class="md-table-row">| <code>PostCompact</code> | 上下文压缩后 |</div>
-<div class="md-table-row">| <code>ContextWarning</code> | 上下文窗口接近上限 |</div>
-
-<p>---</p>
+<table class="md-table">
+<thead><tr><th>事件</th><th>触发时机</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">PreToolUse</code></td><td>工具调用前（可拦截）</td></tr>
+<tr><td><code class="inline-code">PostToolUse</code></td><td>工具调用后</td></tr>
+<tr><td><code class="inline-code">Stop</code></td><td>代理循环结束</td></tr>
+<tr><td><code class="inline-code">ToolError</code></td><td>工具执行出错</td></tr>
+<tr><td><code class="inline-code">UserMessage</code></td><td>用户消息接收</td></tr>
+<tr><td><code class="inline-code">PreCompact</code></td><td>上下文压缩前</td></tr>
+<tr><td><code class="inline-code">PostCompact</code></td><td>上下文压缩后</td></tr>
+<tr><td><code class="inline-code">ContextWarning</code></td><td>上下文窗口接近上限</td></tr>
+</tbody></table>
+<hr class="md-hr">
 
 <h2>配置方式</h2>
 
-<h3>项目级配置（<code>.auracode/hooks.yaml</code>）</h3>
+<h3>项目级配置（<code class="inline-code">.auracode/hooks.yaml</code>）</h3>
 
-<pre><code class="language-yaml">hooks:
+<pre class="code-block"><code class="language-yaml">hooks:
   PreToolUse:
     - command: "echo 'About to use tool: $TOOL_NAME'"
       filter: "run_command"     # 只匹配 run_command 工具
       priority: 10              # 优先级（数字越大越先执行）
 
-<p>  PostToolUse:
+<p class="md-paragraph">  PostToolUse:
     - command: "black $FILE_PATH"
       filter: "write_file"      # 写 Python 文件后自动格式化
       matcher: "\\.py$"         # 正则匹配文件路径</p>
 
-<p>  Stop:
+<p class="md-paragraph">  Stop:
     - command: "notify-send 'AuraCode task completed'"
 </code></pre></p>
 
 <h3>运行时注册（插件方式）</h3>
 
-<p>插件可通过 <code>get_hooks()</code> 方法注册钩子：</p>
+<p class="md-paragraph">插件可通过 <code class="inline-code">get_hooks()</code> 方法注册钩子：</p>
 
-<pre><code class="language-python">def get_hooks(self):
+<pre class="code-block"><code class="language-python">def get_hooks(self):
     return [
         {
             "event": "PostToolUse",
@@ -141,15 +300,15 @@
     ]
 </code></pre>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>特性</h2>
 
 <h3>优先级排序</h3>
 
-<p>通过 <code>priority</code> 控制执行顺序，数字越大越先执行：</p>
+<p class="md-paragraph">通过 <code class="inline-code">priority</code> 控制执行顺序，数字越大越先执行：</p>
 
-<pre><code class="language-yaml">hooks:
+<pre class="code-block"><code class="language-yaml">hooks:
   PreToolUse:
     - command: "echo first"
       priority: 100
@@ -159,9 +318,9 @@
 
 <h3>短路机制</h3>
 
-<p><code>PreToolUse</code> 钩子返回非零退出码时，后续钩子和工具调用均被跳过：</p>
+<code class="inline-code">PreToolUse</code> 钩子返回非零退出码时，后续钩子和工具调用均被跳过：
 
-<pre><code class="language-yaml">hooks:
+<pre class="code-block"><code class="language-yaml">hooks:
   PreToolUse:
     - command: "test -f $FILE_PATH"    # 文件不存在时阻止操作
       filter: "read_file"
@@ -170,62 +329,64 @@
 
 <h3>错误隔离</h3>
 
-<p>单个钩子出错不影响其他钩子和主流程，错误会被记录但不中断执行。</p>
+<p class="md-paragraph">单个钩子出错不影响其他钩子和主流程，错误会被记录但不中断执行。</p>
 
 <h3>文件监听热重载</h3>
 
-<p>修改 <code>.auracode/hooks.yaml</code> 后自动重载，无需重启。</p>
+<p class="md-paragraph">修改 <code class="inline-code">.auracode/hooks.yaml</code> 后自动重载，无需重启。</p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>环境变量</h2>
 
-<p>钩子执行时可访问以下环境变量：</p>
+<p class="md-paragraph">钩子执行时可访问以下环境变量：</p>
 
-<div class="md-table-row">| 变量 | 说明 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <code>$TOOL_NAME</code> | 当前工具名称 |</div>
-<div class="md-table-row">| <code>$TOOL_INPUT</code> | 工具输入（JSON）|</div>
-<div class="md-table-row">| <code>$FILE_PATH</code> | 操作的文件路径（如适用）|</div>
-<div class="md-table-row">| <code>$SESSION_ID</code> | 当前会话 ID |</div>
-
-<p>---</p>
+<table class="md-table">
+<thead><tr><th>变量</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">$TOOL_NAME</code></td><td>当前工具名称</td></tr>
+<tr><td><code class="inline-code">$TOOL_INPUT</code></td><td>工具输入（JSON）</td></tr>
+<tr><td><code class="inline-code">$FILE_PATH</code></td><td>操作的文件路径（如适用）</td></tr>
+<tr><td><code class="inline-code">$SESSION_ID</code></td><td>当前会话 ID</td></tr>
+</tbody></table>
+<hr class="md-hr">
 
 <h2>管理命令</h2>
 
-<pre><code class="language-">> /hooks
+<pre class="code-block"><code class="language-">> /hooks
 
-<p>已注册 Hook (5 个):</p>
+<p class="md-paragraph">已注册 Hook (5 个):</p>
 
-<p>  PreToolUse (2):
+<p class="md-paragraph">  PreToolUse (2):
     1. [priority=100] echo 'About to use tool'  filter: run_command
     2. [priority=50]  validate.py               filter: write_file</p>
 
-<p>  PostToolUse (2):
+<p class="md-paragraph">  PostToolUse (2):
     1. black $FILE_PATH                         filter: write_file, matcher: \.py$
     2. log_hook.py                              filter: *</p>
 
-<p>  Stop (1):
+<p class="md-paragraph">  Stop (1):
     1. notify-send 'Task completed'</p>
 
-<p>> /hooks log</p>
+<blockquote class="md-quote">/hooks log</blockquote>
 
-<p>最近 Hook 执行日志:
+<p class="md-paragraph">最近 Hook 执行日志:
   14:30:01  PreToolUse   run_command  ✅ 0.01s
   14:30:02  PostToolUse  write_file   ✅ 0.45s  (black 格式化)
   14:30:05  Stop                      ✅ 0.00s
 </code></pre></p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>相关命令</h2>
 
-<div class="md-table-row">| 命令 | 说明 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <code>/hooks</code> | 查看已注册钩子 |</div>
-<div class="md-table-row">| <code>/hooks log</code> | 查看执行日志 |</div>
-<div class="md-table-row">| <code>/hooks reload</code> | 手动重新加载配置 |</div>
-
+<table class="md-table">
+<thead><tr><th>命令</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">/hooks</code></td><td>查看已注册钩子</td></tr>
+<tr><td><code class="inline-code">/hooks log</code></td><td>查看执行日志</td></tr>
+<tr><td><code class="inline-code">/hooks reload</code></td><td>手动重新加载配置</td></tr>
+</tbody></table>
             </div>
 
             <div class="docs-navigation">

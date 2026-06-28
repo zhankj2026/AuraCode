@@ -8,23 +8,181 @@
     <link rel="stylesheet" href="../css/docs.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        .md-content { line-height: 1.8; }
-        .md-content h1 { font-size: 2rem; margin-bottom: 1rem; }
-        .md-content h2 { font-size: 1.5rem; margin: 2rem 0 1rem; }
-        .md-content h3 { font-size: 1.25rem; margin: 1.5rem 0 0.75rem; }
-        .md-content p { margin: 1rem 0; }
-        .md-content pre { background: var(--bg); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 1rem 0; }
-        .md-content code { background: var(--bg); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; }
-        .md-content pre code { background: none; padding: 0; }
-        .md-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-        .md-content th, .md-content td { padding: 0.75rem; border: 1px solid var(--border-color); text-align: left; }
-        .md-content th { background: var(--s1); }
-        .md-content ul, .md-content ol { margin: 1rem 0; padding-left: 2rem; }
-        .md-content li { margin: 0.5rem 0; }
-        .md-content a { color: var(--acc); text-decoration: none; }
-        .md-content a:hover { text-decoration: underline; }
-        .md-content strong { font-weight: 600; }
-        .md-content hr { border: none; border-top: 1px solid var(--border-color); margin: 2rem 0; }
+        /* Markdown 内容样式 */
+        .md-content { 
+            line-height: 1.8;
+            color: var(--text-primary);
+        }
+        
+        /* 标题样式 */
+        .md-content h1 { 
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin: 2rem 0 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--border-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .md-content h2 { 
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 2.5rem 0 1rem;
+            padding-left: 1rem;
+            border-left: 4px solid var(--primary-color);
+        }
+        .md-content h3 { 
+            font-size: 1.35rem;
+            font-weight: 600;
+            margin: 2rem 0 0.75rem;
+            color: var(--primary-color);
+        }
+        
+        /* 段落样式 */
+        .md-paragraph {
+            margin: 1.25rem 0;
+            line-height: 1.8;
+        }
+        
+        /* 代码块样式 */
+        .code-block {
+            background: var(--darker-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .code-block::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border-radius: 0.75rem 0.75rem 0 0;
+        }
+        .code-block code {
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+        .inline-code {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.35rem;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.85em;
+            color: var(--primary-color);
+        }
+        
+        /* 表格样式 */
+        .md-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 1.5rem 0;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .md-table thead {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        }
+        .md-table th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: white;
+        }
+        .md-table td {
+            padding: 0.875rem 1rem;
+            border-top: 1px solid var(--border-color);
+            background: var(--card-bg);
+        }
+        .md-table tbody tr:hover td {
+            background: rgba(99, 102, 241, 0.05);
+        }
+        
+        /* 引用块样式 */
+        .md-quote {
+            border-left: 4px solid var(--primary-color);
+            background: rgba(99, 102, 241, 0.05);
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 列表样式 */
+        .md-list {
+            margin: 1.25rem 0;
+            padding-left: 2rem;
+        }
+        .md-list li {
+            margin: 0.75rem 0;
+            line-height: 1.7;
+            position: relative;
+        }
+        .md-list li::marker {
+            color: var(--primary-color);
+        }
+        
+        /* 链接样式 */
+        .md-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .md-link:hover {
+            color: var(--secondary-color);
+            border-bottom-color: var(--secondary-color);
+        }
+        
+        /* 粗体和斜体 */
+        .md-strong {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .md-em {
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 分隔线 */
+        .md-hr {
+            border: none;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+            margin: 2.5rem 0;
+        }
+        
+        /* 面包屑导航 */
+        .breadcrumb-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .breadcrumb-link:hover {
+            text-decoration: underline;
+        }
+        .breadcrumb-sep {
+            color: var(--text-secondary);
+            margin: 0 0.5rem;
+        }
+        .breadcrumb-item {
+            color: var(--text-secondary);
+            text-transform: capitalize;
+        }
     </style>
 </head>
 <body>
@@ -89,13 +247,13 @@
             <div class="md-content">
                 <h1>架构总览</h1>
 
-<p>auracode 是一个基于 TAOR（Think-Act-Observe-Repeat）循环设计的 AI 编程助手，使用 Python 实现。本文档描述其整体架构、模块划分和数据流。</p>
+<p class="md-paragraph">auracode 是一个基于 TAOR（Think-Act-Observe-Repeat）循环设计的 AI 编程助手，使用 Python 实现。本文档描述其整体架构、模块划分和数据流。</p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>目录结构</h2>
 
-<pre><code class="language-">auracode/
+<pre class="code-block"><code class="language-">auracode/
 ├── cli.py                # CLI 入口：参数解析 + 主循环
 ├── config.yaml           # 用户配置文件
 ├── requirements.txt      # Python 依赖
@@ -177,11 +335,11 @@
     └── development/
 </code></pre>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>核心数据流</h2>
 
-<pre><code class="language-">用户输入
+<pre class="code-block"><code class="language-">用户输入
   │
   ▼
 cli.py ──────────────────────────────────────────┐
@@ -225,11 +383,11 @@ AgentLoop.run()                                   │
   展示结果 / 保存会话
 </code></pre>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>模块关系</h2>
 
-<pre><code class="language-">                    ┌──────────┐
+<pre class="code-block"><code class="language-">                    ┌──────────┐
                     │  cli.py  │
                     └────┬─────┘
                          │
@@ -250,129 +408,143 @@ AgentLoop.run()                                   │
                          └─────┘ └──────┘ └────────┘
 </code></pre>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>核心模块详解</h2>
 
-<h3>AgentLoop (<code>core/agent_loop.py</code>)</h3>
+<h3>AgentLoop (<code class="inline-code">core/agent_loop.py</code>)</h3>
 
-<p>系统的核心引擎，约 2300 行代码，职责包括：</p>
+<p class="md-paragraph">系统的核心引擎，约 2300 行代码，职责包括：</p>
 
-<p>- <strong>TAOR 循环</strong>：Think → Act → Observe → Repeat
-- <strong>LLM 调用</strong>：流式/同步 API 调用 + 智能重试
-- <strong>工具执行</strong>：解析 LLM 工具调用 → 权限检查 → 执行 → 返回结果
-- <strong>上下文管理</strong>：消息历史维护 + 自动压缩 + 记忆注入
-- <strong>事件发射</strong>：<code>_emit_event()</code> 供 Bridge 订阅
-- <strong>错误恢复</strong>：四层恢复机制（详见 <a href="../advanced/error-recovery.md">错误恢复</a>）</p>
+<ul class="md-list">
+<li><strong class="md-strong">TAOR 循环</strong>：Think → Act → Observe → Repeat</li>
+<li><strong class="md-strong">LLM 调用</strong>：流式/同步 API 调用 + 智能重试</li>
+<li><strong class="md-strong">工具执行</strong>：解析 LLM 工具调用 → 权限检查 → 执行 → 返回结果</li>
+<li><strong class="md-strong">上下文管理</strong>：消息历史维护 + 自动压缩 + 记忆注入</li>
+<li><strong class="md-strong">事件发射</strong>：<code class="inline-code">_emit_event()</code> 供 Bridge 订阅</li>
+<li><strong class="md-strong">错误恢复</strong>：四层恢复机制（详见 <a href="../advanced/error-recovery.md" class="md-link">错误恢复</a>）</li>
+</ul>
 
-<h3>SessionState (<code>core/session_state.py</code>)</h3>
+<h3>SessionState (<code class="inline-code">core/session_state.py</code>)</h3>
 
-<p>集中式会话状态管理：</p>
+<p class="md-paragraph">集中式会话状态管理：</p>
 
-<p>- <code>messages</code> — 对话消息历史
-- <code>token_usage</code> — Token 用量累计
-- <code>cost_tracker</code> — 费用追踪（每模型独立定价）
-- <code>turn_count</code> — 轮次计数
-- <code>abort_requested</code> — 中断控制
-- <code>active_model</code> — 当前活跃模型（支持 Fallback）
-- <code>on_change</code> — 状态变更回调（发布/订阅）</p>
+<ul class="md-list">
+<li><code class="inline-code">messages</code> — 对话消息历史</li>
+<li><code class="inline-code">token_usage</code> — Token 用量累计</li>
+<li><code class="inline-code">cost_tracker</code> — 费用追踪（每模型独立定价）</li>
+<li><code class="inline-code">turn_count</code> — 轮次计数</li>
+<li><code class="inline-code">abort_requested</code> — 中断控制</li>
+<li><code class="inline-code">active_model</code> — 当前活跃模型（支持 Fallback）</li>
+<li><code class="inline-code">on_change</code> — 状态变更回调（发布/订阅）</li>
+</ul>
 
-<h3>ToolRegistry (<code>tools/registry.py</code>)</h3>
+<h3>ToolRegistry (<code class="inline-code">tools/registry.py</code>)</h3>
 
-<p>全局工具注册表：</p>
+<p class="md-paragraph">全局工具注册表：</p>
 
-<p>- <code>register_tool(name, definition)</code> — 注册工具
-- <code>get_tool_schemas()</code> — 获取所有工具的 JSON Schema（传给 LLM）
-- <code>execute_tool(name, arguments)</code> — 执行工具</p>
+<ul class="md-list">
+<li><code class="inline-code">register_tool(name, definition)</code> — 注册工具</li>
+<li><code class="inline-code">get_tool_schemas()</code> — 获取所有工具的 JSON Schema（传给 LLM）</li>
+<li><code class="inline-code">execute_tool(name, arguments)</code> — 执行工具</li>
+</ul>
 
-<p>50+ 内置工具覆盖：文件操作、代码搜索、Shell 执行、Web 搜索、LSP、Notebook 等。</p>
+<p class="md-paragraph">50+ 内置工具覆盖：文件操作、代码搜索、Shell 执行、Web 搜索、LSP、Notebook 等。</p>
 
-<h3>HookManager (<code>hooks/manager.py</code>)</h3>
+<h3>HookManager (<code class="inline-code">hooks/manager.py</code>)</h3>
 
-<p>事件驱动的钩子系统：</p>
+<p class="md-paragraph">事件驱动的钩子系统：</p>
 
-<p>- 事件类型：<code>PreToolUse</code>, <code>PostToolUse</code>, <code>Stop</code>, <code>ToolError</code>, <code>UserMessage</code>, <code>PreCompact</code>, <code>PostCompact</code>, <code>ContextWarning</code>
-- 支持优先级排序和短路机制
-- 配置文件驱动 + 热重载</p>
+<ul class="md-list">
+<li>事件类型：<code class="inline-code">PreToolUse</code>, <code class="inline-code">PostToolUse</code>, <code class="inline-code">Stop</code>, <code class="inline-code">ToolError</code>, <code class="inline-code">UserMessage</code>, <code class="inline-code">PreCompact</code>, <code class="inline-code">PostCompact</code>, <code class="inline-code">ContextWarning</code></li>
+<li>支持优先级排序和短路机制</li>
+<li>配置文件驱动 + 热重载</li>
+</ul>
 
-<h3>SkillManager (<code>skills/loader.py</code>)</h3>
+<h3>SkillManager (<code class="inline-code">skills/loader.py</code>)</h3>
 
-<p>三源技能加载：</p>
+<p class="md-paragraph">三源技能加载：</p>
 
-<p>- <strong>内置技能</strong>：<code>skills/</code> 目录下的技能包
-- <strong>项目技能</strong>：<code>.auracode/skills/</code> 目录
-- <strong>用户技能</strong>：<code>~/.auracode/skills/</code> 目录</p>
+<ul class="md-list">
+<li><strong class="md-strong">内置技能</strong>：<code class="inline-code">skills/</code> 目录下的技能包</li>
+<li><strong class="md-strong">项目技能</strong>：<code class="inline-code">.auracode/skills/</code> 目录</li>
+<li><strong class="md-strong">用户技能</strong>：<code class="inline-code">~/.auracode/skills/</code> 目录</li>
+</ul>
 
-<p>技能通过 <code>SkillContext</code> 单例桥接 AgentLoop 和工具系统。</p>
+<p class="md-paragraph">技能通过 <code class="inline-code">SkillContext</code> 单例桥接 AgentLoop 和工具系统。</p>
 
-<h3>PermissionManager (<code>permissions/manager.py</code>)</h3>
+<h3>PermissionManager (<code class="inline-code">permissions/manager.py</code>)</h3>
 
-<p>四级权限模式：</p>
+<p class="md-paragraph">四级权限模式：</p>
 
-<p>- <code>normal</code> — 写操作需用户确认
-- <code>auto</code> — 自动批准所有操作
-- <code>plan</code> — 只读模式，禁止写操作
-- <code>bypass</code> — 跳过所有检查</p>
+<ul class="md-list">
+<li><code class="inline-code">normal</code> — 写操作需用户确认</li>
+<li><code class="inline-code">auto</code> — 自动批准所有操作</li>
+<li><code class="inline-code">plan</code> — 只读模式，禁止写操作</li>
+<li><code class="inline-code">bypass</code> — 跳过所有检查</li>
+</ul>
 
-<p>支持 allow/deny 规则 + glob 模式匹配。</p>
+<p class="md-paragraph">支持 allow/deny 规则 + glob 模式匹配。</p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>运行模式</h2>
 
 <h3>CLI 模式</h3>
 
-<pre><code class="language-">python -m auracode.cli
+<pre class="code-block"><code class="language-">python -m auracode.cli
 </code></pre>
 
-<p>终端交互，用户在命令行中输入消息，AgentLoop 处理后流式输出。</p>
+<p class="md-paragraph">终端交互，用户在命令行中输入消息，AgentLoop 处理后流式输出。</p>
 
 <h3>Bridge 模式</h3>
 
-<pre><code class="language-">python -m auracode.cli --bridge
+<pre class="code-block"><code class="language-">python -m auracode.cli --bridge
 </code></pre>
 
-<p>启动 FastAPI 服务器，通过 REST API + WebSocket 提供远程控制能力。Web UI 可实时查看执行过程。</p>
+<p class="md-paragraph">启动 FastAPI 服务器，通过 REST API + WebSocket 提供远程控制能力。Web UI 可实时查看执行过程。</p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>扩展点</h2>
 
-<div class="md-table-row">| 扩展点 | 机制 | 入口 |</div>
-<div class="md-table-row">|--------|------|------|</div>
-<div class="md-table-row">| 新工具 | 继承 <code>ToolPlugin</code> 或直接 <code>register_tool()</code> | <code>tools/builtin/</code> 或插件 |</div>
-<div class="md-table-row">| 新命令 | 继承 <code>Command</code> 基类 | <code>commands/builtin/</code> |</div>
-<div class="md-table-row">| 新技能 | 创建 <code>SKILL.md</code> 元数据 | <code>skills/</code> 目录 |</div>
-<div class="md-table-row">| 新钩子 | 配置文件或插件 <code>get_hooks()</code> | <code>.auracode/hooks.yaml</code> |</div>
-<div class="md-table-row">| 新插件 | 继承 <code>ToolPlugin</code> | <code>plugins/</code> 或 <code>register_builtin_plugin()</code> |</div>
-<div class="md-table-row">| MCP 服务器 | <code>mcp/config/</code> 配置 | <code>config.yaml</code> 的 <code>mcp_servers</code> |</div>
-
-<p>---</p>
+<table class="md-table">
+<thead><tr><th>扩展点</th><th>机制</th><th>入口</th></tr></thead>
+<tbody>
+<tr><td>新工具</td><td>继承 <code class="inline-code">ToolPlugin</code> 或直接 <code class="inline-code">register_tool()</code></td><td><code class="inline-code">tools/builtin/</code> 或插件</td></tr>
+<tr><td>新命令</td><td>继承 <code class="inline-code">Command</code> 基类</td><td><code class="inline-code">commands/builtin/</code></td></tr>
+<tr><td>新技能</td><td>创建 <code class="inline-code">SKILL.md</code> 元数据</td><td><code class="inline-code">skills/</code> 目录</td></tr>
+<tr><td>新钩子</td><td>配置文件或插件 <code class="inline-code">get_hooks()</code></td><td><code class="inline-code">.auracode/hooks.yaml</code></td></tr>
+<tr><td>新插件</td><td>继承 <code class="inline-code">ToolPlugin</code></td><td><code class="inline-code">plugins/</code> 或 <code class="inline-code">register_builtin_plugin()</code></td></tr>
+<tr><td>MCP 服务器</td><td><code class="inline-code">mcp/config/</code> 配置</td><td><code class="inline-code">config.yaml</code> 的 <code class="inline-code">mcp_servers</code></td></tr>
+</tbody></table>
+<hr class="md-hr">
 
 <h2>配置层级</h2>
 
-<p>配置从多个来源合并，优先级从高到低：</p>
+<p class="md-paragraph">配置从多个来源合并，优先级从高到低：</p>
 
-<p>1. CLI 参数 (<code>--model</code>, <code>--permission-mode</code>)
-2. 项目配置 (<code>.auracode/config.yaml</code>)
-3. 用户配置 (<code>~/.auracode/config.yaml</code> 或 <code>config.yaml</code>)
-4. 环境变量 (<code>OPENAI_API_KEY</code>, <code>OPENAI_BASE_URL</code>)
+<p class="md-paragraph">1. CLI 参数 (<code class="inline-code">--model</code>, <code class="inline-code">--permission-mode</code>)
+2. 项目配置 (<code class="inline-code">.auracode/config.yaml</code>)
+3. 用户配置 (<code class="inline-code">~/.auracode/config.yaml</code> 或 <code class="inline-code">config.yaml</code>)
+4. 环境变量 (<code class="inline-code">OPENAI_API_KEY</code>, <code class="inline-code">OPENAI_BASE_URL</code>)
 5. 内置默认值</p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>技术栈</h2>
 
-<div class="md-table-row">| 组件 | 技术 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| 语言 | Python 3.10+ |</div>
-<div class="md-table-row">| LLM SDK | openai (兼容 OpenAI API 协议) |</div>
-<div class="md-table-row">| Web 框架 | FastAPI (Bridge 服务器) |</div>
-<div class="md-table-row">| 通信协议 | WebSocket + REST (Bridge) |</div>
-<div class="md-table-row">| MCP 传输 | stdio / SSE / WebSocket |</div>
-<div class="md-table-row">| 持久化 | JSON / JSONL 文件 |</div>
-<div class="md-table-row">| 包管理 | pip + requirements.txt |</div>
-
+<table class="md-table">
+<thead><tr><th>组件</th><th>技术</th></tr></thead>
+<tbody>
+<tr><td>语言</td><td>Python 3.10+</td></tr>
+<tr><td>LLM SDK</td><td>openai (兼容 OpenAI API 协议)</td></tr>
+<tr><td>Web 框架</td><td>FastAPI (Bridge 服务器)</td></tr>
+<tr><td>通信协议</td><td>WebSocket + REST (Bridge)</td></tr>
+<tr><td>MCP 传输</td><td>stdio / SSE / WebSocket</td></tr>
+<tr><td>持久化</td><td>JSON / JSONL 文件</td></tr>
+<tr><td>包管理</td><td>pip + requirements.txt</td></tr>
+</tbody></table>
             </div>
 
             <div class="docs-navigation">

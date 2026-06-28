@@ -8,23 +8,181 @@
     <link rel="stylesheet" href="../css/docs.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        .md-content { line-height: 1.8; }
-        .md-content h1 { font-size: 2rem; margin-bottom: 1rem; }
-        .md-content h2 { font-size: 1.5rem; margin: 2rem 0 1rem; }
-        .md-content h3 { font-size: 1.25rem; margin: 1.5rem 0 0.75rem; }
-        .md-content p { margin: 1rem 0; }
-        .md-content pre { background: var(--bg); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 1rem 0; }
-        .md-content code { background: var(--bg); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; }
-        .md-content pre code { background: none; padding: 0; }
-        .md-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-        .md-content th, .md-content td { padding: 0.75rem; border: 1px solid var(--border-color); text-align: left; }
-        .md-content th { background: var(--s1); }
-        .md-content ul, .md-content ol { margin: 1rem 0; padding-left: 2rem; }
-        .md-content li { margin: 0.5rem 0; }
-        .md-content a { color: var(--acc); text-decoration: none; }
-        .md-content a:hover { text-decoration: underline; }
-        .md-content strong { font-weight: 600; }
-        .md-content hr { border: none; border-top: 1px solid var(--border-color); margin: 2rem 0; }
+        /* Markdown 内容样式 */
+        .md-content { 
+            line-height: 1.8;
+            color: var(--text-primary);
+        }
+        
+        /* 标题样式 */
+        .md-content h1 { 
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin: 2rem 0 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--border-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .md-content h2 { 
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 2.5rem 0 1rem;
+            padding-left: 1rem;
+            border-left: 4px solid var(--primary-color);
+        }
+        .md-content h3 { 
+            font-size: 1.35rem;
+            font-weight: 600;
+            margin: 2rem 0 0.75rem;
+            color: var(--primary-color);
+        }
+        
+        /* 段落样式 */
+        .md-paragraph {
+            margin: 1.25rem 0;
+            line-height: 1.8;
+        }
+        
+        /* 代码块样式 */
+        .code-block {
+            background: var(--darker-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .code-block::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border-radius: 0.75rem 0.75rem 0 0;
+        }
+        .code-block code {
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+        .inline-code {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.35rem;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.85em;
+            color: var(--primary-color);
+        }
+        
+        /* 表格样式 */
+        .md-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 1.5rem 0;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .md-table thead {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        }
+        .md-table th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: white;
+        }
+        .md-table td {
+            padding: 0.875rem 1rem;
+            border-top: 1px solid var(--border-color);
+            background: var(--card-bg);
+        }
+        .md-table tbody tr:hover td {
+            background: rgba(99, 102, 241, 0.05);
+        }
+        
+        /* 引用块样式 */
+        .md-quote {
+            border-left: 4px solid var(--primary-color);
+            background: rgba(99, 102, 241, 0.05);
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 列表样式 */
+        .md-list {
+            margin: 1.25rem 0;
+            padding-left: 2rem;
+        }
+        .md-list li {
+            margin: 0.75rem 0;
+            line-height: 1.7;
+            position: relative;
+        }
+        .md-list li::marker {
+            color: var(--primary-color);
+        }
+        
+        /* 链接样式 */
+        .md-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .md-link:hover {
+            color: var(--secondary-color);
+            border-bottom-color: var(--secondary-color);
+        }
+        
+        /* 粗体和斜体 */
+        .md-strong {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .md-em {
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 分隔线 */
+        .md-hr {
+            border: none;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+            margin: 2.5rem 0;
+        }
+        
+        /* 面包屑导航 */
+        .breadcrumb-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .breadcrumb-link:hover {
+            text-decoration: underline;
+        }
+        .breadcrumb-sep {
+            color: var(--text-secondary);
+            margin: 0 0.5rem;
+        }
+        .breadcrumb-item {
+            color: var(--text-secondary);
+            text-transform: capitalize;
+        }
     </style>
 </head>
 <body>
@@ -89,13 +247,13 @@
             <div class="md-content">
                 <h1>Bridge 远程控制</h1>
 
-<p>Bridge 是基于 FastAPI 的 REST + WebSocket 远程控制服务，支持从浏览器或其他客户端实时操控 AuraCode。</p>
+<p class="md-paragraph">Bridge 是基于 FastAPI 的 REST + WebSocket 远程控制服务，支持从浏览器或其他客户端实时操控 AuraCode。</p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>启动 Bridge</h2>
 
-<pre><code class="language-bash"><h1>默认配置</h1>
+<pre class="code-block"><code class="language-bash"># 默认配置
 python cli.py --bridge
 
 <h1>自定义端口和最大会话数</h1>
@@ -105,62 +263,67 @@ python cli.py --bridge --bridge-port 9000 --bridge-max-sessions 10
 python cli.py --bridge --bridge-token my-secret-token
 </code></pre>
 
-<div class="md-table-row">| 参数 | 说明 | 默认值 |</div>
-<div class="md-table-row">|------|------|--------|</div>
-<div class="md-table-row">| <code>--bridge</code> | 启用 Bridge 模式 | <code>false</code> |</div>
-<div class="md-table-row">| <code>--bridge-port</code> | 服务端口 | <code>8765</code> |</div>
-<div class="md-table-row">| <code>--bridge-host</code> | 绑定地址 | <code>127.0.0.1</code> |</div>
-<div class="md-table-row">| <code>--bridge-max-sessions</code> | 最大并行会话数 | <code>5</code> |</div>
-<div class="md-table-row">| <code>--bridge-token</code> | 认证 Token | 自动生成 |</div>
-
-<p>---</p>
+<table class="md-table">
+<thead><tr><th>参数</th><th>说明</th><th>默认值</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">--bridge</code></td><td>启用 Bridge 模式</td><td><code class="inline-code">false</code></td></tr>
+<tr><td><code class="inline-code">--bridge-port</code></td><td>服务端口</td><td><code class="inline-code">8765</code></td></tr>
+<tr><td><code class="inline-code">--bridge-host</code></td><td>绑定地址</td><td><code class="inline-code">127.0.0.1</code></td></tr>
+<tr><td><code class="inline-code">--bridge-max-sessions</code></td><td>最大并行会话数</td><td><code class="inline-code">5</code></td></tr>
+<tr><td><code class="inline-code">--bridge-token</code></td><td>认证 Token</td><td>自动生成</td></tr>
+</tbody></table>
+<hr class="md-hr">
 
 <h2>REST API</h2>
 
 <h3>会话管理</h3>
 
-<div class="md-table-row">| 方法 | 路径 | 说明 |</div>
-<div class="md-table-row">|------|------|------|</div>
-<div class="md-table-row">| <code>POST</code> | <code>/sessions</code> | 创建新会话 |</div>
-<div class="md-table-row">| <code>GET</code> | <code>/sessions</code> | 列出所有会话 |</div>
-<div class="md-table-row">| <code>GET</code> | <code>/sessions/{id}</code> | 获取会话详情 |</div>
-<div class="md-table-row">| <code>DELETE</code> | <code>/sessions/{id}</code> | 关闭会话 |</div>
-
+<table class="md-table">
+<thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">POST</code></td><td><code class="inline-code">/sessions</code></td><td>创建新会话</td></tr>
+<tr><td><code class="inline-code">GET</code></td><td><code class="inline-code">/sessions</code></td><td>列出所有会话</td></tr>
+<tr><td><code class="inline-code">GET</code></td><td><code class="inline-code">/sessions/{id}</code></td><td>获取会话详情</td></tr>
+<tr><td><code class="inline-code">DELETE</code></td><td><code class="inline-code">/sessions/{id}</code></td><td>关闭会话</td></tr>
+</tbody></table>
 <h3>消息与命令</h3>
 
-<div class="md-table-row">| 方法 | 路径 | 说明 |</div>
-<div class="md-table-row">|------|------|------|</div>
-<div class="md-table-row">| <code>POST</code> | <code>/sessions/{id}/message</code> | 发送消息 |</div>
-<div class="md-table-row">| <code>POST</code> | <code>/sessions/{id}/command</code> | 执行命令 |</div>
-
+<table class="md-table">
+<thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">POST</code></td><td><code class="inline-code">/sessions/{id}/message</code></td><td>发送消息</td></tr>
+<tr><td><code class="inline-code">POST</code></td><td><code class="inline-code">/sessions/{id}/command</code></td><td>执行命令</td></tr>
+</tbody></table>
 <h3>系统</h3>
 
-<div class="md-table-row">| 方法 | 路径 | 说明 |</div>
-<div class="md-table-row">|------|------|------|</div>
-<div class="md-table-row">| <code>GET</code> | <code>/health</code> | 健康检查 |</div>
-<div class="md-table-row">| <code>GET</code> | <code>/status</code> | 系统状态 |</div>
-
-<p>---</p>
+<table class="md-table">
+<thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">GET</code></td><td><code class="inline-code">/health</code></td><td>健康检查</td></tr>
+<tr><td><code class="inline-code">GET</code></td><td><code class="inline-code">/status</code></td><td>系统状态</td></tr>
+</tbody></table>
+<hr class="md-hr">
 
 <h2>WebSocket 实时事件</h2>
 
-<p>连接 <code>ws://host:port/ws?token=xxx</code> 即可接收实时事件推送：</p>
+<p class="md-paragraph">连接 <code class="inline-code">ws://host:port/ws?token=xxx</code> 即可接收实时事件推送：</p>
 
 <h3>事件类型</h3>
 
-<div class="md-table-row">| 事件 | 说明 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <code>session_created</code> | 新会话创建 |</div>
-<div class="md-table-row">| <code>tool_use</code> | AI 调用工具 |</div>
-<div class="md-table-row">| <code>tool_result</code> | 工具执行结果 |</div>
-<div class="md-table-row">| <code>assistant_message</code> | AI 回复消息 |</div>
-<div class="md-table-row">| <code>token_usage</code> | Token 消耗统计 |</div>
-<div class="md-table-row">| <code>error</code> | 错误通知 |</div>
-<div class="md-table-row">| <code>session_complete</code> | 会话任务完成 |</div>
-
+<table class="md-table">
+<thead><tr><th>事件</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">session_created</code></td><td>新会话创建</td></tr>
+<tr><td><code class="inline-code">tool_use</code></td><td>AI 调用工具</td></tr>
+<tr><td><code class="inline-code">tool_result</code></td><td>工具执行结果</td></tr>
+<tr><td><code class="inline-code">assistant_message</code></td><td>AI 回复消息</td></tr>
+<tr><td><code class="inline-code">token_usage</code></td><td>Token 消耗统计</td></tr>
+<tr><td><code class="inline-code">error</code></td><td>错误通知</td></tr>
+<tr><td><code class="inline-code">session_complete</code></td><td>会话任务完成</td></tr>
+</tbody></table>
 <h3>事件示例</h3>
 
-<pre><code class="language-json">{
+<pre class="code-block"><code class="language-json">{
   "type": "tool_use",
   "data": {
     "session_id": "abc123",
@@ -170,58 +333,61 @@ python cli.py --bridge --bridge-token my-secret-token
 }
 </code></pre>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>Web UI</h2>
 
-<p>内置 Web 控制面板（<code>bridge/test_bridge.html</code>），可直接在浏览器中操作：</p>
+<p class="md-paragraph">内置 Web 控制面板（<code class="inline-code">bridge/test_bridge.html</code>），可直接在浏览器中操作：</p>
 
-<pre><code class="language-">http://localhost:8765/static/test_bridge.html
+<pre class="code-block"><code class="language-">http://localhost:8765/static/test_bridge.html
 </code></pre>
 
-<p>功能包括：
-- 会话列表与管理
-- 实时消息显示
-- 事件面板（工具调用、Token 消耗、错误通知）
-- 命令执行</p>
+<p class="md-paragraph">功能包括：
+<ul class="md-list">
+<li>会话列表与管理</li>
+<li>实时消息显示</li>
+<li>事件面板（工具调用、Token 消耗、错误通知）</li>
+<li>命令执行</li>
+</ul></p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>Token 认证</h2>
 
-<p>Bridge 使用 Bearer Token 进行认证：</p>
+<p class="md-paragraph">Bridge 使用 Bearer Token 进行认证：</p>
 
-<pre><code class="language-bash"><h1>REST 请求</h1>
+<pre class="code-block"><code class="language-bash"># REST 请求
 curl -H "Authorization: Bearer your-token" http://localhost:8765/sessions
 
 <h1>WebSocket 连接</h1>
 ws://localhost:8765/ws?token=your-token
 </code></pre>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>多会话并行</h2>
 
-<p>Bridge 支持同时运行多个独立会话，每个会话有自己的上下文和状态：</p>
+<p class="md-paragraph">Bridge 支持同时运行多个独立会话，每个会话有自己的上下文和状态：</p>
 
-<pre><code class="language-">> /bridge sessions
+<pre class="code-block"><code class="language-">> /bridge sessions
 
-<p>Bridge 会话 (3 个活跃 / 最大 5):
+<p class="md-paragraph">Bridge 会话 (3 个活跃 / 最大 5):
   #1  session_abc  运行中  迭代 5/20  Token: 12,400
   #2  session_def  等待中  迭代 0/20  Token: 0
   #3  session_ghi  运行中  迭代 8/20  Token: 23,100
 </code></pre></p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>相关命令</h2>
 
-<div class="md-table-row">| 命令 | 说明 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <code>/bridge</code> | Bridge 管理入口 |</div>
-<div class="md-table-row">| <code>/bridge sessions</code> | 查看活跃会话 |</div>
-<div class="md-table-row">| <code>/bridge status</code> | Bridge 服务状态 |</div>
-
+<table class="md-table">
+<thead><tr><th>命令</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">/bridge</code></td><td>Bridge 管理入口</td></tr>
+<tr><td><code class="inline-code">/bridge sessions</code></td><td>查看活跃会话</td></tr>
+<tr><td><code class="inline-code">/bridge status</code></td><td>Bridge 服务状态</td></tr>
+</tbody></table>
             </div>
 
             <div class="docs-navigation">

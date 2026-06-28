@@ -8,23 +8,181 @@
     <link rel="stylesheet" href="../css/docs.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        .md-content { line-height: 1.8; }
-        .md-content h1 { font-size: 2rem; margin-bottom: 1rem; }
-        .md-content h2 { font-size: 1.5rem; margin: 2rem 0 1rem; }
-        .md-content h3 { font-size: 1.25rem; margin: 1.5rem 0 0.75rem; }
-        .md-content p { margin: 1rem 0; }
-        .md-content pre { background: var(--bg); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 1rem 0; }
-        .md-content code { background: var(--bg); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; }
-        .md-content pre code { background: none; padding: 0; }
-        .md-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-        .md-content th, .md-content td { padding: 0.75rem; border: 1px solid var(--border-color); text-align: left; }
-        .md-content th { background: var(--s1); }
-        .md-content ul, .md-content ol { margin: 1rem 0; padding-left: 2rem; }
-        .md-content li { margin: 0.5rem 0; }
-        .md-content a { color: var(--acc); text-decoration: none; }
-        .md-content a:hover { text-decoration: underline; }
-        .md-content strong { font-weight: 600; }
-        .md-content hr { border: none; border-top: 1px solid var(--border-color); margin: 2rem 0; }
+        /* Markdown 内容样式 */
+        .md-content { 
+            line-height: 1.8;
+            color: var(--text-primary);
+        }
+        
+        /* 标题样式 */
+        .md-content h1 { 
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin: 2rem 0 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--border-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .md-content h2 { 
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 2.5rem 0 1rem;
+            padding-left: 1rem;
+            border-left: 4px solid var(--primary-color);
+        }
+        .md-content h3 { 
+            font-size: 1.35rem;
+            font-weight: 600;
+            margin: 2rem 0 0.75rem;
+            color: var(--primary-color);
+        }
+        
+        /* 段落样式 */
+        .md-paragraph {
+            margin: 1.25rem 0;
+            line-height: 1.8;
+        }
+        
+        /* 代码块样式 */
+        .code-block {
+            background: var(--darker-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .code-block::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border-radius: 0.75rem 0.75rem 0 0;
+        }
+        .code-block code {
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+        .inline-code {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.35rem;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.85em;
+            color: var(--primary-color);
+        }
+        
+        /* 表格样式 */
+        .md-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 1.5rem 0;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .md-table thead {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        }
+        .md-table th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: white;
+        }
+        .md-table td {
+            padding: 0.875rem 1rem;
+            border-top: 1px solid var(--border-color);
+            background: var(--card-bg);
+        }
+        .md-table tbody tr:hover td {
+            background: rgba(99, 102, 241, 0.05);
+        }
+        
+        /* 引用块样式 */
+        .md-quote {
+            border-left: 4px solid var(--primary-color);
+            background: rgba(99, 102, 241, 0.05);
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 列表样式 */
+        .md-list {
+            margin: 1.25rem 0;
+            padding-left: 2rem;
+        }
+        .md-list li {
+            margin: 0.75rem 0;
+            line-height: 1.7;
+            position: relative;
+        }
+        .md-list li::marker {
+            color: var(--primary-color);
+        }
+        
+        /* 链接样式 */
+        .md-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .md-link:hover {
+            color: var(--secondary-color);
+            border-bottom-color: var(--secondary-color);
+        }
+        
+        /* 粗体和斜体 */
+        .md-strong {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .md-em {
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 分隔线 */
+        .md-hr {
+            border: none;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+            margin: 2.5rem 0;
+        }
+        
+        /* 面包屑导航 */
+        .breadcrumb-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .breadcrumb-link:hover {
+            text-decoration: underline;
+        }
+        .breadcrumb-sep {
+            color: var(--text-secondary);
+            margin: 0 0.5rem;
+        }
+        .breadcrumb-item {
+            color: var(--text-secondary);
+            text-transform: capitalize;
+        }
     </style>
 </head>
 <body>
@@ -89,160 +247,175 @@
             <div class="md-content">
                 <h1>工具系统</h1>
 
-<p>AuraCode 内置 53 个工具，由 AI 代理在对话过程中自动调用。你无需手动调用工具，AI 会根据你的需求自动选择并执行。</p>
+<p class="md-paragraph">AuraCode 内置 53 个工具，由 AI 代理在对话过程中自动调用。你无需手动调用工具，AI 会根据你的需求自动选择并执行。</p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>工具分类</h2>
 
 <h3>文件操作</h3>
 
-<div class="md-table-row">| 工具 | 说明 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <code>read_file</code> | 读取文件内容，支持指定行范围 |</div>
-<div class="md-table-row">| <code>write_file</code> | 写入/创建文件 |</div>
-<div class="md-table-row">| <code>replace_in_file</code> | 精确文本替换（先搜索后替换）|</div>
-<div class="md-table-row">| <code>undo_edit</code> | 撤销上一步编辑操作 |</div>
-<div class="md-table-row">| <code>notebook_edit</code> | Jupyter Notebook 单元格编辑 |</div>
-<div class="md-table-row">| <code>analyze_file</code> | 文件结构与内容分析 |</div>
-
+<table class="md-table">
+<thead><tr><th>工具</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">read_file</code></td><td>读取文件内容，支持指定行范围</td></tr>
+<tr><td><code class="inline-code">write_file</code></td><td>写入/创建文件</td></tr>
+<tr><td><code class="inline-code">replace_in_file</code></td><td>精确文本替换（先搜索后替换）</td></tr>
+<tr><td><code class="inline-code">undo_edit</code></td><td>撤销上一步编辑操作</td></tr>
+<tr><td><code class="inline-code">notebook_edit</code></td><td>Jupyter Notebook 单元格编辑</td></tr>
+<tr><td><code class="inline-code">analyze_file</code></td><td>文件结构与内容分析</td></tr>
+</tbody></table>
 <h3>代码搜索</h3>
 
-<div class="md-table-row">| 工具 | 说明 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <code>find</code> | 文件内容正则搜索 |</div>
-<div class="md-table-row">| <code>glob</code> | Glob 模式文件匹配（<code><em>*/</em>.py</code> 等）|</div>
-<div class="md-table-row">| <code>grep</code> | 高性能内容搜索（基于 ripgrep）|</div>
-<div class="md-table-row">| <code>list_directory</code> | 目录结构浏览 |</div>
-<div class="md-table-row">| <code>lsp</code> | LSP 协议 — 跳转定义、查找引用、获取诊断 |</div>
-<div class="md-table-row">| <code>tool_search</code> | 工具发现与搜索（不确定工具名时使用）|</div>
-
+<table class="md-table">
+<thead><tr><th>工具</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">find</code></td><td>文件内容正则搜索</td></tr>
+<tr><td><code class="inline-code">glob</code></td><td>Glob 模式文件匹配（<code class="inline-code"><em class="md-em">*/</em>.py</code> 等）</td></tr>
+<tr><td><code class="inline-code">grep</code></td><td>高性能内容搜索（基于 ripgrep）</td></tr>
+<tr><td><code class="inline-code">list_directory</code></td><td>目录结构浏览</td></tr>
+<tr><td><code class="inline-code">lsp</code></td><td>LSP 协议 — 跳转定义、查找引用、获取诊断</td></tr>
+<tr><td><code class="inline-code">tool_search</code></td><td>工具发现与搜索（不确定工具名时使用）</td></tr>
+</tbody></table>
 <h3>终端执行</h3>
 
-<div class="md-table-row">| 工具 | 说明 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <code>run_command</code> | Shell 命令执行（支持超时、后台、工作目录）|</div>
-<div class="md-table-row">| <code>run_powershell</code> | Windows PowerShell 执行 |</div>
-<div class="md-table-row">| <code>run_tests</code> | 项目测试运行 |</div>
-<div class="md-table-row">| <code>repl</code> | 交互式 Python REPL |</div>
-<div class="md-table-row">| <code>lint</code> | 代码规范检查 |</div>
-
+<table class="md-table">
+<thead><tr><th>工具</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">run_command</code></td><td>Shell 命令执行（支持超时、后台、工作目录）</td></tr>
+<tr><td><code class="inline-code">run_powershell</code></td><td>Windows PowerShell 执行</td></tr>
+<tr><td><code class="inline-code">run_tests</code></td><td>项目测试运行</td></tr>
+<tr><td><code class="inline-code">repl</code></td><td>交互式 Python REPL</td></tr>
+<tr><td><code class="inline-code">lint</code></td><td>代码规范检查</td></tr>
+</tbody></table>
 <h3>智能代理</h3>
 
-<div class="md-table-row">| 工具 | 说明 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <code>spawn_subagent</code> | 创建子代理（独立上下文，可并行）|</div>
-<div class="md-table-row">| <code>join_subagent</code> | 等待子代理完成并获取结果 |</div>
-<div class="md-table-row">| <code>list_subagents</code> | 列出活跃子代理 |</div>
-<div class="md-table-row">| <code>subagent_stats</code> | 子代理执行统计 |</div>
-<div class="md-table-row">| <code>list_agent_types</code> | 可用代理类型列表 |</div>
-<div class="md-table-row">| <code>plan_agent</code> | 计划模式代理（只读分析）|</div>
-
+<table class="md-table">
+<thead><tr><th>工具</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">spawn_subagent</code></td><td>创建子代理（独立上下文，可并行）</td></tr>
+<tr><td><code class="inline-code">join_subagent</code></td><td>等待子代理完成并获取结果</td></tr>
+<tr><td><code class="inline-code">list_subagents</code></td><td>列出活跃子代理</td></tr>
+<tr><td><code class="inline-code">subagent_stats</code></td><td>子代理执行统计</td></tr>
+<tr><td><code class="inline-code">list_agent_types</code></td><td>可用代理类型列表</td></tr>
+<tr><td><code class="inline-code">plan_agent</code></td><td>计划模式代理（只读分析）</td></tr>
+</tbody></table>
 <h3>任务管理</h3>
 
-<div class="md-table-row">| 工具 | 说明 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <code>task_create</code> | 创建任务 |</div>
-<div class="md-table-row">| <code>task_list</code> | 列出任务 |</div>
-<div class="md-table-row">| <code>task_update</code> | 更新任务状态 |</div>
-<div class="md-table-row">| <code>todo_write</code> | 任务进度可视化 |</div>
-
+<table class="md-table">
+<thead><tr><th>工具</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">task_create</code></td><td>创建任务</td></tr>
+<tr><td><code class="inline-code">task_list</code></td><td>列出任务</td></tr>
+<tr><td><code class="inline-code">task_update</code></td><td>更新任务状态</td></tr>
+<tr><td><code class="inline-code">todo_write</code></td><td>任务进度可视化</td></tr>
+</tbody></table>
 <h3>计划模式</h3>
 
-<div class="md-table-row">| 工具 | 说明 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <code>enter_plan_mode</code> | 进入计划模式（只读，不执行修改）|</div>
-<div class="md-table-row">| <code>exit_plan_mode</code> | 退出计划模式，恢复执行 |</div>
-
+<table class="md-table">
+<thead><tr><th>工具</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">enter_plan_mode</code></td><td>进入计划模式（只读，不执行修改）</td></tr>
+<tr><td><code class="inline-code">exit_plan_mode</code></td><td>退出计划模式，恢复执行</td></tr>
+</tbody></table>
 <h3>Git Worktree</h3>
 
-<div class="md-table-row">| 工具 | 说明 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <code>enter_worktree</code> | 进入 Git Worktree 隔离工作区 |</div>
-<div class="md-table-row">| <code>exit_worktree</code> | 退出 Worktree 并合并变更 |</div>
-
+<table class="md-table">
+<thead><tr><th>工具</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">enter_worktree</code></td><td>进入 Git Worktree 隔离工作区</td></tr>
+<tr><td><code class="inline-code">exit_worktree</code></td><td>退出 Worktree 并合并变更</td></tr>
+</tbody></table>
 <h3>定时任务</h3>
 
-<div class="md-table-row">| 工具 | 说明 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <code>cron_create</code> | 创建定时任务（Cron 表达式）|</div>
-<div class="md-table-row">| <code>cron_delete</code> | 删除定时任务 |</div>
-<div class="md-table-row">| <code>cron_list</code> | 列出所有定时任务 |</div>
-
+<table class="md-table">
+<thead><tr><th>工具</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">cron_create</code></td><td>创建定时任务（Cron 表达式）</td></tr>
+<tr><td><code class="inline-code">cron_delete</code></td><td>删除定时任务</td></tr>
+<tr><td><code class="inline-code">cron_list</code></td><td>列出所有定时任务</td></tr>
+</tbody></table>
 <h3>记忆系统</h3>
 
-<div class="md-table-row">| 工具 | 说明 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <code>save_memory</code> | 保存记忆条目 |</div>
-<div class="md-table-row">| <code>load_memory</code> | 加载记忆 |</div>
-<div class="md-table-row">| <code>search_memories</code> | 语义搜索记忆 |</div>
-<div class="md-table-row">| <code>list_memories</code> | 列出记忆索引 |</div>
-<div class="md-table-row">| <code>get_memory_summary</code> | 获取记忆摘要 |</div>
-<div class="md-table-row">| <code>get_relevant_memories</code> | LLM 驱动的相关记忆召回 |</div>
-<div class="md-table-row">| <code>delete_memory</code> | 删除记忆 |</div>
-
+<table class="md-table">
+<thead><tr><th>工具</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">save_memory</code></td><td>保存记忆条目</td></tr>
+<tr><td><code class="inline-code">load_memory</code></td><td>加载记忆</td></tr>
+<tr><td><code class="inline-code">search_memories</code></td><td>语义搜索记忆</td></tr>
+<tr><td><code class="inline-code">list_memories</code></td><td>列出记忆索引</td></tr>
+<tr><td><code class="inline-code">get_memory_summary</code></td><td>获取记忆摘要</td></tr>
+<tr><td><code class="inline-code">get_relevant_memories</code></td><td>LLM 驱动的相关记忆召回</td></tr>
+<tr><td><code class="inline-code">delete_memory</code></td><td>删除记忆</td></tr>
+</tbody></table>
 <h3>技能系统</h3>
 
-<div class="md-table-row">| 工具 | 说明 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <code>activate_skill</code> | 激活领域技能 |</div>
-<div class="md-table-row">| <code>deactivate_skill</code> | 停用领域技能 |</div>
-<div class="md-table-row">| <code>get_active_skills</code> | 获取已激活技能 |</div>
-<div class="md-table-row">| <code>list_skills</code> | 列出所有可用技能 |</div>
-<div class="md-table-row">| <code>show_available_skills</code> | 展示技能详情 |</div>
-
+<table class="md-table">
+<thead><tr><th>工具</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">activate_skill</code></td><td>激活领域技能</td></tr>
+<tr><td><code class="inline-code">deactivate_skill</code></td><td>停用领域技能</td></tr>
+<tr><td><code class="inline-code">get_active_skills</code></td><td>获取已激活技能</td></tr>
+<tr><td><code class="inline-code">list_skills</code></td><td>列出所有可用技能</td></tr>
+<tr><td><code class="inline-code">show_available_skills</code></td><td>展示技能详情</td></tr>
+</tbody></table>
 <h3>网络与外部</h3>
 
-<div class="md-table-row">| 工具 | 说明 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <code>web_fetch</code> | 获取网页内容并分析（支持提取正文）|</div>
-<div class="md-table-row">| <code>web_search</code> | 网络搜索 |</div>
-
+<table class="md-table">
+<thead><tr><th>工具</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">web_fetch</code></td><td>获取网页内容并分析（支持提取正文）</td></tr>
+<tr><td><code class="inline-code">web_search</code></td><td>网络搜索</td></tr>
+</tbody></table>
 <h3>交互与配置</h3>
 
-<div class="md-table-row">| 工具 | 说明 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <code>ask_user</code> | 向用户提问（支持多选和自定义输入）|</div>
-<div class="md-table-row">| <code>brief</code> | 简洁模式切换（减少输出）|</div>
-<div class="md-table-row">| <code>config</code> | 运行时配置读写 |</div>
-<div class="md-table-row">| <code>edit_history</code> | 编辑对话历史 |</div>
-<div class="md-table-row">| <code>sleep</code> | 等待/延迟 |</div>
-
-<p>---</p>
+<table class="md-table">
+<thead><tr><th>工具</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">ask_user</code></td><td>向用户提问（支持多选和自定义输入）</td></tr>
+<tr><td><code class="inline-code">brief</code></td><td>简洁模式切换（减少输出）</td></tr>
+<tr><td><code class="inline-code">config</code></td><td>运行时配置读写</td></tr>
+<tr><td><code class="inline-code">edit_history</code></td><td>编辑对话历史</td></tr>
+<tr><td><code class="inline-code">sleep</code></td><td>等待/延迟</td></tr>
+</tbody></table>
+<hr class="md-hr">
 
 <h2>工具增强</h2>
 
-<p>AuraCode 对所有工具调用提供统一增强（由 <code>ToolEnhancer</code> 驱动）：</p>
+<p class="md-paragraph">AuraCode 对所有工具调用提供统一增强（由 <code class="inline-code">ToolEnhancer</code> 驱动）：</p>
 
-<div class="md-table-row">| 功能 | 说明 |</div>
-<div class="md-table-row">|------|------|</div>
-<div class="md-table-row">| <strong>结果摘要</strong> | 大型工具输出自动生成摘要 |</div>
-<div class="md-table-row">| <strong>自动重试</strong> | 幂等工具（读文件、搜索等）失败后自动重试 |</div>
-<div class="md-table-row">| <strong>输出裁剪</strong> | 超大 diff 只保留修改区域 ±N 行 |</div>
-
-<p>---</p>
+<table class="md-table">
+<thead><tr><th>功能</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><strong class="md-strong">结果摘要</strong></td><td>大型工具输出自动生成摘要</td></tr>
+<tr><td><strong class="md-strong">自动重试</strong></td><td>幂等工具（读文件、搜索等）失败后自动重试</td></tr>
+<tr><td><strong class="md-strong">输出裁剪</strong></td><td>超大 diff 只保留修改区域 ±N 行</td></tr>
+</tbody></table>
+<hr class="md-hr">
 
 <h2>使用追踪</h2>
 
-<p>通过 <code>/tools</code> 命令查看工具使用统计：</p>
+<p class="md-paragraph">通过 <code class="inline-code">/tools</code> 命令查看工具使用统计：</p>
 
-<pre><code class="language-">> /tools
+<pre class="code-block"><code class="language-">> /tools
 
-<p>工具使用统计 (本次会话):
+<p class="md-paragraph">工具使用统计 (本次会话):
   read_file      12 次  成功 100%  平均 0.3s
   run_command     5 次  成功  80%  平均 1.2s
   write_file      3 次  成功 100%  平均 0.1s
   ...
 </code></pre></p>
 
-<p>---</p>
+<hr class="md-hr">
 
 <h2>相关文档</h2>
 
-<p>- <a href="commands.md">命令参考</a>
-- <a href="skills.md">技能系统</a>
-- <a href="mcp.md">MCP 协议集成</a> — 通过 MCP 扩展更多工具
-</p>
+<ul class="md-list">
+<li><a href="commands.md" class="md-link">命令参考</a></li>
+<li><a href="skills.md" class="md-link">技能系统</a></li>
+<li><a href="mcp.md" class="md-link">MCP 协议集成</a> — 通过 MCP 扩展更多工具</li>
+</ul>
+
             </div>
 
             <div class="docs-navigation">
