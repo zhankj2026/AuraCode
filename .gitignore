@@ -60,3 +60,7 @@ memory/
 
 # Local scripts
 setup_env.ps1
+
+# Internal documentation (not for public release)
+docs/development/agent-architecture-guide.md
+website/docs/development/agent-architecture-guide.html
