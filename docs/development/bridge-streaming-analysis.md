@@ -308,28 +308,62 @@ function handle(event) {
 - AgentLoop 的 LLM 调用确实是 token 级流式
 - Bridge 的事件级流式传输（tool/turn/result 实时推送）
 - 前端实时渲染事件 + 运行中指示器
+- ✅ **Token 级流式输出**（方案 C 已实施）
+  - AgentLoop._emit_text_chunk() 实时发出 text_chunk 事件
+  - BridgeSession 映射 text_chunk 到 BridgeEventType.TEXT_CHUNK
+  - PC 端前端支持打字机效果渲染
+  - 移动端前端支持打字机效果渲染
+  - CLI 模式不受影响（向后兼容）
 
-⚠️ **限制**：
-- stdout 被 Bridge 缓冲，token 级流式未传到前端
-- 用户看到的是事件级流式，而非打字机效果
+### 7.2 实施记录
 
-### 7.2 下一步
+**Commit**: `67991cf` - feat(bridge): 实现Token级流式输出（打字机效果）
+
+**修改文件**：
+1. `bridge/types.py` - 添加 TEXT_CHUNK 事件类型
+2. `core/agent_loop.py` - 添加 _emit_text_chunk() 方法 + 流式循环调用
+3. `bridge/session.py` - type_map 添加 text_chunk 映射
+4. `website/docs/test_bridge.html` - text_chunk 事件处理（打字机效果）
+5. `website/docs/test_bridge_mobile.html` - text_chunk 事件处理（打字机效果）
+
+**技术实现**：
+```python
+# AgentLoop._call_llm_streaming()
+for delta in response:
+    if delta.content:
+        print(delta.content, end="", flush=True)
+        self._emit_text_chunk(delta.content)  # ← 新增
+
+# AgentLoop._emit_text_chunk()
+def _emit_text_chunk(self, content: str):
+    if self.event_callback is None:
+        return  # CLI 模式跳过
+    self.event_callback({
+        "type": "text_chunk",
+        "data": {"content": content, "turn": self.state.turn_count},
+        "timestamp": time.time(),
+    })
+```
+
+### 7.3 下一步
 
 📋 **规划**：
-1. 实现方案 C（混合方案）
-2. 定义 `text_chunk` 事件协议
-3. 修改 AgentLoop 支持 event_bus
-4. 修改 Bridge 实时转发 token
-5. 更新前端支持打字机效果
+1. ✅ ~~实现方案 C（混合方案）~~
+2. ✅ ~~定义 `text_chunk` 事件协议~~
+3. ✅ ~~修改 AgentLoop 支持 event_bus~~
+4. ✅ ~~修改 Bridge 实时转发 token~~
+5. ✅ ~~更新前端支持打字机效果~~
+6. 性能测试（高频事件推送）
+7. 文档更新
 
-### 7.3 技术债务
+### 7.4 技术债务
 
 ```
 TODO:
-- [ ] AgentLoop 添加 event_bus 参数
-- [ ] 定义 text_chunk 事件格式
-- [ ] BridgeSession 实现实时 stdout 捕获
-- [ ] 前端适配 text_chunk 事件
+- [x] AgentLoop 添加 event_bus 参数
+- [x] 定义 text_chunk 事件格式
+- [x] BridgeSession 实现实时 stdout 捕获
+- [x] 前端适配 text_chunk 事件
 - [ ] 性能测试（高频事件推送）
 - [ ] 文档更新
 ```
