@@ -63,4 +63,6 @@ setup_env.ps1
 
 # Internal documentation (not for public release)
 docs/development/agent-architecture-guide.md
+docs/development/bridge-streaming-analysis.md
 website/docs/development/agent-architecture-guide.html
+csdn-article.md
