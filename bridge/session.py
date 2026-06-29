@@ -778,6 +778,7 @@ class BridgeSession:
             "prompt_too_long_recovery": BridgeEventType.PROMPT_TOO_LONG_RECOVERY,
             "aborted": BridgeEventType.ABORTED,
             "llm_call": BridgeEventType.LLM_CALL,
+            "text_chunk": BridgeEventType.TEXT_CHUNK,  # Token 级流式
         }
 
         bridge_type = type_map.get(event_type)

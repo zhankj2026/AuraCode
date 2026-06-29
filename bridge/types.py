@@ -53,6 +53,7 @@ class BridgeEventType(str, Enum):
     PROMPT_TOO_LONG_RECOVERY = "prompt_too_long_recovery"
     ABORTED = "aborted"
     LLM_CALL = "llm_call"                       # LLM API 调用详情（网络报文）
+    TEXT_CHUNK = "text_chunk"                   # Token 级流式文本块（实时打字机效果）
 
 
 @dataclass

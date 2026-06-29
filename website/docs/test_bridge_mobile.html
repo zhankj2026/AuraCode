@@ -411,6 +411,22 @@ function handle(e){
       const p=e.data.content_preview||'';
       if(p)addMsg('ai',p);
       break;
+    case 'text_chunk':
+      // Token 级流式输出 — 打字机效果
+      const chunkContent = e.data.content || '';
+      if (chunkContent) {
+        let aiEl = document.querySelector('.msg.ai.streaming');
+        if (!aiEl) {
+          aiEl = document.createElement('div');
+          aiEl.className = 'msg ai streaming';
+          aiEl.innerHTML = '<div class="msg-header">🤖 Assistant</div><div class="msg-body">';
+          $('term').appendChild(aiEl);
+        }
+        const bodyEl = aiEl.querySelector('.msg-body');
+        bodyEl.textContent += chunkContent;
+        $('term').scrollTop = $('term').scrollHeight;
+      }
+      break;
     case 'tool_execute':
       addMsg('tool',`⚙️ 执行: ${e.data.tool_name||'?'}`,'exec');
       break;

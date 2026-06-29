@@ -274,6 +274,25 @@ function handle(e){
       const p=e.data.content_preview||'',tc=e.data.tool_calls||0;
       if(p)tln('ai',p+(tc>0?`\n   🔧 ${tc} 个工具调用...`:''));
       break}
+    case'text_chunk':{
+      // Token 级流式输出 — 打字机效果
+      const content = e.data.content || '';
+      if (content) {
+        // 查找或创建当前 AI 消息元素
+        let aiEl = document.querySelector('.ln.ai.streaming');
+        if (!aiEl) {
+          // 创建新的流式消息元素
+          aiEl = document.createElement('div');
+          aiEl.className = 'ln ai streaming';
+          aiEl.textContent = '🤖 Assistant: ';
+          $('term').appendChild(aiEl);
+        }
+        // 追加文本内容
+        aiEl.textContent += content;
+        // 滚动到底部
+        $('term').scrollTop = $('term').scrollHeight;
+      }
+      break}
     case'tool_execute':{
       const tn=e.data.tool_name||'?';
       tln('tool',`⚙️ 执行: ${tn}`+(e.data.arguments?` ${formatArgs(e.data)}`:''),'exec');

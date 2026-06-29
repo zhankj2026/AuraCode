@@ -1320,6 +1320,9 @@ class AgentLoop:
                                 first_chunk = False
                             print(delta.content, end="", flush=True)
                             full_content += delta.content
+                            
+                            # 发出 text_chunk 事件（Token 级流式）
+                            self._emit_text_chunk(delta.content)
 
                         # 工具调用增量累积
                         if delta and hasattr(delta, 'tool_calls') and delta.tool_calls:
@@ -2366,6 +2369,33 @@ class AgentLoop:
             self.event_callback(event)
         except Exception as e:
             logger.warning(f"Event callback failed for {event_type}: {e}")
+
+    def _emit_text_chunk(self, content: str):
+        """
+        发射文本块事件（Token 级流式输出）。
+
+        用于 Bridge 模式实现实时打字机效果。
+        CLI 模式下 event_callback 为 None，自动跳过。
+
+        Args:
+            content: 文本内容（单个 token 或小块）
+        """
+        if self.event_callback is None:
+            return  # CLI 模式不使用
+        try:
+            event = {
+                "type": "text_chunk",
+                "data": {
+                    "content": content,
+                    "turn": self.state.turn_count,
+                },
+                "timestamp": time.time(),
+                "turn": self.state.turn_count,
+            }
+            self.event_callback(event)
+        except Exception as e:
+            # text_chunk 失败不影响主流程
+            logger.debug(f"Text chunk emit failed: {e}")
 
     def _fire_lifecycle_hook(self, event: str, kwargs: Dict[str, Any] = None):
         """
