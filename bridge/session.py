@@ -633,7 +633,11 @@ class BridgeSession:
         original_dir = os.getcwd()
         try:
             if self.config.work_dir and os.path.isdir(self.config.work_dir):
-                os.chdir(self.config.work_dir)
+                # 确保 work_dir 是绝对路径
+                abs_work_dir = os.path.abspath(self.config.work_dir)
+                logger.info(f"Bridge session: work_dir={self.config.work_dir}, abs_work_dir={abs_work_dir}")
+                os.chdir(abs_work_dir)
+                logger.info(f"Bridge session: changed to {abs_work_dir}, cwd={os.getcwd()}")
 
             # 设置环境变量供 AgentLoop 使用
             if self.config.api_key:
@@ -653,6 +657,7 @@ class BridgeSession:
                 f"base_url={base_url or 'default'}"
             )
 
+            # 使用绝对路径作为 project_root
             config = {
                 "api_key": api_key,
                 "base_url": base_url,
@@ -663,8 +668,9 @@ class BridgeSession:
                 "enable_hooks": True,
                 "enable_skills": True,
                 "active_skills": [],
-                "project_root": self.config.work_dir,  # 工具文件操作的基准路径
+                "project_root": abs_work_dir if self.config.work_dir else os.getcwd(),  # 工具文件操作的基准路径
             }
+            logger.info(f"Bridge session: config.project_root={config['project_root']}")
 
             self._agent_loop = AgentLoop(config)
 

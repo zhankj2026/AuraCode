@@ -231,6 +231,7 @@ def enter_plan_mode_handler(reason: str = "") -> str:
 
     # 生成 plan 文件路径（使用 AgentLoop 注入的 project_root，而非 os.getcwd()）
     cwd = get_project_root()
+    logger.info(f"enter_plan_mode: project_root={cwd}, os.getcwd()={os.getcwd()}")
     plan_file = _generate_plan_file_path(cwd)
     set_plan_mode(True, reason=reason, plan_file=plan_file)
     logger.info(f"进入计划模式: reason={reason}, plan_file={plan_file}")
