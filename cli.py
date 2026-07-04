@@ -533,6 +533,28 @@ def main():
         print(f"❌ 初始化失败: {e}")
         sys.exit(1)
 
+    # 初始化 Cron 调度器并注册回调
+    try:
+        from tools.builtin.cron_tool import get_cron_scheduler
+        
+        def cron_execute_callback(job):
+            """Cron 任务触发时执行的回调"""
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"[Cron] Executing job {job.job_id}: {job.prompt[:50]}...")
+            # 将 prompt 发送到 AgentLoop
+            try:
+                result = loop.run(job.prompt)
+                logger.info(f"[Cron] Job {job.job_id} completed: {result.summary[:50] if result.summary else 'done'}")
+            except Exception as e:
+                logger.error(f"[Cron] Job {job.job_id} failed: {e}")
+        
+        scheduler = get_cron_scheduler()
+        scheduler.register_callback(cron_execute_callback)
+        print("📅 Cron 调度器已启动")
+    except Exception as e:
+        print(f"⚠️ Cron 调度器初始化失败: {e}")
+
     # 创建命令执行器
     executor = CommandExecutor(loop)
 

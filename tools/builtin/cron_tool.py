@@ -458,9 +458,14 @@ class CronScheduler:
 
     def _fire_job(self, job: CronJob):
         """触发任务执行"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         start = time.time()
         success = True
         message = ""
+
+        logger.info(f"[CronScheduler] Firing job {job.job_id}: {job.prompt[:50]}...")
 
         try:
             for cb in self._callbacks:
@@ -469,6 +474,7 @@ class CronScheduler:
         except Exception as e:
             success = False
             message = f"Task failed: {e}"
+            logger.error(f"[CronScheduler] Job {job.job_id} failed: {e}")
 
         duration = time.time() - start
 
@@ -774,7 +780,9 @@ _cron_scheduler: Optional[CronScheduler] = None
 
 
 def get_cron_scheduler() -> CronScheduler:
+    """获取全局 CronScheduler 单例（自动启动）"""
     global _cron_scheduler
     if _cron_scheduler is None:
         _cron_scheduler = CronScheduler()
+        _cron_scheduler.start()  # 自动启动调度器
     return _cron_scheduler
