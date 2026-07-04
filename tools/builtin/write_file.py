@@ -12,31 +12,48 @@
 
 """写入文件工具 — 精简返回值"""
 import os
+import logging
 from datetime import datetime
 from tools.registry import register_tool
 from .undo_edit import record_edit
 
+logger = logging.getLogger(__name__)
+
 
 def write_file_handler(path: str, content: str) -> str:
     """写入内容到文件，返回精简信息"""
-    directory = os.path.dirname(path)
-    if directory and not os.path.exists(directory):
-        os.makedirs(directory, exist_ok=True)
+    # 验证参数
+    if not path:
+        raise ValueError("文件路径不能为空")
+    if content is None:
+        raise ValueError("文件内容不能为 None")
+    
+    logger.info(f"write_file: path={path}, content_len={len(content)}")
+    
+    try:
+        directory = os.path.dirname(path)
+        if directory and not os.path.exists(directory):
+            os.makedirs(directory, exist_ok=True)
 
-    # 写入前备份已有文件（支持 undo_edit）
-    backup_path = None
-    if os.path.exists(path):
-        try:
-            backup_path = _create_backup(path)
-            record_edit(path, backup_path, open(path, 'r', encoding='utf-8').read())
-        except Exception:
-            pass
+        # 写入前备份已有文件（支持 undo_edit）
+        backup_path = None
+        if os.path.exists(path):
+            try:
+                backup_path = _create_backup(path)
+                record_edit(path, backup_path, open(path, 'r', encoding='utf-8').read())
+            except Exception as e:
+                logger.warning(f"备份文件失败: {e}")
 
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(content)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
 
-    lines = content.count('\n') + (0 if content.endswith('\n') else 1)
-    return f"Wrote {len(content)} chars ({lines} lines) to {path}"
+        lines = content.count('\n') + (0 if content.endswith('\n') else 1)
+        result = f"Wrote {len(content)} chars ({lines} lines) to {path}"
+        logger.info(f"write_file success: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"write_file failed: {e}", exc_info=True)
+        raise
 
 
 def _create_backup(path: str) -> str:

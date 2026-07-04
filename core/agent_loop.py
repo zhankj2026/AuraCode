@@ -1700,7 +1700,9 @@ class AgentLoop:
                 self._track_file_history(tool_name, arguments)
 
                 handler = tool["handler"]
+                logger.info(f"Executing handler for {tool_name} with args: {list(arguments.keys())}")
                 result = handler(**arguments)
+                logger.info(f"Handler returned: {str(result)[:200]}")
 
                 # 5. 输出截断（基础保护）
                 if isinstance(result, str) and len(result.splitlines()) > 500:
