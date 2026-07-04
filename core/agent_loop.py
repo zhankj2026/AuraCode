@@ -782,7 +782,7 @@ class AgentLoop:
             from tools.builtin.plan_mode import (
                 is_plan_mode_active, get_plan_mode_reason,
                 get_plan_file_path, should_inject_reminder,
-                build_plan_mode_reminder,
+                build_plan_mode_reminder, get_plan_content,
             )
             if is_plan_mode_active():
                 plan_file = get_plan_file_path()
@@ -807,6 +807,17 @@ class AgentLoop:
                     if reason:
                         plan_msg += f"\nReason: {reason}\n"
                     parts.append(plan_msg)
+            else:
+                # Plan Mode 已退出，检查是否有已生成的计划文件
+                plan_file = get_plan_file_path()
+                if plan_file and get_plan_content():
+                    # 注入已生成的计划文件路径，让 AI 知道应该读取并执行
+                    parts.append(
+                        f"\n## 📋 Plan File Available\n\n"
+                        f"A plan file has been generated and approved: `{plan_file}`\n\n"
+                        "Read this file to understand the implementation plan, "
+                        "then start implementing it step by step.\n"
+                    )
         except ImportError:
             pass
 
