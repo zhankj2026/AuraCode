@@ -1753,6 +1753,11 @@ class AgentLoop:
                     if "project_root" not in arguments:
                         arguments["project_root"] = self.project_root
                 
+                # 为命令执行类工具传递 working_directory（基于 project_root）
+                if tool_name in ("run_command", "run_powershell"):
+                    if "working_directory" not in arguments:
+                        arguments["working_directory"] = self.project_root
+                
                 result = handler(**arguments)
                 logger.info(f"Handler returned: {str(result)[:200]}")
 
