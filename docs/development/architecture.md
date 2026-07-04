@@ -76,10 +76,27 @@ auracode/
 │   ├── history_log.py    # 全局交互历史（JSONL）
 │   ├── settings_store.py # 用户设置持久化
 │   ├── file_history.py   # 文件修改备份
-│   └── ...
+│   ├── session_transcript.py  # JSONL 增量转录
+│   ├── session_memory.py      # 会话记忆摘要
+│   ├── project_store.py       # 项目级配置
+│   ├── session_env.py         # 会话环境脚本
+│   ├── task_store.py          # 文件级任务持久化
+│   ├── away_summary.py        # 离开时摘要
+│   ├── tip_system.py          # 功能发现提示
+│   └── diagnostic_tracker.py  # LSP 错误追踪
 │
 ├── config/               # 配置系统
 │   └── __init__.py       # 配置加载/合并
+│
+├── core/                 # 核心引擎
+│   ├── agent_loop.py     # AgentLoop — TAOR 循环主体
+│   ├── session_state.py  # SessionState — 会话状态管理
+│   ├── context.py        # 项目上下文加载（AURACODE.md + 技术栈检测）
+│   ├── memory.py         # 记忆系统（MEMORY.md 管理 + LLM 驱动召回）
+│   ├── auto_memory.py    # 自动记忆提取引擎
+│   ├── message.py        # 消息格式化
+│   ├── subagent.py       # 子代理（并行任务分派）
+│   └── tool_enhancer.py  # 工具增强（自动摘要 + 幂等重试 + 输出裁剪）
 │
 └── docs/                 # 项目文档
     ├── index.md
