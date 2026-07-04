@@ -10,4 +10,17 @@
 # Project Homepage: http://www.auracode.top
 #
 
-# Configuration management
+"""
+配置管理模块
+
+提供统一的配置管理接口，支持：
+- 配置加载（YAML/JSON）
+- 配置验证
+- 配置热更新
+- 配置持久化
+"""
+
+from .manager import ConfigManager, config_manager
+from .schema import ConfigSchema
+
+__all__ = ['ConfigManager', 'ConfigSchema', 'config_manager']
