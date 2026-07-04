@@ -115,13 +115,13 @@ class AgentLoop:
             api_key=api_key,
             base_url=base_url,
             timeout=api_timeout,
-            max_retries=0,  # 禁用 SDK 内置重试，由 withRetry 外层控制
+            max_retries=0,  # 禁用 SDK 内置重试，由外层控制
         )
 
         # 2. 配置参数
         self.model = config.get("model", "glm-4.7")
         self.max_iterations = config.get("max_iterations", 20)
-        # 参考 claude-code/src/utils/context.ts: MAX_OUTPUT_TOKENS_DEFAULT = 32000
+        # 默认输出 token 限制
         self.max_tokens = config.get("max_tokens", 32000)
         # 工作目录：工具文件操作的基准路径（Bridge 模式下为用户指定的 work_dir）
         self.project_root = os.path.abspath(config.get("project_root", "."))
@@ -337,7 +337,6 @@ class AgentLoop:
         """
         主入口：处理用户输入并执行 Agent Loop
 
-        参考 QueryEngine.submitMessage + query.ts 循环。
         返回结构化 QueryResult（含状态/token/成本/耗时）。
 
         Args:
@@ -1059,11 +1058,10 @@ class AgentLoop:
 5. 保护用户隐私,不要泄露敏感信息"""
     
     # ── 错误分类与重试策略 ──────────────────────────────────────────
-    # 参考标准实现
 
-    _MAX_API_RETRIES = 10         # API 级最大重试次数（对标 withRetry.ts DEFAULT_MAX_RETRIES=10）
+    _MAX_API_RETRIES = 10         # API 级最大重试次数
     _MAX_BACKOFF_S = 32           # 非速率限制退避上限（秒）
-    _RATE_LIMIT_FLOOR_S = 8      # 速率限制最低等待（秒），参考 withRetry.ts BASE_DELAY_MS=500ms
+    _RATE_LIMIT_FLOOR_S = 8      # 速率限制最低等待（秒）
     _RATE_LIMIT_CAP_S = 60       # 速率限制最大等待（秒），避免过度等待
     _MAX_CONSECUTIVE_SERVER_ERRORS = 2  # 连续服务器错误后触发 fallback
 
@@ -1162,7 +1160,7 @@ class AgentLoop:
 
     def _get_retry_wait(self, error: Exception, attempt: int) -> float:
         """
-        根据错误类型计算重试等待时间（参考 withRetry.ts getRetryDelay）。
+        根据错误类型计算重试等待时间。
 
         优先级:
         1. Retry-After 响应头（最精确，直接使用 + 10% 抖动）
@@ -1204,7 +1202,7 @@ class AgentLoop:
 
     def _extract_retry_after(self, error: Exception) -> Optional[float]:
         """
-        从异常中提取 Retry-After 响应头（参考 withRetry.ts getRetryAfter）。
+        从异常中提取 Retry-After 响应头。
         兼容 openai SDK 多种异常类型的 headers 访问路径。
         """
         # 路径 1: error.response.headers (httpx.Response)
@@ -1828,7 +1826,6 @@ class AgentLoop:
         """
         Level -1 - ImageStrip: 剥离消息中的大图片和 base64 数据。
 
-        参考 ImageStrip 机制：
         当上下文包含 base64 编码的图片或大型嵌入数据时，
         将其替换为占位符，释放 token 空间。
 
@@ -1887,7 +1884,7 @@ class AgentLoop:
         Level 0 - Snip: 激进裁剪旧的工具输出。
 
         保留最近 8 条消息完整内容，更早的 tool/assistant 消息
-        只保留前 100 字符摘要。参考 query.ts 的 Snip 机制。
+        只保留前 100 字符摘要。
         """
         msgs = self.state.messages
         if len(msgs) <= 8:
@@ -1922,8 +1919,6 @@ class AgentLoop:
     def _compact_messages_llm(self, old_msgs: List[Dict]) -> str:
         """
         Level 2 - LLM-driven summary: 用 LLM 生成旧消息的高质量摘要。
-
-        参考 query.ts 的 microcompact 机制。
         """
         try:
             # 构建摘要请求
@@ -1991,7 +1986,6 @@ class AgentLoop:
         """
         Level 0.5 - Microcompact: 清除旧工具结果内容，保留消息结构。
 
-        参考 apiMicrocompact.ts 的 TOOLS_CLEARABLE_RESULTS 机制：
         - 识别可清除的工具（读类型：shell/grep/glob/read/web...）
         - 保留最近 keep_recent 个结果
         - 更早的结果替换为占位符文本
@@ -2199,7 +2193,6 @@ class AgentLoop:
         当文件先被 read_file 读取、后被 write_file/replace_in_file 修改时，
         旧的读取结果已不再有意义，将其折叠为简短摘要。
 
-        参考 services/contextCollapse 的 projectView() 机制：
         - 读时投影：在发送给 LLM 前替换旧消息
         - 保留文件元信息（路径、行数），清除完整文件内容
 
@@ -2279,7 +2272,6 @@ class AgentLoop:
         """
         多级上下文压缩：Snip → Microcompact → ContextCollapse → LLM-driven AutoCompact。
 
-        参考 query.ts 的 4 级压缩机制：
         - Level 0: Snip — 裁剪旧工具输出
         - Level 0.5: Microcompact — 清除旧可丢弃工具结果
         - Level 1: ContextCollapse — 折叠过时文件读取

@@ -99,7 +99,7 @@ class CoordinatorMode:
     
     def handle_task_notification(self, notification: Dict[str, Any]) -> str:
         """
-        处理 Worker 任务通知（参考标准实现 <task-notification>）
+        处理 Worker 任务通知
         
         Args:
             notification: 任务通知字典
@@ -292,7 +292,7 @@ class CoordinatorMode:
         """
         决策：Continue（SendMessage）还是 Spawn（新 Agent）
         
-        决策矩阵（参考标准实现）:
+        决策矩阵:
         
         | 情况 | 机制 | 原因 |
         |------|------|------|
@@ -408,7 +408,7 @@ coordinator = CoordinatorMode()
 
 def get_coordinator_system_prompt() -> str:
     """
-    获取 Coordinator 系统提示词（参考标准实现 getCoordinatorSystemPrompt）
+    获取 Coordinator 系统提示词
     
     包含:
     - 角色定义

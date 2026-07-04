@@ -33,7 +33,6 @@ from commands.registry import register_command
 CHARS_PER_TOKEN = 3.5
 
 # 常见模型的上下文窗口大小（token 数）
-# 参考 claude-code/src/utils/context.ts 配置
 MODEL_CONTEXT_SIZES = {
     # GLM 系列
     "glm-4": 128_000,
@@ -68,7 +67,7 @@ MODEL_CONTEXT_SIZES = {
     "qwen-max": 32_000,
     "qwen-plus": 128_000,
     "qwen-turbo": 128_000,
-    # 默认值（与 claude-code 一致）
+    # 默认值
     "default": 200_000,
 }
 

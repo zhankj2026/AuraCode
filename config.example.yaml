@@ -15,13 +15,10 @@ llm:
   # base_url: https://api.openai.com/v1
   # api_key: "sk-your-openai-key"
   
-  # 最大输出 token 数（参考 claude-code/src/utils/context.ts）
-  # 默认 32000，上限 64000
+  # 最大输出 token 数
   max_tokens: 32000
   temperature: 0.2
-  # API 超时（秒），对标 Claude Code 600s。默认 300s (5min)
-  # LLM streaming 场景下复杂任务首 token 延迟可能 > 60s
-  # 也可通过环境变量 API_TIMEOUT_MS 设置（单位毫秒）
+  # API 超时（秒）
   api_timeout: 300
 
 # 权限配置
@@ -42,7 +39,7 @@ agent:
 
 # 上下文配置
 context:
-  load_claude_md: true
+  load_project_md: true
   max_files_read: 10
 
 # 日志配置

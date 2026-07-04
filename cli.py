@@ -503,7 +503,7 @@ def main():
         "enable_skills": True,
         "active_skills": [],
         # 从配置文件加载的其他配置
-        # 参考 claude-code/src/utils/context.ts: MAX_OUTPUT_TOKENS_DEFAULT = 32000
+        # 默认输出 token 限制
         "max_tokens": file_config.get("llm", {}).get("max_tokens", 32000),
         "temperature": file_config.get("llm", {}).get("temperature", 0.2),
     }

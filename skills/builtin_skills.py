@@ -45,22 +45,23 @@ LANGUAGE_INDICATORS: Dict[str, List[str]] = {
 }
 
 # 各语言的 API 开发核心指南（精简版，实际使用 web_fetch 获取最新文档）
+# 注意: 以下为通用示例，实际使用时请根据用户选择的 LLM 提供商调整
 API_GUIDELINES: Dict[str, str] = {
     "python": """### Python SDK 核心用法
 
 ```python
-# 安装: pip install anthropic
-import anthropic
+# 安装: pip install openai
+import openai
 
-client = anthropic.Anthropic()  # 自动读取 ANTHROPIC_API_KEY
+client = openai.OpenAI()  # 自动读取 OPENAI_API_KEY 环境变量
 
 # 基础调用
-message = client.messages.create(
-    model="claude-sonnet-4-20250514",
+message = client.chat.completions.create(
+    model="gpt-4",
     max_tokens=1024,
-    messages=[{"role": "user", "content": "Hello, Claude"}]
+    messages=[{"role": "user", "content": "Hello!"}]
 )
-print(message.content[0].text)
+print(message.choices[0].message.content)
 
 # 流式调用
 with client.messages.stream(
@@ -93,58 +94,56 @@ message = client.messages.create(
     "typescript": """### TypeScript SDK 核心用法
 
 ```typescript
-// 安装: npm install @anthropic-ai/sdk
-import Anthropic from '@anthropic-ai/sdk';
+// 安装: npm install openai
+import OpenAI from 'openai';
 
-const client = new Anthropic();  // 自动读取 ANTHROPIC_API_KEY
+const client = new OpenAI();  // 自动读取 OPENAI_API_KEY 环境变量
 
 // 基础调用
-const message = await client.messages.create({
-  model: 'claude-sonnet-4-20250514',
+const completion = await client.chat.completions.create({
+  model: 'gpt-4',
   max_tokens: 1024,
-  messages: [{ role: 'user', content: 'Hello, Claude' }],
+  messages: [{ role: 'user', content: 'Hello!' }],
 });
-console.log(message.content[0].text);
+console.log(completion.choices[0].message.content);
 
 // 流式调用
-const stream = client.messages.stream({
-  model: 'claude-sonnet-4-20250514',
+const stream = await client.chat.completions.create({
+  model: 'gpt-4',
   max_tokens: 1024,
   messages: [{ role: 'user', content: 'Hello' }],
+  stream: true,
 });
-for await (const event of stream) {
-  if (event.type === 'content_block_delta') {
-    process.stdout.write(event.delta.text);
-  }
+for await (const chunk of stream) {
+  process.stdout.write(chunk.choices[0].delta.content || '');
 }
 
 // 工具调用
-const tools = [{ name: 'get_weather', description: 'Get weather',
-  input_schema: { type: 'object',
-    properties: { city: { type: 'string' } } } }];
+const tools = [{ type: 'function', function: { name: 'get_weather', description: 'Get weather',
+  parameters: { type: 'object',
+    properties: { city: { type: 'string' } } } } }];
 ```
 
 **关键概念:**
-- `messages.create()` — 单次调用
-- `messages.stream()` — 流式输出（AsyncIterable）
+- `chat.completions.create()` — 单次调用
+- `stream` 参数 — 流式输出（AsyncIterable）
 - `tools` 参数 — 函数调用/工具使用
 - `system` 参数 — 系统提示
-- Prompt Caching — 通过 `cache_control` 字段
 """,
     "go": """### Go SDK 核心用法
 
 ```go
-// 安装: go get github.com/anthropics/anthropic-sdk-go
-import "github.com/anthropics/anthropic-sdk-go"
+// 安装: go get github.com/sashabaranov/go-openai
+import openai "github.com/sashabaranov/go-openai"
 
-client := anthropic.NewClient()  // 自动读取 ANTHROPIC_API_KEY
+client := openai.NewClient()  // 自动读取 OPENAI_API_KEY 环境变量
 
-message, err := client.Messages.New(ctx, anthropic.MessageNewParams{
-    Model:     anthropic.F(anthropic.ModelClaudeSonnet420250514),
-    MaxTokens: anthropic.F(int64(1024)),
-    Messages: anthropic.F([]anthropic.MessageParam{
-        anthropic.NewUserMessage(anthropic.NewTextBlock("Hello")),
-    }),
+resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+    Model:     openai.GPT4,
+    MaxTokens: 1024,
+    Messages: []openai.ChatCompletionMessage{
+        {Role: openai.ChatMessageRoleUser, Content: "Hello!"},
+    },
 })
 ```
 """,
@@ -240,7 +239,7 @@ def _api_dev_prompt(args: str) -> str:
         "",
         f"**Detected project language:** {lang_label}",
         "",
-        "You are helping the user build applications with the Claude API / Anthropic SDK.",
+        "You are helping the user build applications with their chosen LLM API.",
         "Provide language-specific code examples, best practices, and troubleshooting.",
     ]
 

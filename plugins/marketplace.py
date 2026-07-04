@@ -43,20 +43,18 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 # ── 官方 Marketplace 常量 ────────────────────────────────────
-# 参考业界标准实现
 
 OFFICIAL_MARKETPLACE_NAME = "auracode-plugins-official"
 OFFICIAL_MARKETPLACE_SOURCE = {
     "source": "github",
-    "url": "https://github.com/anthropics/claude-plugins-official",
-    "repo": "anthropics/claude-plugins-official",
+    "url": "https://github.com/zhankj2026/auracode-plugins-official",
+    "repo": "zhankj2026/auracode-plugins-official",
 }
 
 # 环境变量: 设为 1/true/yes 禁用官方 marketplace 自动安装
 ENV_DISABLE_OFFICIAL_AUTOINSTALL = "AURACODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL"
 
 # ── 重试配置 ──────────────────────────────────────────────────
-# 参考业界标准实现
 
 RETRY_CONFIG = {
     "max_attempts": 10,

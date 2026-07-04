@@ -30,7 +30,6 @@ class ConfigScope(Enum):
     PROJECT = "project"
     DYNAMIC = "dynamic"
     ENTERPRISE = "enterprise"
-    CLAUDEAI = "claudeai"
     MANAGED = "managed"
 
 
@@ -126,10 +125,10 @@ class McpWebSocketIDEServerConfig:
 
 
 @dataclass
-class McpClaudeAIProxyServerConfig:
+class McpAIProxyServerConfig:
     """AI 代理服务器配置。"""
 
-    type: str = "claudeai-proxy"
+    type: str = "ai-proxy"
     url: str = ""
     id: str = ""
 
@@ -143,7 +142,7 @@ McpServerConfig = Union[
     McpSdkServerConfig,
     McpSSEIDEServerConfig,
     McpWebSocketIDEServerConfig,
-    McpClaudeAIProxyServerConfig,
+    McpAIProxyServerConfig,
 ]
 
 

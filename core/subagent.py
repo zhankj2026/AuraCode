@@ -95,14 +95,14 @@ class AgentDefinition:
         tools: Read, Grep, Glob
         disallowedTools: Write, Edit, Agent
         model: haiku
-        omitClaudeMd: true
+        omitProjectMd: true
         background: false
         ---
 
         Agent 具体提示词内容...
 
         Returns:
-            包含 name, description, tools, disallowedTools, model, prompt, omitClaudeMd, background 等的字典
+            包含 name, description, tools, disallowedTools, model, prompt, omitProjectMd, background 等的字典
         """
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -170,7 +170,7 @@ class AgentDefinition:
                 'tools': tools_list,
                 'disallowedTools': disallowed_list,
                 'model': metadata.get('model', 'sonnet'),
-                'omitClaudeMd': parse_bool(metadata.get('omitClaudeMd', 'false')),
+                'omitProjectMd': parse_bool(metadata.get('omitProjectMd', 'false')),
                 'background': parse_bool(metadata.get('background', 'false')),
                 'prompt': prompt_text,
                 'file_path': file_path
