@@ -28,28 +28,43 @@ def write_file_handler(path: str, content: str) -> str:
     if content is None:
         raise ValueError("文件内容不能为 None")
     
-    logger.info(f"write_file: path={path}, content_len={len(content)}")
+    # 详细日志：显示路径解析过程
+    cwd = os.getcwd()
+    abs_path = os.path.abspath(path)
+    logger.info(f"write_file: original_path={path}")
+    logger.info(f"write_file: cwd={cwd}")
+    logger.info(f"write_file: abs_path={abs_path}")
+    logger.info(f"write_file: content_len={len(content)}")
     
     try:
-        directory = os.path.dirname(path)
+        directory = os.path.dirname(abs_path)
         if directory and not os.path.exists(directory):
             os.makedirs(directory, exist_ok=True)
+            logger.info(f"write_file: created directory {directory}")
 
         # 写入前备份已有文件（支持 undo_edit）
         backup_path = None
-        if os.path.exists(path):
+        if os.path.exists(abs_path):
             try:
-                backup_path = _create_backup(path)
-                record_edit(path, backup_path, open(path, 'r', encoding='utf-8').read())
+                backup_path = _create_backup(abs_path)
+                record_edit(abs_path, backup_path, open(abs_path, 'r', encoding='utf-8').read())
             except Exception as e:
                 logger.warning(f"备份文件失败: {e}")
 
-        with open(path, "w", encoding="utf-8") as f:
+        with open(abs_path, "w", encoding="utf-8") as f:
             f.write(content)
 
         lines = content.count('\n') + (0 if content.endswith('\n') else 1)
-        result = f"Wrote {len(content)} chars ({lines} lines) to {path}"
+        result = f"Wrote {len(content)} chars ({lines} lines) to {abs_path}"
         logger.info(f"write_file success: {result}")
+        
+        # 验证文件确实写入成功
+        if os.path.exists(abs_path):
+            actual_size = os.path.getsize(abs_path)
+            logger.info(f"write_file verified: file exists, size={actual_size} bytes")
+        else:
+            logger.error(f"write_file ERROR: file does not exist after write: {abs_path}")
+        
         return result
     except Exception as e:
         logger.error(f"write_file failed: {e}", exc_info=True)

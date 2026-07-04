@@ -126,6 +126,8 @@ class AgentLoop:
         self.max_tokens = config.get("max_tokens", 32000)
         # 工作目录：工具文件操作的基准路径（Bridge 模式下为用户指定的 work_dir）
         self.project_root = os.path.abspath(config.get("project_root", "."))
+        # 详细日志：显示 project_root 解析结果
+        logger.info(f"AgentLoop init: project_root={self.project_root}, cwd={os.getcwd()}, config.project_root={config.get('project_root', '.')}")
         # 注入 project_root 到 plan_mode 模块（替代 os.getcwd()）
         try:
             from tools.builtin.plan_mode import set_project_root
@@ -1708,11 +1710,14 @@ class AgentLoop:
         attempt = 0
         while attempt <= max_retries:
             try:
+                # 路径解析：将相对路径转换为绝对路径
                 for pk in ("path", "file_path", "directory"):
                     if pk in arguments and isinstance(arguments[pk], str):
                         p = arguments[pk]
+                        original_p = p
                         if not os.path.isabs(p):
                             arguments[pk] = os.path.join(self.project_root, p)
+                        logger.info(f"Path resolution [{pk}]: {original_p} -> {arguments[pk]} (project_root={self.project_root})")
 
                 # plan_mode: 每次执行前刷新 project_root（多线程 Bridge 安全）
                 if tool_name in ("enter_plan_mode", "exit_plan_mode"):
