@@ -71,3 +71,6 @@ from . import cd_command
 
 # Command execution (exec/run/shell)
 from . import exec_command
+
+# Goal-driven Loop (Loop Engineering)
+from . import goal_command

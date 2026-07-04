@@ -68,6 +68,7 @@ from skills.loader import SkillManager
 from skills.context import SkillContext
 from core.tool_enhancer import get_tool_enhancer
 from core.auto_memory import AutoMemoryExtractor
+from core.validator import get_validator, ValidationResult
 
 logger = logging.getLogger(__name__)
 
@@ -1749,6 +1750,10 @@ class AgentLoop:
                     except Exception as e:
                         logger.warning(f"PostToolUse 钩子执行失败: {e}")
 
+                # 7. 自动验证（代码修改后）
+                if tool_name in ("write_file", "edit_file", "search_replace"):
+                    self._auto_validate_after_change(tool_name, arguments)
+
                 return {"success": True, "result": result}
 
             except Exception as e:
@@ -2119,6 +2124,52 @@ class AgentLoop:
             self._cc_file_ops.append((msg_idx, "read", abs_path))
         elif tool_name in self._CC_WRITE_TOOLS:
             self._cc_file_ops.append((msg_idx, "write", abs_path))
+
+    def _auto_validate_after_change(self, tool_name: str, arguments: Dict[str, Any]):
+        """
+        代码修改后自动验证
+
+        在 write_file/edit_file/search_replace 执行后，
+        异步运行验证，如果发现问题会通知用户。
+        """
+        # 检查是否启用自动验证
+        if not getattr(self, '_auto_validate_enabled', True):
+            return
+
+        # 获取修改的文件路径
+        file_path = arguments.get("path") or arguments.get("file_path", "")
+        if not file_path:
+            return
+
+        # 只验证代码文件
+        ext = os.path.splitext(file_path)[1].lower()
+        code_extensions = {".py", ".js", ".ts", ".tsx", ".jsx", ".go", ".java", ".cpp", ".c"}
+        if ext not in code_extensions:
+            return
+
+        # 在后台线程中运行验证（避免阻塞主流程）
+        def run_validation():
+            try:
+                validator = get_validator(self.project_root)
+                result = validator.validate([file_path], run_tests=False)
+
+                if not result.passed:
+                    # 验证失败，发出事件通知
+                    error_summary = "; ".join(result.errors[:3])
+                    logger.warning(f"Auto-validation failed for {file_path}: {error_summary}")
+                    self._emit_event("validation_failed", {
+                        "file_path": file_path,
+                        "errors": result.errors[:5],
+                        "summary": error_summary,
+                    })
+                else:
+                    logger.debug(f"Auto-validation passed for {file_path}")
+            except Exception as e:
+                logger.warning(f"Auto-validation error: {e}")
+
+        # 启动后台验证线程
+        thread = threading.Thread(target=run_validation, daemon=True)
+        thread.start()
 
     # ── 全局历史日志 + 文件修改历史 ───────────────────────────
 
