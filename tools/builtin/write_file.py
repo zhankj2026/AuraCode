@@ -30,11 +30,18 @@ def write_file_handler(path: str, content: str, project_root: str = None) -> str
     
     # 详细日志：显示路径解析过程
     cwd = os.getcwd()
-    # 如果提供了 project_root，使用它来解析路径；否则使用 cwd
-    if project_root and not os.path.isabs(path):
+    # 路径解析：支持相对路径和绝对路径
+    # - 绝对路径：直接使用
+    # - 相对路径：基于 project_root 或 cwd 解析
+    if os.path.isabs(path):
+        abs_path = path
+        logger.info(f"write_file: absolute path, use directly")
+    elif project_root:
         abs_path = os.path.join(project_root, path)
+        logger.info(f"write_file: relative path, resolve against project_root")
     else:
         abs_path = os.path.abspath(path)
+        logger.info(f"write_file: relative path, resolve against cwd")
     logger.info(f"write_file: original_path={path}")
     logger.info(f"write_file: project_root={project_root}")
     logger.info(f"write_file: cwd={cwd}")
