@@ -87,14 +87,22 @@ class PluginLoader:
             logger.warning(f"插件目录不存在: {self.plugins_dir}")
             return []
         
+        # 跳过非插件文件
+        skip_files = {
+            '__init__.py', 'base.py', 'loader.py', 'builtin.py',
+            'marketplace.py', 'plugin_installer.py', 'registry.py', 'zip_cache.py'
+        }
+        
         plugin_files = []
         for filename in os.listdir(self.plugins_dir):
             # 只加载 plugins/ 目录下的 .py 文件
             # 跳过 __init__.py, base.py, loader.py, builtin.py
+            # 跳过 marketplace.py, plugin_installer.py, registry.py, zip_cache.py
             # 跳过 example_ 开头的示例插件
             if (filename.endswith('.py') and 
                 not filename.startswith('_') and
-                filename not in ['base.py', 'loader.py', 'builtin.py']):
+                filename not in skip_files and
+                not filename.startswith('example_')):
                 plugin_files.append(filename)
         
         logger.info(f"扫描到 {len(plugin_files)} 个插件文件")
