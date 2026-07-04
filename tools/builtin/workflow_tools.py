@@ -59,53 +59,26 @@ def dynamic_workflow_handler(
         )
     """
     from core.coordinator import coordinator
-    from core.workflow_types import WorkflowScript
+    from core.workflow_generator import generate_workflow_script
     import json
     
-    # Phase 1: LLM 生成脚本（简化版，实际应调用 LLM）
-    # TODO: 实现完整的 WorkflowScriptGenerator
+    # Phase 1: 使用 WorkflowScriptGenerator 生成脚本
+    try:
+        workflow_script = generate_workflow_script(task)
+        workflow_template = workflow_script.to_dict()
+    except Exception as e:
+        logger.error(f"Failed to generate workflow: {e}")
+        return f"❌ 工作流生成失败: {e}"
     
-    # 这里提供模板脚本供演示
-    workflow_template = {
-        "name": f"workflow-{task[:30].replace(' ', '-')}",
-        "description": task,
-        "stages": [
-            {
-                "name": "research",
-                "agents": [
-                    {
-                        "prompt": f"研究任务：{task}\n\n分析影响范围和关键文件。",
-                        "agent_type": "explore"
-                    }
-                ],
-                "depends": [],
-                "synthesize": True,
-                "synthesize_prompt": "总结研究发现，列出关键文件和影响范围。"
-            },
-            {
-                "name": "implementation",
-                "agents": [
-                    {
-                        "prompt": f"根据研究发现，执行任务：{task}",
-                        "agent_type": "general"
-                    }
-                ],
-                "depends": ["research"],
-                "synthesize": True
-            },
-            {
-                "name": "verification",
-                "agents": [
-                    {
-                        "prompt": f"验证任务完成质量：{task}\n\n检查是否符合要求。",
-                        "agent_type": "review"
-                    }
-                ],
-                "depends": ["implementation"],
-                "synthesize": False
-            }
-        ]
-    }
+    # Phase 2: 验证脚本
+    errors = workflow_script.validate()
+    if errors:
+        return (
+            f"❌ 生成的工作流脚本存在错误\n\n"
+            f"**任务**: {task}\n\n"
+            f"**错误列表**:\n" + 
+            "\n".join([f"- {err}" for err in errors])
+        )
     
     # 如果没有自动审批，显示脚本供用户确认
     if not auto_approve:
