@@ -37,6 +37,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from core.agent_loop import AgentLoop
 from commands.registry import COMMAND_REGISTRY, get_command_list, get_commands_by_category
 from core.session_store import SessionStore, auto_save_session
+from config import config_manager
 
 # 配置日志
 logging.basicConfig(
@@ -483,18 +484,27 @@ def main():
     if not check_api_key():
         sys.exit(1)
 
-    # 构建配置
+    # 加载配置文件
+    config_manager.load()
+    
+    # 获取配置并合并命令行参数
+    file_config = config_manager.get_all()
+    
+    # 构建配置（优先级：命令行参数 > 配置文件 > 默认值）
     config = {
         "api_key": os.environ.get("OPENAI_API_KEY"),
-        "base_url": args.base_url or os.environ.get("OPENAI_BASE_URL"),
-        "model": args.model,
-        "max_iterations": args.max_iterations,
+        "base_url": args.base_url or os.environ.get("OPENAI_BASE_URL") or file_config.get("llm", {}).get("base_url"),
+        "model": args.model or file_config.get("llm", {}).get("model", "glm-4-plus"),
+        "max_iterations": args.max_iterations or file_config.get("max_iterations", 20),
         "permission_mode": args.mode,
         # 启用扩展系统
         "enable_plugins": True,
         "enable_hooks": True,
         "enable_skills": True,
-        "active_skills": []
+        "active_skills": [],
+        # 从配置文件加载的其他配置
+        "max_tokens": file_config.get("llm", {}).get("max_tokens", 4096),
+        "temperature": file_config.get("llm", {}).get("temperature", 0.2),
     }
 
     # 命令模式

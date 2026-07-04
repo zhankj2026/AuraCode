@@ -23,7 +23,7 @@
     /config-edit set <key> <val>  — 设置配置值（热生效）
     /config-edit reload           — 从文件重新加载配置
     /config-edit diff             — 对比运行时配置与文件配置
-    /config-edit path             — 显示配置文件路径
+    /config-edit path             — 显示配置文件的路径
 """
 
 import os
@@ -32,23 +32,29 @@ import copy
 import logging
 from typing import Optional, Dict, Any
 from commands.registry import register_command
+from config import config_manager
 
 logger = logging.getLogger(__name__)
 
-# 运行时配置（内存中的副本）
-_runtime_config: Dict[str, Any] = {}
-# 配置文件路径
-_config_path: Optional[str] = None
-# 原始文件配置（用于 diff）
-_file_config: Dict[str, Any] = {}
+# 向后兼容：保留旧变量名，但实际使用 config_manager
+_runtime_config = config_manager._config
+_config_path = config_manager._config_path
+_file_config = config_manager._file_config
 
 
 def set_config(config: Dict[str, Any], config_path: str = None):
-    """初始化运行时配置"""
+    """初始化运行时配置（向后兼容）"""
     global _runtime_config, _config_path, _file_config
-    _runtime_config = copy.deepcopy(config)
-    _file_config = copy.deepcopy(config)
-    _config_path = config_path
+    
+    # 使用 config_manager 加载配置
+    config_manager.load(config_dict=config)
+    if config_path:
+        config_manager._config_path = config_path
+    
+    # 更新向后兼容的变量
+    _runtime_config = config_manager._config
+    _config_path = config_manager._config_path
+    _file_config = config_manager._file_config
 
 
 def get_runtime_config() -> Dict[str, Any]:
@@ -57,58 +63,46 @@ def get_runtime_config() -> Dict[str, Any]:
 
 
 def _load_config() -> Dict[str, Any]:
-    """从文件加载配置"""
-    if not _config_path or not os.path.exists(_config_path):
+    """从文件加载配置（使用 config_manager）"""
+    if not config_manager._config_path:
         return {}
+    
     try:
-        with open(_config_path, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f) or {}
+        success = config_manager.reload()
+        return config_manager._config if success else {}
     except Exception as e:
         logger.error(f"加载配置失败: {e}")
         return {}
 
 
 def _save_config(cfg: Dict[str, Any]) -> bool:
-    """保存配置到文件"""
-    if not _config_path:
-        return False
+    """保存配置到文件（使用 config_manager）"""
     try:
-        with open(_config_path, 'w', encoding='utf-8') as f:
-            yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True)
-        return True
+        # 更新 config_manager 的配置
+        config_manager._config = cfg
+        # 保存
+        return config_manager.save()
     except Exception as e:
         logger.error(f"保存配置失败: {e}")
         return False
 
 
 def _get_nested(config: Dict, key: str) -> Any:
-    """获取嵌套配置值（支持 dot notation: llm.model）"""
-    parts = key.split(".")
-    current = config
-    for part in parts:
-        if isinstance(current, dict) and part in current:
-            current = current[part]
-        else:
-            return None
-    return current
+    """获取嵌套配置值（使用 config_manager.get）"""
+    return config_manager.get(key)
 
 
 def _set_nested(config: Dict, key: str, value: Any) -> bool:
-    """设置嵌套配置值"""
-    parts = key.split(".")
-    current = config
-    for part in parts[:-1]:
-        if part not in current:
-            current[part] = {}
-        current = current[part]
-
-    last = parts[-1]
-    # 尝试类型转换
-    old_val = current.get(last)
-    if old_val is not None:
-        value = _coerce_type(value, type(old_val))
-    current[last] = value
-    return True
+    """设置嵌套配置值（使用 config_manager.set）"""
+    try:
+        # 尝试类型转换
+        old_val = config_manager.get(key)
+        if old_val is not None:
+            value = _coerce_type(value, type(old_val))
+        config_manager.set(key, value, notify=True)
+        return True
+    except Exception:
+        return False
 
 
 def _coerce_type(value: str, target_type: type) -> Any:
