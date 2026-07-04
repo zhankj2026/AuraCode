@@ -18,6 +18,7 @@ Coordinator 模式 - 多智能体协调者（P0 核心功能）
 2. 结果综合（禁止懒惰委托）
 3. Continue vs Spawn 决策支持
 4. 任务通知处理
+5. Dynamic Workflows 执行引擎
 
 核心设计原则:
 - Coordinator 必须综合 Worker 发现，禁止 "based on your findings"
@@ -557,6 +558,8 @@ def execute_workflow(self, model: str = "glm-4-plus") -> str:
     """
     执行已加载的工作流脚本
     
+    参考标准 Dynamic Workflows 的执行引擎。
+    
     Args:
         model: LLM 模型
     
@@ -575,6 +578,8 @@ def execute_workflow(self, model: str = "glm-4-plus") -> str:
         # 更新进度
         self._workflow_progress["status"] = "running"
         self._workflow_progress["started_at"] = datetime.now().isoformat()
+        
+        logger.info(f"Starting workflow execution: {self._workflow_script.name}")
         
         # 执行工作流
         result = orchestrator.run_workflow(self._workflow_script, model=model)
@@ -601,7 +606,27 @@ def execute_workflow(self, model: str = "glm-4-plus") -> str:
             report_lines.append(f"- Agent 数: {len(stage_result)}")
             completed = sum(1 for r in stage_result if r['status'] == 'completed')
             report_lines.append(f"- 完成: {completed}/{len(stage_result)}")
+            
+            # 显示关键发现
+            if stage_result:
+                report_lines.append(f"- 关键发现:")
+                for r in stage_result[:3]:  # 最多显示 3 个
+                    if r.get('result_preview'):
+                        preview = r['result_preview'][:100]
+                        report_lines.append(f"  - {r['agent_id']}: {preview}...")
+            
             report_lines.append("")
+        
+        # 添加中间结果摘要
+        if result.get('intermediate_store'):
+            report_lines.extend([
+                f"## 中间结果（上下文卸载）\n",
+            ])
+            for stage_name, content in result['intermediate_store'].items():
+                if isinstance(content, str):
+                    report_lines.append(f"**{stage_name}**:")
+                    report_lines.append(f"```\n{content[:300]}...\n```")
+                    report_lines.append("")
         
         report_lines.extend([
             f"## 最终结果\n",
@@ -613,6 +638,8 @@ def execute_workflow(self, model: str = "glm-4-plus") -> str:
     except Exception as e:
         self._workflow_progress["status"] = "failed"
         self._workflow_progress["error"] = str(e)
+        
+        logger.error(f"Workflow execution failed: {e}")
         
         return f"❌ 工作流执行失败: {e}"
 

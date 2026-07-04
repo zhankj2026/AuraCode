@@ -93,28 +93,19 @@ def dynamic_workflow_handler(
             f"3. 直接执行：设置 `auto_approve=True, save_script=True`"
         )
     
-    # Phase 2: 加载并执行工作流
+    # Phase 3: 加载并执行工作流
     coordinator.activate()
     
     try:
         # 加载脚本
         load_result = coordinator.load_workflow_script(workflow_template)
         
-        # 执行工作流
-        # 注意：实际执行需要 LLM API，这里返回准备就绪状态
-        progress = coordinator.get_workflow_progress()
+        # 检查加载是否成功
+        if "❌" in load_result:
+            return load_result
         
-        result_lines = [
-            f"✅ 工作流已加载并准备执行\n\n",
-            f"**任务**: {task}",
-            f"**名称**: {progress['workflow_name']}",
-            f"**状态**: {progress['status']}",
-            f"**阶段数**: {progress['stages_total']}",
-            f"**执行顺序**: {' -> '.join(coordinator._workflow_script.get_execution_order())}",
-            f"",
-            f"⚠️  实际执行需要 LLM API 配置",
-            f"当前已准备好执行框架。",
-        ]
+        # 执行工作流
+        execute_result = coordinator.execute_workflow(model="glm-4-plus")
         
         # 如果需要保存脚本
         if save_script:
@@ -123,9 +114,9 @@ def dynamic_workflow_handler(
                 workflow_name,
                 task
             )
-            result_lines.append(f"\n{save_result}")
+            execute_result += f"\n\n{save_result}"
         
-        return "\n".join(result_lines)
+        return execute_result
         
     except Exception as e:
         return f"❌ 工作流执行失败: {e}"
@@ -264,13 +255,16 @@ def execute_saved_workflow_handler(
     coordinator.activate()
     load_result = coordinator.load_workflow_script(workflow_data)
     
+    # 检查加载是否成功
+    if "❌" in load_result:
+        return load_result
+    
     # 执行工作流
-    # 注意：实际执行需要 LLM API
-    return (
-        f"{load_result}\n\n"
-        f"⚠️  实际执行需要 LLM API 配置\n"
-        f"工作流框架已准备就绪。"
-    )
+    try:
+        execute_result = coordinator.execute_workflow(model=model)
+        return execute_result
+    except Exception as e:
+        return f"❌ 工作流执行失败: {e}"
 
 
 # ── 注册工具 ──
