@@ -1660,6 +1660,32 @@ class AgentLoop:
                         )
                         logger.warning(error_msg)
                         return {"success": False, "error": error_msg}
+
+            # Plan mode 冷却期检查：防止模型在退出 plan mode 后立即写代码
+            # 检查是否刚刚退出了 plan mode（通过检查最近的工具调用）
+            if tool_name in ("write_file", "edit_file", "search_replace", "run_command"):
+                # 检查最近 5 个工具调用中是否有 exit_plan_mode
+                recent_tools = [m for m in self.state.messages[-10:]
+                               if m.get("role") == "assistant" and m.get("tool_calls")]
+                for msg in recent_tools[-3:]:  # 只检查最近 3 条 assistant 消息
+                    for tc in msg.get("tool_calls", []):
+                        if tc.get("function", {}).get("name") == "exit_plan_mode":
+                            # 找到了 exit_plan_mode，检查是否已经等待用户批准
+                            # 通过检查是否有用户消息在 exit_plan_mode 之后
+                            exit_idx = self.state.messages.index(msg)
+                            has_user_after = any(
+                                m.get("role") == "user"
+                                for m in self.state.messages[exit_idx:]
+                            )
+                            if not has_user_after:
+                                error_msg = (
+                                    "WAIT! You just exited plan mode. "
+                                    "You must wait for the user to review and approve your plan "
+                                    "before starting to code. "
+                                    "Please stop and wait for user confirmation."
+                                )
+                                logger.warning(error_msg)
+                                return {"success": False, "error": error_msg}
         except ImportError:
             pass  # plan_mode 模块未加载，跳过检查
 

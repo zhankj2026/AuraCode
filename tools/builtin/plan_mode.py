@@ -287,21 +287,25 @@ def exit_plan_mode_handler(plan_summary: str = "") -> str:
     if plan_content:
         msg = (
             "Your plan has been saved and is ready for user review.\n\n"
-            "## Approved Plan:\n\n"
+            "## Plan Content:\n\n"
             f"{plan_content}\n\n"
             "---\n"
-            "User has approved your plan. You can now start coding.\n\n"
-            "**Next steps:**\n"
-            "1. Use task_create to break the plan into implementation tasks "
-            "(one per major phase/step)\n"
-            "2. Start with the first task — set it to in_progress via task_update\n"
-            "3. Work through tasks sequentially, marking each done before starting the next\n"
+            "## ⚠️ IMPORTANT: WAIT FOR USER APPROVAL ⚠️\n\n"
+            "**DO NOT start coding yet!** The user needs to review and approve your plan first.\n\n"
+            "What happens next:\n"
+            "1. The user will review your plan\n"
+            "2. The user may approve, reject, or request changes\n"
+            "3. **Wait for explicit approval before writing any code**\n"
+            "4. Once approved, you can start implementing the plan\n\n"
+            f"Plan file saved to: `{plan_path}`\n"
         )
     else:
         msg = (
             "Plan mode exited. No plan file was written.\n"
             "You can now start coding, but consider creating a plan "
-            "for complex tasks.\n"
+            "for complex tasks.\n\n"
+            "**Note:** If this was a complex task, consider using enter_plan_mode "
+            "to plan before implementing."
         )
 
     return msg
@@ -388,8 +392,27 @@ register_tool("exit_plan_mode", {
         "Use this tool when you are in plan mode and have finished writing "
         "your plan to the plan file. This signals that you're done planning "
         "and ready for the user to review and approve.\n\n"
-        "IMPORTANT: Only use this tool when you have written a complete, "
-        "unambiguous plan. If you have unresolved questions, use ask_user first."
+        "## ⚠️ CRITICAL WORKFLOW ⚠️\n\n"
+        "1. Call this tool to submit your plan for approval\n"
+        "2. **STOP and WAIT** for the user to respond\n"
+        "3. The user will either:\n"
+        "   - Approve your plan (then you can start coding)\n"
+        "   - Request changes (then you must revise the plan)\n"
+        "   - Reject the plan (then you must propose a different approach)\n\n"
+        "**DO NOT** start writing code immediately after calling this tool.\n"
+        "**DO NOT** call write_file or edit_file until the user explicitly approves.\n\n"
+        "## When to Use This Tool\n\n"
+        "- Only when you have written a complete plan to the plan file\n"
+        "- Only when you are ready to present the plan for approval\n"
+        "- NOT for asking 'Is this plan okay?' - that's what this tool does\n\n"
+        "## Example Flow\n\n"
+        "1. User: 'Add user authentication'\n"
+        "2. You: Call enter_plan_mode\n"
+        "3. You: Explore codebase, design plan, write to plan file\n"
+        "4. You: Call exit_plan_mode\n"
+        "5. **STOP AND WAIT**\n"
+        "6. User: 'Approved, go ahead'\n"
+        "7. You: Start implementing the plan"
     ),
     "parameters": {
         "type": "object",
