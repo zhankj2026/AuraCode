@@ -1732,6 +1732,12 @@ class AgentLoop:
 
                 handler = tool["handler"]
                 logger.info(f"Executing handler for {tool_name} with args: {list(arguments.keys())}")
+                
+                # 为文件写入类工具传递 project_root
+                if tool_name in ("write_file", "edit_file", "search_replace"):
+                    if "project_root" not in arguments:
+                        arguments["project_root"] = self.project_root
+                
                 result = handler(**arguments)
                 logger.info(f"Handler returned: {str(result)[:200]}")
 

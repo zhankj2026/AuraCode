@@ -20,7 +20,7 @@ from .undo_edit import record_edit
 logger = logging.getLogger(__name__)
 
 
-def write_file_handler(path: str, content: str) -> str:
+def write_file_handler(path: str, content: str, project_root: str = None) -> str:
     """写入内容到文件，返回精简信息"""
     # 验证参数
     if not path:
@@ -30,8 +30,13 @@ def write_file_handler(path: str, content: str) -> str:
     
     # 详细日志：显示路径解析过程
     cwd = os.getcwd()
-    abs_path = os.path.abspath(path)
+    # 如果提供了 project_root，使用它来解析路径；否则使用 cwd
+    if project_root and not os.path.isabs(path):
+        abs_path = os.path.join(project_root, path)
+    else:
+        abs_path = os.path.abspath(path)
     logger.info(f"write_file: original_path={path}")
+    logger.info(f"write_file: project_root={project_root}")
     logger.info(f"write_file: cwd={cwd}")
     logger.info(f"write_file: abs_path={abs_path}")
     logger.info(f"write_file: content_len={len(content)}")
