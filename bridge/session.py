@@ -442,6 +442,73 @@ class BridgeSession:
         logger.info(f"Model switched: {old_model} → {new_model}")
         return True
 
+    def _setup_ask_user_callback(self):
+        """
+        设置 ask_user 工具的回调。
+
+        当 ask_user 工具被调用时，发送一个特殊的权限请求事件到前端，
+        前端显示问题选择框让用户选择。
+        """
+        try:
+            from tools.builtin.ask_user import set_ask_user_callback
+
+            def ask_user_bridge_callback(question, options, multi_select=False):
+                """Bridge 模式下的 ask_user 回调"""
+                request_id = str(uuid.uuid4())
+                wait_event = threading.Event()
+
+                # 构建权限请求
+                perm_request = PermissionRequest(
+                    request_id=request_id,
+                    tool_name="ask_user",
+                    tool_input={
+                        "question": question,
+                        "options": options,
+                        "multi_select": multi_select,
+                    },
+                    description=question,
+                )
+
+                # 注册等待
+                with self._perm_manager._lock:
+                    self._perm_manager._pending[request_id] = wait_event
+
+                # 发送事件到前端
+                self._emit(BridgeEvent(
+                    type=BridgeEventType.PERMISSION_REQUEST.value,
+                    session_id=self.session_id,
+                    data=perm_request.to_dict(),
+                ))
+
+                # 阻塞等待用户响应（最多 5 分钟）
+                got_response = wait_event.wait(timeout=300)
+
+                if not got_response:
+                    # 超时
+                    with self._perm_manager._lock:
+                        if request_id in self._perm_manager._pending:
+                            del self._perm_manager._pending[request_id]
+                    return "超时"
+
+                # 获取响应
+                with self._perm_manager._lock:
+                    response = self._perm_manager._responses.pop(request_id, None)
+                    if request_id in self._perm_manager._pending:
+                        del self._perm_manager._pending[request_id]
+
+                if response and response.behavior == "allow":
+                    # 用户选择了选项
+                    return response.message or "用户选择: Other"
+                else:
+                    return "用户取消"
+
+            set_ask_user_callback(ask_user_bridge_callback)
+            logger.info("ask_user callback registered for Bridge session")
+        except ImportError:
+            logger.warning("Failed to import ask_user module")
+        except Exception as e:
+            logger.warning(f"Failed to setup ask_user callback: {e}")
+
     def get_info(self) -> SessionInfo:
         """获取会话摘要"""
         with self._activities_lock:
@@ -542,6 +609,9 @@ class BridgeSession:
 
             # 注册 AgentLoop 事件回调 → 实时推送到 Bridge WebSocket
             self._agent_loop.event_callback = self._on_agent_event
+
+            # 设置 ask_user 工具的回调（通过权限请求机制发送到前端）
+            self._setup_ask_user_callback()
 
             # 替换权限管理器为 Bridge 专用版
             self._perm_manager = BridgePermissionManager(
