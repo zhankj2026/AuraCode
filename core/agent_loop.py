@@ -1710,13 +1710,17 @@ class AgentLoop:
         attempt = 0
         while attempt <= max_retries:
             try:
-                # 路径解析：将相对路径转换为绝对路径
+                # 路径解析：将相对路径转换为绝对路径（基于 project_root）
                 for pk in ("path", "file_path", "directory"):
                     if pk in arguments and isinstance(arguments[pk], str):
                         p = arguments[pk]
                         original_p = p
                         if not os.path.isabs(p):
-                            arguments[pk] = os.path.join(self.project_root, p)
+                            # 相对路径：基于 project_root 解析为绝对路径
+                            arguments[pk] = os.path.abspath(os.path.join(self.project_root, p))
+                        else:
+                            # 绝对路径：规范化（处理 ./ 和 ../）
+                            arguments[pk] = os.path.abspath(p)
                         logger.info(f"Path resolution [{pk}]: {original_p} -> {arguments[pk]} (project_root={self.project_root})")
 
                 # plan_mode: 每次执行前刷新 project_root（多线程 Bridge 安全）

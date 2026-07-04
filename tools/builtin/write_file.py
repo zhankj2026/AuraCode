@@ -21,7 +21,12 @@ logger = logging.getLogger(__name__)
 
 
 def write_file_handler(path: str, content: str, project_root: str = None) -> str:
-    """写入内容到文件，返回精简信息"""
+    """
+    写入内容到文件，返回精简信息。
+    
+    注意：AgentLoop 已将相对路径转换为绝对路径（基于 project_root），
+    所以这里收到的 path 通常是绝对路径。project_root 参数作为后备机制。
+    """
     # 验证参数
     if not path:
         raise ValueError("文件路径不能为空")
@@ -37,7 +42,7 @@ def write_file_handler(path: str, content: str, project_root: str = None) -> str
         abs_path = path
         logger.info(f"write_file: absolute path, use directly")
     elif project_root:
-        abs_path = os.path.join(project_root, path)
+        abs_path = os.path.abspath(os.path.join(project_root, path))
         logger.info(f"write_file: relative path, resolve against project_root")
     else:
         abs_path = os.path.abspath(path)
