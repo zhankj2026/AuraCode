@@ -1,6 +1,6 @@
 # AuraCode — AI 编程智能体
 
-> Python 实现的全功能 AI 编程助手，支持 **56 种内置工具**、**54 条交互命令**、**7 项领域技能**，具备 MCP 协议完整实现、Bridge 远程控制与企业级安全策略。
+> Python 实现的全功能 AI 编程助手，支持 **56 种内置工具**、**54 条交互命令**、**9 项领域技能**，具备 MCP 协议完整实现、Bridge 远程控制（事件级 + Token 级流式）、会话持久化体系与企业级安全策略。
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
@@ -12,17 +12,19 @@
 
 | 维度 | 能力 |
 |------|------|
-| **内置工具** | 56 个 — 文件读写、代码搜索、LSP 智能、Shell 执行、Web 搜索、子代理协同等 |
-| **交互命令** | 54 条 — Git 工作流、会话管理、调试诊断、安全审查、目录切换、命令执行等 |
-| **领域技能** | 7 个内置 + 用户自定义 — 按需激活，渐进式披露，节省 Token |
-| **错误恢复** | 6 层纵深防御 — Fallback 模型 → Prompt 压缩 → 截断恢复 → Hook 兜底 → 预算控制 → 图片剥离 |
+| **内置工具** | 56 个 — 文件读写、代码搜索、LSP 智能、Shell 执行、Web 搜索、子代理协同、定时任务等 |
+| **交互命令** | 54 条 — Git 工作流、会话管理、调试诊断、安全审查、目录切换、命令执行、插件管理等 |
+| **领域技能** | 9 个内置 + 用户自定义 — 按需激活，渐进式披露，节省 Token |
+| **错误恢复** | 6 层纵深防御 — Fallback 模型 → Prompt 压缩 → 截断恢复 → Hook 兖底 → 预算控制 → 图片剥离 |
 | **MCP 协议** | 完整实现 — Client + Server 模式 + MCPB 格式 + 企业安全策略 + 健康检查 |
-| **Bridge 远程控制** | REST + WebSocket — 多会话管理、实时事件推送、远程审批、文件浏览 |
+| **Bridge 远程控制** | REST + WebSocket — 多会话管理、事件级 + Token 级流式推送、远程审批、文件浏览 |
 | **子代理系统** | 多代理并行 — 独立上下文、结果聚合、类型定制、协同工作 |
 | **记忆系统** | LLM 驱动召回 — 新鲜度衰减、语义搜索、跨会话持久化、自动提取 |
 | **权限管理** | 4 级模式 — Normal / Auto / Plan / Bypass + 参数级 allow/deny 规则 |
 | **钩子系统** | 10+ 事件类型 — 配置驱动、优先级排序、短路机制、热重载 |
 | **插件系统** | 生命周期管理 — 自动发现、依赖解析、Marketplace、插件间通信 |
+| **会话持久化** | 完整体系 — file-history、tasks、session-env、session-transcript、project-store |
+| **限流机制** | 滑动窗口限流 + Token 计量 + 429 错误处理 + 指数退避重试 |
 
 ---
 
@@ -265,6 +267,8 @@ python cli.py --bridge --bridge-port 9000
 | `debug` | 调试诊断 | 排查会话问题 |
 | `batch` | 并行变更编排 | 大规模跨文件修改 |
 | `update-config` | 配置管理 | Hooks/权限/环境配置 |
+| `commit` | Git 智能提交 | AI 分析变更并生成提交信息 |
+| `review` | 代码审查 | 变更影响分析 + 依赖图展示 |
 
 ### 自定义技能
 
@@ -414,12 +418,13 @@ python cli.py --bridge --bridge-token my-secret
 
 **核心能力**：
 - ✅ 多会话并行管理（最大会话数可配置）
-- ✅ WebSocket 实时事件推送（工具调用、Token 消耗、错误通知）
+- ✅ WebSocket 实时事件推送（事件级 + Token 级流式）
 - ✅ Token 认证机制
 - ✅ 远程消息发送与命令执行
 - ✅ 文件浏览 API
-- ✅ 内置 Web UI（`bridge/test_bridge.html`）
+- ✅ 内置 Web UI（PC + 移动端响应式）
 - ✅ LLM 请求/响应网络监控
+- ✅ Token 级流式输出（打字机效果）
 
 **REST API**：
 - `POST /api/sessions` — 创建会话
@@ -584,11 +589,11 @@ auracode/
 │       ├── mcp_command.py    #     MCP 管理
 │       └── ... (54 条命令)
 │
-├── skills/                   # 技能系统（7 个内置技能）
+├── skills/                   # 技能系统（9 个内置技能）
 │   ├── loader.py             #   技能管理器（多源发现/渐进式披露）
 │   ├── context.py            #   技能上下文注入
 │   ├── builtin_skills.py     #   编程式技能注册
-│   └── [内置技能目录]         #   7 个内置技能
+│   └── [内置技能目录]         #   9 个内置技能
 │
 ├── mcp/                      # MCP 协议集成（完整实现）
 │   ├── manager.py            #   MCP 管理器（热加载/注销/缓存）
@@ -606,11 +611,11 @@ auracode/
 │
 ├── bridge/                   # Bridge 远程控制
 │   ├── server.py             #   FastAPI REST + WebSocket 服务
-│   ├── session.py            #   Bridge 会话（事件回调/消息推送）
+│   ├── session.py            #   Bridge 会话（事件回调/消息推送/Token 级流式）
 │   ├── manager.py            #   多会话管理
 │   ├── auth.py               #   Token 认证
-│   ├── types.py              #   类型定义
-│   └── test_bridge.html      #   Web UI 控制面板
+│   ├── types.py              #   类型定义（含 TEXT_CHUNK 事件）
+│   └── test_bridge*.html     #   Web UI 控制面板（PC + 移动端）
 │
 ├── hooks/                    # 钩子系统
 │   ├── manager.py            #   Hook 管理器（优先级/短路/隔离）
