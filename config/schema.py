@@ -64,12 +64,16 @@ DEFAULT_CONFIG_SCHEMA = {
 
 
 # 默认配置值
+# 参考 claude-code/src/utils/context.ts 配置
 DEFAULT_CONFIG = {
     "llm": {
         "provider": "openai",
         "model": "gpt-4",
-        "max_tokens": 4096,
+        # 默认输出 token 限制（与 claude-code 的 MAX_OUTPUT_TOKENS_DEFAULT 一致）
+        "max_tokens": 32_000,
         "temperature": 0.2,
+        # 上下文窗口大小（与 claude-code 的 MODEL_CONTEXT_WINDOW_DEFAULT 一致）
+        "context_window": 200_000,
     },
     "permissions": {
         "allow_rules": [],

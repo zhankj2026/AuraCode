@@ -121,7 +121,8 @@ class AgentLoop:
         # 2. 配置参数
         self.model = config.get("model", "glm-4.7")
         self.max_iterations = config.get("max_iterations", 20)
-        self.max_tokens = config.get("max_tokens", 8192)
+        # 参考 claude-code/src/utils/context.ts: MAX_OUTPUT_TOKENS_DEFAULT = 32000
+        self.max_tokens = config.get("max_tokens", 32000)
         # 工作目录：工具文件操作的基准路径（Bridge 模式下为用户指定的 work_dir）
         self.project_root = os.path.abspath(config.get("project_root", "."))
         # 注入 project_root 到 plan_mode 模块（替代 os.getcwd()）

@@ -33,26 +33,43 @@ from commands.registry import register_command
 CHARS_PER_TOKEN = 3.5
 
 # 常见模型的上下文窗口大小（token 数）
+# 参考 claude-code/src/utils/context.ts 配置
 MODEL_CONTEXT_SIZES = {
-    "glm-4": 128000,
-    "glm-4-plus": 128000,
-    "glm-4.5": 128000,
-    "glm-4.7": 128000,
-    "gpt-4o": 128000,
-    "gpt-4o-mini": 128000,
-    "gpt-4-turbo": 128000,
-    "o1": 200000,
-    "o3-mini": 200000,
-    "claude-3.5-sonnet": 200000,
-    "claude-3.5-haiku": 200000,
-    "claude-opus-4": 200000,
-    "claude-sonnet-4": 200000,
-    "deepseek-chat": 64000,
-    "deepseek-reasoner": 64000,
-    "qwen-max": 32000,
-    "qwen-plus": 128000,
-    "qwen-turbo": 128000,
-    "default": 128000,
+    # GLM 系列
+    "glm-4": 128_000,
+    "glm-4-plus": 128_000,
+    "glm-4.5": 128_000,
+    "glm-4.7": 128_000,
+    # GPT-4 系列
+    "gpt-4o": 128_000,
+    "gpt-4o-mini": 128_000,
+    "gpt-4-turbo": 128_000,
+    # OpenAI o 系列
+    "o1": 200_000,
+    "o3-mini": 200_000,
+    # Claude 3.x 系列
+    "claude-3-opus": 200_000,
+    "claude-3-sonnet": 200_000,
+    "claude-3-haiku": 200_000,
+    "claude-3.5-opus": 200_000,
+    "claude-3.5-sonnet": 200_000,
+    "claude-3.5-haiku": 200_000,
+    # Claude 4.x 系列（支持 1M context）
+    "claude-sonnet-4": 1_000_000,
+    "claude-opus-4": 1_000_000,
+    "claude-sonnet-4-6": 1_000_000,
+    "claude-opus-4-6": 1_000_000,
+    # Claude 3.7 系列
+    "claude-3.7-sonnet": 200_000,
+    # DeepSeek 系列
+    "deepseek-chat": 64_000,
+    "deepseek-reasoner": 64_000,
+    # Qwen 系列
+    "qwen-max": 32_000,
+    "qwen-plus": 128_000,
+    "qwen-turbo": 128_000,
+    # 默认值（与 claude-code 一致）
+    "default": 200_000,
 }
 
 # 动态压缩阈值比例（占上下文窗口的百分比）
