@@ -25,11 +25,26 @@ import sys
 import logging
 from datetime import datetime
 
-# Windows 控制台编码修复
+# Windows 控制台编码修复（带超时保护）
 if sys.platform == "win32":
     import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    try:
+        # 尝试包装 stdout/stderr，但设置超时避免卡住
+        sys.stdout = io.TextIOWrapper(
+            sys.stdout.buffer, 
+            encoding='utf-8',
+            errors='replace',  # 替换无效字符而不是阻塞
+            line_buffering=True  # 启用行缓冲
+        )
+        sys.stderr = io.TextIOWrapper(
+            sys.stderr.buffer, 
+            encoding='utf-8',
+            errors='replace',
+            line_buffering=True
+        )
+    except Exception as e:
+        # 如果包装失败，继续使用原始流
+        print(f"Warning: Failed to wrap stdout/stderr: {e}", file=sys.__stderr__)
 
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(__file__))
@@ -363,6 +378,8 @@ def check_api_key():
 
 
 def main():
+    print("🚀 Starting AuraCode CLI...", flush=True)
+    
     parser = argparse.ArgumentParser(
         description="AuraCode - AI 编程助手",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -460,10 +477,12 @@ def main():
     )
 
     args = parser.parse_args()
+    print(f"✅ Arguments parsed: {args}", flush=True)
 
     # 设置日志级别
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
+        print("🔍 Debug logging enabled", flush=True)
 
     # Bridge 远程控制模式
     if args.bridge:
@@ -481,8 +500,11 @@ def main():
         return
 
     # 检查 API 密钥
+    print("🔑 Checking API key...", flush=True)
     if not check_api_key():
+        print("❌ API key check failed", flush=True)
         sys.exit(1)
+    print("✅ API key verified", flush=True)
 
     # 加载配置文件
     config_manager.load()
@@ -527,10 +549,14 @@ def main():
 
     # 对话模式（多轮）
     # 初始化 Agent Loop
+    print("🔄 Initializing AgentLoop...", flush=True)
     try:
         loop = AgentLoop(config)
+        print("✅ AgentLoop initialized successfully", flush=True)
     except Exception as e:
-        print(f"❌ 初始化失败: {e}")
+        print(f"❌ 初始化失败: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
     # 初始化 Cron 调度器并注册回调
