@@ -1,5 +1,4 @@
 ﻿#!/usr/bin/env python3
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 # Copyright (c) 2026 zhankj
@@ -19,11 +18,20 @@ AuraCode - CLI 入口
 2. 命令模式: 直接执行预定义命令
 """
 
-import argparse
-import os
 import sys
+print("DEBUG: Starting imports...", file=sys.__stderr__, flush=True)
+
+import argparse
+print("DEBUG: argparse imported", file=sys.__stderr__, flush=True)
+
+import os
+print("DEBUG: os imported", file=sys.__stderr__, flush=True)
+
 import logging
+print("DEBUG: logging imported", file=sys.__stderr__, flush=True)
+
 from datetime import datetime
+print("DEBUG: datetime imported", file=sys.__stderr__, flush=True)
 
 # Windows 控制台编码修复（带超时保护）
 if sys.platform == "win32":
@@ -48,11 +56,20 @@ if sys.platform == "win32":
 
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(__file__))
+print(f"DEBUG: Path added: {os.path.dirname(__file__)}", file=sys.__stderr__, flush=True)
 
+print("DEBUG: Importing core modules...", file=sys.__stderr__, flush=True)
 from core.agent_loop import AgentLoop
+print("DEBUG: AgentLoop imported", file=sys.__stderr__, flush=True)
+
 from commands.registry import COMMAND_REGISTRY, get_command_list, get_commands_by_category
+print("DEBUG: commands.registry imported", file=sys.__stderr__, flush=True)
+
 from core.session_store import SessionStore, auto_save_session
+print("DEBUG: session_store imported", file=sys.__stderr__, flush=True)
+
 from config import config_manager
+print("DEBUG: config imported", file=sys.__stderr__, flush=True)
 
 # 配置日志
 logging.basicConfig(
