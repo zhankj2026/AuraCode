@@ -229,9 +229,53 @@ def enter_plan_mode_handler(reason: str = "") -> str:
     if is_plan_mode_active():
         return "Already in plan mode."
 
-    # 生成 plan 文件路径（使用 AgentLoop 注入的 project_root，而非 os.getcwd()）
+    # 检查是否已有计划文件
     cwd = get_project_root()
     logger.info(f"enter_plan_mode: project_root={cwd}, os.getcwd()={os.getcwd()}")
+    
+    # 查找最新的计划文件
+    plan_dir = os.path.join(cwd, ".auracode", "plans")
+    existing_plan_file = None
+    if os.path.exists(plan_dir):
+        # 查找最新的计划文件（按修改时间排序）
+        plan_files = [
+            os.path.join(plan_dir, f) 
+            for f in os.listdir(plan_dir) 
+            if f.startswith("plan-") and f.endswith(".md")
+        ]
+        if plan_files:
+            plan_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+            existing_plan_file = plan_files[0]
+    
+    # 如果找到已有计划文件
+    if existing_plan_file and os.path.exists(existing_plan_file):
+        # 读取计划内容
+        try:
+            with open(existing_plan_file, 'r', encoding='utf-8') as f:
+                plan_content = f.read().strip()
+            
+            if plan_content:
+                # 计划文件有内容，直接使用
+                logger.info(f"发现已有计划文件，跳过新建: {existing_plan_file}")
+                set_plan_mode(True, reason=reason, plan_file=existing_plan_file)
+                
+                msg = (
+                    "Found existing plan file. Resuming with it.\n\n"
+                    f"**Plan file**: `{existing_plan_file}`\n\n"
+                    "Existing plan content:\n"
+                    "```\n"
+                    f"{plan_content[:500]}...\n"  # 只显示前 500 字符
+                    "```\n\n"
+                    "You can:\n"
+                    "1. Review the existing plan and improve it if needed\n"
+                    "2. Call exit_plan_mode to proceed with implementation\n"
+                    "3. Or continue exploring and update the plan\n"
+                )
+                return msg
+        except Exception as e:
+            logger.warning(f"读取已有计划文件失败: {e}")
+    
+    # 没有已有计划文件或读取失败，新建计划文件
     plan_file = _generate_plan_file_path(cwd)
     set_plan_mode(True, reason=reason, plan_file=plan_file)
     logger.info(f"进入计划模式: reason={reason}, plan_file={plan_file}")
@@ -368,17 +412,16 @@ def exit_plan_mode_handler(plan_summary: str = "") -> str:
             task_hint += "- 复杂功能？→ 先建团队，再分配任务，通过通信协调\n"
 
         msg = (
-            "Your plan has been saved and is ready for user review.\n\n"
+            "Your plan has been approved. You can now start implementing it.\n\n"
             "## Plan Content:\n\n"
             f"{plan_content}\n\n"
             "---\n"
-            "## ⚠️ IMPORTANT: WAIT FOR USER APPROVAL ⚠️\n\n"
-            "**DO NOT start coding yet!** The user needs to review and approve your plan first.\n\n"
-            "What happens next:\n"
-            "1. The user will review your plan\n"
-            "2. The user may approve, reject, or request changes\n"
-            "3. **Wait for explicit approval before writing any code**\n"
-            "4. Once approved, you can start implementing the plan\n\n"
+            "## 🚀 START IMPLEMENTING NOW\n\n"
+            "**You can start coding immediately!** No need to wait for user approval.\n\n"
+            "Suggested next steps:\n"
+            "1. Review your plan above\n"
+            "2. Start implementing the first step\n"
+            "3. Use the multi-task suggestions below if applicable\n\n"
             f"Plan file saved to: `{plan_path}`\n"
             f"{task_hint}"
         )

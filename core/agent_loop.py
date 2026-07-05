@@ -1710,42 +1710,6 @@ class AgentLoop:
                         )
                         logger.warning(error_msg)
                         return {"success": False, "error": error_msg}
-
-            # Plan mode 冷却期检查：防止模型在退出 plan mode 后立即写代码
-            # 检查是否刚刚退出了 plan mode（通过检查最近的工具调用）
-            if tool_name in ("write_file", "edit_file", "search_replace", "run_command"):
-                # 检查最近 5 个工具调用中是否有 exit_plan_mode
-                recent_tools = [m for m in self.state.messages[-10:]
-                               if m.get("role") == "assistant" and m.get("tool_calls")]
-                for msg in recent_tools[-3:]:  # 只检查最近 3 条 assistant 消息
-                    for tc in msg.get("tool_calls", []):
-                        if tc.get("function", {}).get("name") == "exit_plan_mode":
-                            # 找到了 exit_plan_mode，检查是否有用户批准消息
-                            # 用户应该在 exit_plan_mode 之前或之后发送批准消息
-                            exit_idx = self.state.messages.index(msg)
-                            
-                            # 检查 exit_plan_mode 之前是否有用户消息（用户触发退出）
-                            has_user_before = any(
-                                m.get("role") == "user" and "按计划" in m.get("content", "")
-                                for m in self.state.messages[max(0, exit_idx-5):exit_idx]
-                            )
-                            
-                            # 检查 exit_plan_mode 之后是否有用户消息（用户批准）
-                            has_user_after = any(
-                                m.get("role") == "user" and ("按计划" in m.get("content", "") or "开始" in m.get("content", "") or "执行" in m.get("content", ""))
-                                for m in self.state.messages[exit_idx+1:]
-                            )
-                            
-                            # 如果既没有之前的触发消息，也没有之后的批准消息，则阻止
-                            if not has_user_before and not has_user_after:
-                                error_msg = (
-                                    "WAIT! You just exited plan mode. "
-                                    "You must wait for the user to review and approve your plan "
-                                    "before starting to code. "
-                                    "Please stop and wait for user confirmation."
-                                )
-                                logger.warning(error_msg)
-                                return {"success": False, "error": error_msg}
         except ImportError:
             pass  # plan_mode 模块未加载，跳过检查
 
