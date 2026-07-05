@@ -439,6 +439,207 @@ def _render_tree(lines: List[str], tasks: List[Dict], depth: int):
             _render_tree(lines, child_tasks, depth + 1)
 
 
+def task_assign_agent_handler(
+    task_id: str,
+    agent_id: str = "",
+    auto_start: bool = True,
+    task_description: str = "",
+    run_in_background: bool = True
+) -> str:
+    """
+    分配任务给子代理（自动关联任务与代理）。
+    
+    功能:
+    1. 自动创建子代理执行任务
+    2. 自动更新任务的 owner 和 status
+    3. 自动追踪代理执行状态
+    4. 完成后自动更新任务状态
+    
+    Args:
+        task_id: 任务 ID
+        agent_id: 指定代理 ID（可选，为空则创建新代理）
+        auto_start: 是否自动启动代理
+        task_description: 任务描述（覆盖任务的 description）
+        run_in_background: 是否后台运行
+    
+    Returns:
+        分配结果（包含 agent_id 和 task_id 的关联）
+    """
+    from core.subagent import subagent_manager
+    
+    resolved = _resolve_task(task_id)
+    if not resolved:
+        return f"Error: task '{task_id}' not found"
+    
+    task = _TASKS[resolved]
+    
+    # 获取任务描述
+    description = task_description or task.get("description", "") or task.get("title", "")
+    
+    # 启动子代理
+    if auto_start:
+        try:
+            handle = subagent_manager.spawn_subagent(
+                task=description,
+                run_in_background=run_in_background
+            )
+            agent_id = handle.agent_id
+            agent_status = "started"
+        except Exception as e:
+            return f"Error: Failed to spawn subagent: {str(e)}"
+    else:
+        agent_status = "assigned (not started)"
+    
+    # 更新任务
+    old_owner = task.get("owner", "")
+    task["owner"] = agent_id
+    task["agent_status"] = agent_status
+    task["agent_started_at"] = time.time() if auto_start else None
+    
+    if task["status"] == "pending":
+        task["status"] = "in_progress"
+    
+    task["updated_at"] = time.time()
+    
+    result = f"✅ Task [{resolved}] assigned to agent {agent_id}\n"
+    result += f"  • owner: {old_owner or 'None'} → {agent_id}\n"
+    result += f"  • status: pending → in_progress (auto)\n"
+    result += f"  • agent_status: {agent_status}\n"
+    
+    if auto_start:
+        result += f"  • agent_handle: {agent_id}\n"
+        if not run_in_background:
+            result += f"  • mode: synchronous (will wait)\n"
+        else:
+            result += f"  • mode: background\n"
+            result += f"\nUse `join_subagent(agent_id=\"{agent_id}\")` to wait for completion.\n"
+            result += f"Then call `task_update(task_id=\"{resolved}\", status=\"done\")` to mark complete."
+    
+    return result
+
+
+def task_wait_agent_handler(
+    task_id: str,
+    timeout: float = 300.0,
+    auto_complete: bool = True
+) -> str:
+    """
+    等待子代理完成任务并自动更新任务状态。
+    
+    Args:
+        task_id: 任务 ID
+        timeout: 超时时间（秒）
+        auto_complete: 是否自动标记任务为 done
+    
+    Returns:
+        执行结果
+    """
+    from core.subagent import subagent_manager
+    
+    resolved = _resolve_task(task_id)
+    if not resolved:
+        return f"Error: task '{task_id}' not found"
+    
+    task = _TASKS[resolved]
+    agent_id = task.get("owner", "")
+    
+    if not agent_id:
+        return f"Error: task [{resolved}] has no assigned agent"
+    
+    if not agent_id.startswith("agent-") and len(agent_id) < 10:
+        return f"Error: owner '{agent_id}' is not a subagent ID"
+    
+    # 等待代理完成
+    try:
+        result = subagent_manager.join_subagent(agent_id, timeout=timeout)
+    except TimeoutError:
+        return f"Error: Agent {agent_id} timed out after {timeout}s"
+    except KeyError:
+        return f"Error: Agent {agent_id} not found"
+    
+    # 自动更新任务状态
+    if auto_complete:
+        task["status"] = "done"
+        task["progress"] = 100
+        task["agent_completed_at"] = time.time()
+        task["updated_at"] = time.time()
+        
+        # 添加结果到备注
+        task.setdefault("notes", []).append({
+            "text": f"Agent completed: {result[:200]}...",
+            "time": time.time(),
+        })
+    
+    se = {"pending": "⏳", "in_progress": "🔄", "done": "✅", "cancelled": "❌"}.get(task["status"], "⚪")
+    
+    output = f"{se} Agent {agent_id} completed for task [{resolved}]\n\n"
+    output += f"**Result**:\n{result}\n\n"
+    
+    if auto_complete:
+        output += f"✅ Task automatically marked as done (100%)\n"
+    
+    return output
+
+
+register_tool("task_assign_agent", {
+    "description": (
+        "Assign a task to a subagent and automatically link them. "
+        "This creates a subagent, updates the task's owner, and tracks execution. "
+        "Use this instead of manually calling spawn_subagent + task_update."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "task_id": {
+                "type": "string",
+                "description": "Task ID to assign",
+            },
+            "task_description": {
+                "type": "string",
+                "description": "Override task description for the agent (optional)",
+            },
+            "run_in_background": {
+                "type": "boolean",
+                "description": "Run agent in background (default: true)",
+                "default": True,
+            },
+        },
+        "required": ["task_id"],
+    },
+    "handler": task_assign_agent_handler,
+    "permission_level": "read",
+})
+
+register_tool("task_wait_agent", {
+    "description": (
+        "Wait for a subagent to complete its assigned task and automatically "
+        "update the task status. Combines join_subagent + task_update."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "task_id": {
+                "type": "string",
+                "description": "Task ID to wait for",
+            },
+            "timeout": {
+                "type": "number",
+                "description": "Timeout in seconds (default: 300)",
+                "default": 300.0,
+            },
+            "auto_complete": {
+                "type": "boolean",
+                "description": "Automatically mark task as done (default: true)",
+                "default": True,
+            },
+        },
+        "required": ["task_id"],
+    },
+    "handler": task_wait_agent_handler,
+    "permission_level": "read",
+})
+
+
 register_tool("task_create", {
     "description": (
         "Create a new task to track implementation work. "
