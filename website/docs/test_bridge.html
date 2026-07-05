@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AuraCode Bridge</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0d1117;--s1:#161b22;--s2:#1c2128;--bd:#30363d;--tx:#e6edf3;--tx2:#8b949e;--acc:#58a6ff;--gn:#3fb950;--rd:#f85149;--yl:#d29922;--pp:#bc8cff}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--tx);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+/* Top */
+.top{display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--s1);border-bottom:1px solid var(--bd);flex-shrink:0}
+.top h1{font-size:15px;font-weight:600;white-space:nowrap}
+.top input{background:var(--bg);border:1px solid var(--bd);color:var(--tx);padding:4px 8px;border-radius:5px;font-size:12px}
+.top input.u{width:180px}.top input.t{width:240px}
+.top label{font-size:11px;color:var(--tx2)}
+.b{padding:4px 12px;border-radius:5px;border:1px solid var(--bd);background:var(--s1);color:var(--tx);cursor:pointer;font-size:12px;transition:.15s}
+.b:hover{border-color:var(--acc);color:var(--acc)}.b.p{background:#238636;border-color:#238636;color:#fff}.b.p:hover{background:#2ea043}
+.b.d{border-color:var(--rd);color:var(--rd)}.b.d:hover{background:rgba(248,81,73,.15)}.b.s{padding:2px 7px;font-size:11px}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:3px}
+.dot.on{background:var(--gn);box-shadow:0 0 5px var(--gn)}.dot.off{background:var(--rd)}
+/* Layout */
+.main{display:flex;flex:1;overflow:hidden}
+/* Left */
+.left{width:250px;min-width:250px;border-right:1px solid var(--bd);display:flex;flex-direction:column;background:var(--s1);overflow:hidden}
+.left .hd{padding:10px;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.left .hd h2{font-size:13px}
+.slist{flex:1;overflow-y:auto;padding:6px;min-height:0}
+.sc{padding:8px;margin-bottom:5px;border-radius:7px;border:1px solid var(--bd);cursor:pointer;transition:.15s}
+.sc:hover{border-color:var(--acc)}.sc.act{border-color:var(--acc);background:rgba(88,166,255,.08)}
+.sc .sid{font-size:10px;color:var(--tx2);font-family:monospace}
+.sc .tit{font-size:12px;margin:3px 0 2px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sc .meta{font-size:10px;color:var(--tx2);display:flex;gap:6px}
+.bg{display:inline-block;padding:1px 5px;border-radius:8px;font-size:9px;font-weight:600}
+.bg.idle{background:rgba(139,148,158,.2);color:var(--tx2)}.bg.running{background:rgba(63,185,80,.2);color:var(--gn)}
+.bg.requires_action{background:rgba(210,153,34,.2);color:var(--yl)}.bg.completed{background:rgba(88,166,255,.2);color:var(--acc)}
+.bg.failed{background:rgba(248,81,73,.2);color:var(--rd)}
+.cform{padding:10px;border-top:1px solid var(--bd);flex-shrink:0}
+.cform .r{display:flex;gap:5px;margin-bottom:5px}
+.cform input,.cform select{background:var(--bg);border:1px solid var(--bd);color:var(--tx);padding:4px 7px;border-radius:4px;font-size:11px;flex:1;min-width:0}
+/* Center */
+.center{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.term{flex:1;overflow-y:auto;padding:12px 16px;font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:13px;line-height:1.6;background:#0a0e14}
+.term .ln{margin-bottom:2px;white-space:pre-wrap;word-break:break-word}
+.ln .prompt{color:var(--gn);font-weight:700}
+.ln.user{color:#79c0ff}
+.ln.think{color:var(--tx2);font-style:italic}
+.ln.tool{color:var(--yl)}
+.ln.result{color:var(--gn)}
+.ln.error{color:var(--rd)}
+.ln.sys{color:var(--tx2)}
+.ln.info{color:var(--pp)}
+.ln.ai{color:var(--tx)}
+.ln .tag{display:inline-block;padding:0 5px;border-radius:3px;font-size:10px;font-weight:600;margin-right:4px}
+.tag.exec{background:rgba(210,153,34,.2);color:var(--yl)}.tag.ok{background:rgba(63,185,80,.2);color:var(--gn)}
+.tag.err{background:rgba(248,81,73,.2);color:var(--rd)}.tag.info{background:rgba(88,166,255,.15);color:var(--acc)}
+/* Input bar */
+.ibar{display:flex;gap:6px;padding:10px 12px;border-top:1px solid var(--bd);background:var(--s1);align-items:flex-end}
+.ibar textarea{flex:1;background:var(--bg);border:1px solid var(--bd);color:var(--tx);padding:7px 10px;border-radius:6px;font-size:13px;font-family:'Cascadia Code','Fira Code',monospace;resize:none;min-height:38px;max-height:100px}
+.ibar textarea:focus{outline:none;border-color:var(--acc)}
+/* Right */
+.right{width:290px;min-width:290px;border-left:1px solid var(--bd);display:flex;flex-direction:column;background:var(--s1);overflow:hidden}
+.right .hd{padding:10px;border-bottom:1px solid var(--bd);flex-shrink:0}
+.right .hd h2{font-size:13px}
+.fnav{padding:6px 10px;border-bottom:1px solid var(--bd);font-size:11px;color:var(--tx2);flex-shrink:0;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.fnav span{cursor:pointer;color:var(--acc)}.fnav span:hover{text-decoration:underline}.fnav .sep{color:var(--tx2);cursor:default}
+.flist{flex:1;overflow-y:auto;padding:4px 0;min-height:0}
+.fi{display:flex;align-items:center;gap:8px;padding:5px 10px;cursor:pointer;font-size:12px;transition:.1s}
+.fi:hover{background:rgba(88,166,255,.06)}
+.fi .ic{width:16px;text-align:center;font-size:13px;flex-shrink:0}
+.fi .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fi .sz{color:var(--tx2);font-size:10px;flex-shrink:0}
+/* File viewer */
+.fview{display:none;flex-direction:column;flex:1;overflow:hidden}
+.fview.show{display:flex}
+.fview .vh{padding:6px 10px;border-bottom:1px solid var(--bd);font-size:11px;color:var(--tx2);display:flex;align-items:center;gap:6px;flex-shrink:0}
+.fview .vh .back{cursor:pointer;color:var(--acc)}.fview .vh .back:hover{text-decoration:underline}
+.fview pre{flex:1;overflow:auto;padding:10px;font-family:'Cascadia Code','Fira Code',monospace;font-size:11px;line-height:1.5;color:var(--tx);margin:0;background:var(--bg)}
+.fview pre .lnum{color:var(--tx2);display:inline-block;width:35px;text-align:right;margin-right:10px;user-select:none}
+/* Perm */
+.pov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;justify-content:center;align-items:center}
+.pov.show{display:flex}
+.pdlg{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:18px;width:460px;max-width:90vw}
+.pdlg h3{font-size:14px;margin-bottom:10px;color:var(--yl)}
+.pdlg .inf{background:var(--bg);padding:10px;border-radius:6px;margin-bottom:14px;font-size:12px}
+.pdlg .inf .rw{display:flex;gap:6px;margin-bottom:3px}.pdlg .inf .k{color:var(--tx2);min-width:55px}
+.pdlg .act{display:flex;gap:8px;justify-content:flex-end}
+/* Network tab */
+.net-wrap{flex:1;overflow-y:auto;padding:8px 12px;font-size:12px}
+.net-summary{display:flex;gap:16px;padding:8px 12px;border-bottom:1px solid var(--bd);background:var(--s1);font-size:11px;color:var(--tx2);flex-shrink:0}
+.net-summary .ns{display:flex;align-items:center;gap:4px}
+.net-summary .ns b{color:var(--tx);font-size:12px}
+.net-tbl{width:100%;border-collapse:collapse;font-family:'Cascadia Code','Fira Code',monospace;font-size:11px}
+.net-tbl th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--bd);color:var(--tx2);font-weight:600;position:sticky;top:0;background:var(--bg);z-index:1}
+.net-tbl td{padding:5px 8px;border-bottom:1px solid rgba(48,54,61,.5);cursor:pointer;vertical-align:top}
+.net-tbl tr:hover td{background:rgba(88,166,255,.06)}
+.net-tbl .num{text-align:right;font-variant-numeric:tabular-nums}
+.net-tbl .ok{color:var(--gn)}.net-tbl .warn{color:var(--yl)}.net-tbl .err{color:var(--rd)}
+.net-detail{display:none;background:var(--s2);border:1px solid var(--bd);border-radius:6px;margin:4px 8px;padding:10px;font-size:11px;line-height:1.6}
+.net-detail.show{display:block}
+.net-detail .lbl{color:var(--tx2);min-width:120px;display:inline-block}
+.net-detail pre{background:var(--bg);padding:8px;border-radius:4px;overflow-x:auto;font-size:10px;margin:4px 0 8px;max-height:200px;overflow-y:auto;white-space:pre-wrap;word-break:break-word}
+/* Status */
+.sbar{display:flex;align-items:center;gap:14px;padding:5px 14px;background:var(--s1);border-top:1px solid var(--bd);font-size:10px;color:var(--tx2);flex-shrink:0}
+.ph{display:flex;align-items:center;justify-content:center;height:100%;color:var(--tx2);font-size:13px;flex-direction:column;gap:6px}
+.ctab{padding:8px 18px;font-size:12px;cursor:pointer;border-bottom:2px solid transparent;color:var(--tx2);transition:.15s}
+.ctab:hover{color:var(--tx)}.ctab.active{color:var(--acc);border-bottom-color:var(--acc)}
+.ctab .count{background:var(--bd);padding:0 5px;border-radius:8px;font-size:10px;margin-left:4px}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>🔌 AuraCode Bridge</h1>
+  <label>URL</label><input id="sUrl" class="u" value="http://127.0.0.1:8765">
+  <label>Token</label><input id="sTok" class="t" value="" placeholder="Bearer Token">
+  <button class="b p" onclick="connect()">连接</button>
+  <button class="b" onclick="disconnect()">断开</button>
+  <span id="wsSt"><span class="dot off"></span>未连接</span>
+</div>
+<div class="main">
+  <!-- Left: Sessions -->
+  <div class="left">
+    <div class="hd"><h2>📋 会话</h2><button class="b s" onclick="refreshSessions()">刷新</button></div>
+    <div class="slist" id="sList"><div class="ph">未连接</div></div>
+    <div class="cform">
+      <div class="r"><input id="nDir" placeholder="工作目录 (.)"><input id="nModel" placeholder="模型"></div>
+      <div class="r"><input id="nKey" placeholder="API Key" type="password"><input id="nBase" placeholder="Base URL"></div>
+      <div class="r">
+        <select id="nPerm"><option value="auto">auto</option><option value="normal">normal</option><option value="bypass">bypass</option><option value="plan">plan</option></select>
+        <button class="b p" onclick="createSession()">+ 新建</button>
+      </div>
+    </div>
+  </div>
+  <!-- Center: Terminal + Network -->
+  <div class="center">
+    <div class="tabs" style="display:flex;border-bottom:1px solid var(--bd);background:var(--s1);flex-shrink:0">
+      <div class="ctab active" data-ct="term" onclick="switchCTab('term')">💬 终端</div>
+      <div class="ctab" data-ct="net" onclick="switchCTab('net')">📡 网络<span class="count" id="netCount">0</span></div>
+    </div>
+    <div id="cpane-term" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+      <div class="term" id="term"><div class="ph">选择或创建会话开始对话</div></div>
+      <div class="ibar">
+        <textarea id="inp" placeholder="输入消息... (Enter发送, Shift+Enter换行)" rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"></textarea>
+        <button class="b p" onclick="send()">发送</button>
+        <button class="b" onclick="interrupt()">中断</button>
+        <button class="b d" onclick="stopSess()">停止</button>
+      </div>
+    </div>
+    <div id="cpane-net" style="flex:1;display:none;flex-direction:column;overflow:hidden">
+      <div class="net-summary">
+        <div class="ns">调用: <b id="netCalls">0</b></div>
+        <div class="ns">总Token: <b id="netTokens">0</b></div>
+        <div class="ns">总耗时: <b id="netTime">0s</b></div>
+        <div style="margin-left:auto"><button class="b s" onclick="clearNetwork()">清空</button></div>
+      </div>
+      <div class="net-wrap" id="netWrap"><div class="ph" style="font-size:12px">等待 LLM 请求...</div></div>
+    </div>
+  </div>
+  <!-- Right: File Browser -->
+  <div class="right">
+    <div class="hd">
+      <h2>📁 文件浏览器</h2>
+      <div style="float:right;display:flex;gap:4px;margin-top:-2px">
+        <button class="b s" onclick="createFolder()" title="新建文件夹">📁+</button>
+        <button class="b s" onclick="uploadFile()" title="上传文件">📤</button>
+        <button class="b s" onclick="refreshFiles()" title="刷新">🔄</button>
+      </div>
+    </div>
+    <div class="fnav" id="fnav"><span onclick="browseTo('')">📂 根目录</span></div>
+    <div class="flist" id="flist"><div class="ph" style="font-size:12px">选择会话后浏览文件</div></div>
+    <div class="fview" id="fview">
+      <div class="vh"><span class="back" onclick="closeFileView()">← 返回</span><span id="fvName"></span></div>
+      <pre id="fvContent"></pre>
+    </div>
+  </div>
+</div>
+<!-- Permission -->
+<div class="pov" id="pOv">
+  <div class="pdlg">
+    <h3>🔐 权限审批</h3>
+    <div class="inf" id="pInf"></div>
+    <div class="act">
+      <button class="b d" onclick="permResp('deny')">❌ 拒绝</button>
+      <button class="b p" onclick="permResp('allow')">✅ 允许</button>
+    </div>
+  </div>
+</div>
+<div class="sbar">
+  <span id="sb1">未连接</span><span id="sb2"></span><span id="sb3">事件: 0</span>
+  <span id="planModeIndicator" style="display:none;margin-left:8px;padding:2px 8px;background:#d29922;border-radius:10px;color:#fff;font-size:11px;font-weight:600">📝 Plan Mode</span>
+  <button id="btnExitPlan" onclick="exitPlanMode()" style="display:none;margin-left:8px;padding:2px 8px;background:#238636;border:1px solid #2ea043;border-radius:4px;color:#fff;cursor:pointer;font-size:11px">🚪 退出</button>
+  <span style="margin-left:auto" id="sb4"></span>
+</div>
+<script>
+let ws=null,sess={},asid=null,evts=[],rnd=0,pPerm=null;
+let dedup=new Set(),tcDedup=new Set(),trDedup=new Set();
+let fileRoot='',filePath='';
+let netCalls=[],netTotalTokens=0,netTotalMs=0;
+const $=id=>document.getElementById(id),now=()=>new Date().toLocaleTimeString('zh-CN',{hour12:false}),short=s=>s.substring(0,8);
+function url(){return $('sUrl').value.replace(/\/$/,'')}
+function tok(){return $('sTok').value}
+function hd(){return{'Authorization':`Bearer ${tok()}`,'Content-Type':'application/json'}}
+async function api(m,p,body){const o={method:m,headers:hd()};if(body)o.body=JSON.stringify(body);const r=await fetch(url()+p,o);if(!r.ok)throw new Error(`${r.status}: ${await r.text()}`);return r.json()}
+// ── WS ──
+function connect(){
+  disconnect();const u=url(),w=u.replace(/^http/,'ws')+`/ws/events?token=${tok()}`;
+  ws=new WebSocket(w);
+  ws.onopen=()=>{$('wsSt').innerHTML='<span class="dot on"></span>已连接';$('sb1').textContent='✅ 已连接';tln('sys','── WebSocket 已连接 ──');refreshSessions()};
+  ws.onclose=e=>{$('wsSt').innerHTML='<span class="dot off"></span>已断开';$('sb1').textContent='❌ 已断开';tln('sys',`── 连接断开 (code=${e.code}) ──`)};
+  ws.onerror=()=>{$('wsSt').innerHTML='<span class="dot off"></span>错误'};
+  ws.onmessage=e=>{try{handle(JSON.parse(e.data))}catch(err){console.error(err)}};
+}
+function disconnect(){if(ws){ws.close();ws=null}}
+// ── Terminal output ──
+function tln(cls,text,tag){
+  const el=$('term'),ph=el.querySelector('.ph');if(ph)ph.remove();
+  const d=document.createElement('div');d.className='ln '+cls;
+  if(tag)d.innerHTML=`<span class="tag ${tag}">${tag==='exec'?'⚙️':tag==='ok'?'✅':tag==='err'?'❌':'ℹ️'}</span>`+esc(text);
+  else d.textContent=text;
+  el.appendChild(d);el.scrollTop=el.scrollHeight;
+}
+function tuser(text){
+  const el=$('term'),ph=el.querySelector('.ph');if(ph)ph.remove();
+  const d=document.createElement('div');d.className='ln user';
+  d.innerHTML=`<span class="prompt">[${rnd+1}]&gt; </span>`+esc(text);
+  el.appendChild(d);el.scrollTop=el.scrollHeight;
+}
+function tclear(){const el=$('term');el.innerHTML='';rnd=0;dedup.clear();tcDedup.clear();trDedup.clear();clearNetwork()}
+// ── Sessions ──
+async function refreshSessions(){
+  try{const l=await api('GET','/api/sessions');sess={};l.forEach(s=>sess[s.session_id]=s);renderSess();$('sb2').textContent=`会话: ${l.length}`}catch(e){console.error(e)}
+}
+function renderSess(){
+  const el=$('sList'),ids=Object.keys(sess);
+  if(!ids.length){el.innerHTML='<div class="ph" style="font-size:12px">暂无会话</div>';return}
+  el.innerHTML=ids.map(id=>{const s=sess[id],a=id===asid;
+    return`<div class="sc ${a?'act':''}" onclick="selSess('${id}')"><div class="sid">${short(id)}</div><div class="tit">${esc(s.title||'(新会话)')}</div><div class="meta"><span class="bg ${s.state}">${s.state}</span><span>${s.model||'-'}</span><span>R${s.round_count||0}</span></div></div>`
+  }).join('');
+}
+function selSess(id){
+  asid=id;renderSess();tclear();
+  fileRoot=sess[id]?.work_dir||'.';filePath='';browseTo('');
+  api('GET',`/api/sessions/${id}/events`).then(evts=>{
+    evts.forEach(e=>{
+      if(e.type==='user_message')tuser(e.data.content||'');
+      else if(e.type==='assistant_message'){
+        // 历史回放时也需要去重
+        const c=e.data.content||'',h=c.substring(0,200);
+        if(!dedup.has(h)){dedup.add(h);tln('ai',c)}
+      }
+      else if(e.type==='result'){rnd++;showResult(e)}
+      else if(e.type==='output'&&e.data.text)tln('sys',e.data.text);
+      else if(['turn_start','turn_complete','tool_execute','tool_complete','context_compacted','fallback_activated','aborted','llm_call'].includes(e.type))handle(e);
+      else if(e.type==='session_stopped')tln('sys','🏁 会话已停止');
+    });
+  }).catch(e=>console.error(e));
+}
+async function createSession(){
+  try{
+    const k=$('nKey').value.trim(),b=$('nBase').value.trim();
+    if(!k&&!confirm('API Key 未填写，继续？'))return;
+    const body={work_dir:$('nDir').value.trim()||'.',model:$('nModel').value.trim()||'glm-4-plus',permission_mode:$('nPerm').value,api_key:k||'',base_url:b||''};
+    const r=await api('POST','/api/sessions',body);
+    await refreshSessions();selSess(r.session_id);
+    tln('sys',`── 会话已创建: ${short(r.session_id)} ──`);
+  }catch(e){alert('创建失败: '+e.message)}
+}
+async function stopSess(){if(!asid)return;try{await api('POST',`/api/sessions/${asid}/stop`);tln('sys','🏁 停止信号已发送');await refreshSessions()}catch(e){alert(e.message)}}
+async function interrupt(){if(!asid)return;try{const r=await api('POST',`/api/sessions/${asid}/interrupt`);tln('sys',r.status==='interrupted'?'🛑 已中断当前 turn':'ℹ️ 当前无运行中的 turn')}catch(e){alert(e.message)}}
+// ── Chat ──
+async function send(){
+  if(!asid){alert('请先选择会话');return}
+  const inp=$('inp'),c=inp.value.trim();if(!c)return;
+  inp.value='';inp.style.height='auto';tuser(c);
+  try{await api('POST',`/api/sessions/${asid}/message`,{content:c})}catch(e){tln('error','发送失败: '+e.message)}
+}
+// ── Events ──
+function handle(e){
+  evts.push(e);$('sb3').textContent=`事件: ${evts.length}`;
+  if(e.session_id&&['session_created','session_started','session_stopped','session_error','result','turn_complete','aborted'].includes(e.type))refreshSessions();
+  if(e.session_id!==asid)return;
+  switch(e.type){
+    case'turn_start':{
+      rnd=e.data.turn||(rnd+1);
+      tln('think',`🤔 思考中... (轮次 ${rnd})`);
+      break}
+    case'turn_complete':{
+      // 不再显示 content_preview，避免与 text_chunk/assistant_message 重复
+      break}
+    case'text_chunk':{
+      // Token 级流式输出 — 打字机效果
+      const content = e.data.content || '';
+      if (content) {
+        // 使用去重集合避免重复显示
+        if (!tcDedup.has(content)) {
+          tcDedup.add(content);
+          // 查找或创建当前 AI 消息元素
+          let aiEl = document.querySelector('.ln.ai.streaming');
+          if (!aiEl) {
+            // 创建新的流式消息元素
+            aiEl = document.createElement('div');
+            aiEl.className = 'ln ai streaming';
+            aiEl.textContent = '🤖 Assistant: ';
+            $('term').appendChild(aiEl);
+          }
+          // 追加文本内容
+          aiEl.textContent += content;
+          // 滚动到底部
+          $('term').scrollTop = $('term').scrollHeight;
+        }
+      }
+      break}
+    case'tool_execute':{
+      const tn=e.data.tool_name||'?';
+      tln('tool',`⚙️ 执行: ${tn}`+(e.data.arguments?` ${formatArgs(e.data)}`:''),'exec');
+      // 检测 Plan Mode 进入
+      if (tn === 'enter_plan_mode') {
+        isPlanMode = true;
+        updatePlanModeUI();
+        tln('info', '📝 进入 Plan Mode（只读模式，仅允许写入计划文件）', 'info');
+      }
+      break}
+    case'tool_complete':{
+      const tn=e.data.tool_name||'?',ok=e.data.success!==false;
+      tln(ok?'result':'error',`${ok?'✅':'❌'} ${tn} ${ok?'完成':'失败'}`,ok?'ok':'err');
+      // 检测 Plan Mode 退出
+      if (tn === 'exit_plan_mode' && ok) {
+        isPlanMode = false;
+        updatePlanModeUI();
+        tln('info', '🚪 退出 Plan Mode', 'info');
+      }
+      break}
+    case'assistant_message':{
+      // 如果已经有流式输出，则不再重复显示
+      const c=e.data.content||'',h=c.substring(0,200);
+      if(dedup.has(h) || document.querySelector('.ln.ai.streaming'))break;
+      dedup.add(h);
+      tln('ai',c);break}
+    case'tool_call':{
+      const id=e.data.tool_call_id;if(id&&tcDedup.has(id))break;if(id)tcDedup.add(id);
+      const tn=e.data.tool_name||'?',args=fmtJ(e.data.arguments);
+      tln('sys',`🔧 ${tn}\n${args}`);break}
+    case'tool_result':{
+      const id=e.data.tool_call_id;if(id&&trDedup.has(id))break;if(id)trDedup.add(id);
+      tln('sys',`📋 ${(e.data.content||'').substring(0,400)}`);break}
+    case'result':showResult(e);break;
+    case'output':if(e.data.text)tln('sys',e.data.text);break;
+    case'context_compacted':tln('info',`🗜️ 上下文压缩: ${e.data.messages_before} → ${e.data.messages_after} 条`,'info');break;
+    case'fallback_activated':tln('error',`⚠️ 备用模型: ${e.data.model}`,'err');break;
+    case'api_retry':tln('sys',`⚠️ API重试 (${e.data.attempt}/${e.data.max_retries}): ${e.data.error}`);break;
+    case'turn_retry':tln('sys',`⚠️ 轮次重试: ${e.data.error}`);break;
+    case'prompt_too_long_recovery':tln('info','⚠️ Prompt过长，压缩重试','info');break;
+    case'aborted':tln('error','🛑 执行已中断','err');break;
+    case'interrupted':tln('info','🛑 Turn 被中断（会话保持活跃）','info');break;
+    case'model_changed':tln('info',`🔄 模型切换: ${e.data.old_model} → ${e.data.new_model}`,'info');break;
+    case'session_archived':tln('sys',`📦 会话已归档 (${e.data.message_count} 条消息)`);break;
+    case'llm_call':addNetCall(e.data);break;
+    case'server_shutting_down':tln('error','⚠️ 服务器正在关闭...','err');break;
+    case'permission_request':showPerm(e);break;
+    case'cron_triggered':{
+      tln('info', `📅 Cron 任务触发: ${e.data.job_id} - ${e.data.prompt.substring(0, 50)}...`, 'info');
+      break}
+    case'cron_completed':{
+      const ok = e.data.success;
+      tln(ok?'result':'error', `${ok?'✅':'❌'} Cron 任务完成: ${e.data.job_id}`, ok?'ok':'err');
+      if (e.data.summary) tln('sys', `   摘要: ${e.data.summary}`);
+      if (e.data.error) tln('error', `   错误: ${e.data.error}`);
+      break}
+    case'validation_failed':{
+      tln('error', `⚠️ 代码验证失败: ${e.data.file_path}`, 'err');
+      if (e.data.summary) tln('error', `   ${e.data.summary}`);
+      break}
+  }
+}
+function showResult(e){
+  const d=e.data,st=d.status||(d.success?'success':'error'),nt=d.num_turns||'?',dur=d.duration_ms?` ${(d.duration_ms/1000).toFixed(1)}s`:'';
+  tln('','');
+  tln('sys',`┌─ ${st==='success'?'✅':'❌'} 结果: ${st} | ${nt} 轮${dur} ─────────`);
+  // 不再显示 d.result 内容，避免与流式输出重复
+  if(d.stop_reason)tln('sys',`│ stop_reason: ${d.stop_reason}`);
+  if(d.error)tln('error',`│ ❌ ${d.error}`);
+  tln('sys','└───────────────────────────');
+  tln('','');
+}
+function formatArgs(d){
+  const a=d.arguments;if(!a)return'';
+  if(typeof a==='object'){return a.file_path||a.path||a.pattern||a.url||(a.command||'').substring(0,50)||''}
+  try{const p=JSON.parse(a);return p.file_path||p.path||p.pattern||(p.command||'').substring(0,50)||''}catch{return''}
+}
+// ── Files ──
+async function browseTo(path){
+  if(!asid)return;filePath=path;
+  // breadcrumb
+  const parts=path?path.split(/[/\\]/).filter(Boolean):[];
+  let nav='<span onclick="browseTo(\'\')">📂 root</span>';
+  let acc='';
+  parts.forEach((p,i)=>{acc+=(acc?'/':'')+p;const a=acc;nav+=`<span class="sep">/</span><span onclick="browseTo('${a}')">${esc(p)}</span>`});
+  $('fnav').innerHTML=nav;
+  $('fview').classList.remove('show');$('flist').style.display='';$('fnav').style.display='';
+  try{
+    const r=await api('GET',`/api/sessions/${asid}/files?path=${encodeURIComponent(path||'.')}`);
+    const el=$('flist');
+    if(!r.entries.length){el.innerHTML='<div class="ph" style="font-size:11px">空目录</div>';return}
+    el.innerHTML=r.entries.map(e=>{
+      const isDir=e.type==='dir',ic=isDir?'📁':fileIcon(e.name),sz=isDir?'':fmtSize(e.size);
+      const np=path?(path+'/'+e.name):e.name;
+      return`<div class="fi" onclick="${isDir?`browseTo('${esc(np)}')`:`viewFile('${esc(np)}','${esc(e.name)}')`}">
+        <span class="ic">${ic}</span>
+        <span class="nm">${esc(e.name)}</span>
+        <span class="sz">${sz}</span>
+        <span class="actions" style="display:none;margin-left:4px">
+          <button class="b s" onclick="event.stopPropagation();renameFile('${esc(np)}','${esc(e.name)}')" title="重命名">✏️</button>
+          <button class="b s d" onclick="event.stopPropagation();deleteFile('${esc(np)}','${esc(e.name)}',${isDir})" title="删除">🗑️</button>
+        </span>
+      </div>`
+    }).join('');
+    // 添加 hover 显示操作按钮
+    el.querySelectorAll('.fi').forEach(fi=>{
+      const actions=fi.querySelector('.actions');
+      fi.addEventListener('mouseenter',()=>actions.style.display='inline');
+      fi.addEventListener('mouseleave',()=>actions.style.display='none');
+    });
+  }catch(e){$('flist').innerHTML=`<div class="ph" style="font-size:11px;color:var(--rd)">${e.message}</div>`}
+}
+function refreshFiles(){browseTo(filePath)}
+async function viewFile(path,name){
+  if(!asid)return;
+  try{
+    const r=await api('GET',`/api/sessions/${asid}/files/content?path=${encodeURIComponent(path)}`);
+    $('fvName').textContent=`${name} (${r.lines}行, ${fmtSize(r.size)})`;
+    const lines=r.content.split('\n');
+    $('fvContent').innerHTML=lines.map((l,i)=>`<span class="lnum">${i+1}</span>${esc(l)}`).join('\n');
+    $('flist').style.display='none';$('fnav').style.display='none';$('fview').classList.add('show');
+  }catch(e){alert('读取失败: '+e.message)}
+}
+function closeFileView(){$('fview').classList.remove('show');$('flist').style.display='';$('fnav').style.display='';browseTo(filePath)}
+// ── File Operations ──
+async function deleteFile(path,name,isDir){
+  if(!asid)return;
+  const typeStr=isDir?'文件夹':'文件';
+  if(!confirm(`确定要删除${typeStr} "${name}" 吗？\n此操作不可恢复！`))return;
+  try{
+    await api('DELETE',`/api/sessions/${asid}/files?path=${encodeURIComponent(path)}`);
+    tln('sys',`🗑️ 已删除${typeStr}: ${name}`);
+    refreshFiles();
+  }catch(e){alert('删除失败: '+e.message)}
+}
+async function renameFile(path,oldName){
+  if(!asid)return;
+  const newName=prompt('请输入新名称:',oldName);
+  if(!newName||newName===oldName)return;
+  try{
+    const parentPath=path.substring(0,path.length-oldName.length);
+    const newPath=parentPath+newName;
+    await api('POST',`/api/sessions/${asid}/files/rename`,{
+      old_path:path,
+      new_path:newPath
+    });
+    tln('sys',`✏️ 已重命名: ${oldName} → ${newName}`);
+    refreshFiles();
+  }catch(e){alert('重命名失败: '+e.message)}
+}
+async function createFolder(){
+  if(!asid){alert('请先选择会话');return}
+  const name=prompt('请输入文件夹名称:');
+  if(!name)return;
+  try{
+    const path=filePath?(filePath+'/'+name):name;
+    await api('POST',`/api/sessions/${asid}/files`,{
+      path:path,
+      type:'directory'
+    });
+    tln('sys',`📁 已创建文件夹: ${name}`);
+    refreshFiles();
+  }catch(e){alert('创建失败: '+e.message)}
+}
+async function uploadFile(){
+  if(!asid){alert('请先选择会话');return}
+  const input=document.createElement('input');
+  input.type='file';
+  input.multiple=true;
+  input.onchange=async()=>{
+    for(const file of input.files){
+      try{
+        const reader=new FileReader();
+        const content=await new Promise((resolve,reject)=>{
+          reader.onload=()=>resolve(reader.result);
+          reader.onerror=reject;
+        });
+        reader.readAsText(file);
+        const path=filePath?(filePath+'/'+file.name):file.name;
+        await api('POST',`/api/sessions/${asid}/files`,{
+          path:path,
+          content:content,
+          type:'file'
+        });
+        tln('sys',`📤 已上传: ${file.name}`);
+      }catch(e){alert('上传失败: '+file.name+' - '+e.message)}
+    }
+    refreshFiles();
+  };
+  input.click();
+}
+function fileIcon(n){const ext=n.split('.').pop().toLowerCase();return{py:'🐍',js:'📜',ts:'📜',tsx:'📜',jsx:'📜',html:'🌐',css:'🎨',json:'📋',md:'📝',yml:'⚙️',yaml:'⚙️',toml:'⚙️',sh:'🖥️',bat:'🖥️',ps1:'🖥️',txt:'📄',log:'📄'}[ext]||'📄'}
+function fmtSize(b){if(b<1024)return b+'B';if(b<1048576)return(b/1024).toFixed(1)+'K';return(b/1048576).toFixed(1)+'M'}
+// ── Center Tabs ──
+function switchCTab(name){
+  document.querySelectorAll('.ctab').forEach(t=>t.classList.toggle('active',t.dataset.ct===name));
+  $('cpane-term').style.display=name==='term'?'flex':'none';
+  $('cpane-net').style.display=name==='net'?'flex':'none';
+}
+// ── Network ──
+function addNetCall(d){
+  netCalls.push(d);netTotalTokens+=(d.response?.total_tokens||0);netTotalMs+=(d.duration_ms||0);
+  $('netCalls').textContent=netCalls.length;$('netTokens').textContent=fmtNum(netTotalTokens);
+  $('netTime').textContent=(netTotalMs/1000).toFixed(1)+'s';$('netCount').textContent=netCalls.length;
+  const el=$('netWrap'),ph=el.querySelector('.ph');if(ph)ph.remove();
+  const idx=netCalls.length,rq=d.request||{},rs=d.response||{};
+  const dur=d.duration_ms||0,tk=rs.total_tokens||0;
+  const cls=rs.finish_reason==='stop'?'ok':(rs.finish_reason==='aborted'?'err':'warn');
+  const durCls=dur>10000?'err':(dur>5000?'warn':'ok');
+  // Build table if not exists
+  let tbl=el.querySelector('.net-tbl');
+  if(!tbl){tbl=document.createElement('table');tbl.className='net-tbl';
+    tbl.innerHTML='<thead><tr><th>#</th><th>模型</th><th>消息</th><th>工具</th><th>耗时</th><th>Token</th><th>状态</th></tr></thead><tbody></tbody>';
+    el.appendChild(tbl);}
+  const tbody=tbl.querySelector('tbody');
+  const tr=document.createElement('tr');
+  const toolNames=(rs.tool_names||[]).join(', ')||'-';
+  tr.innerHTML=`<td class="num">${idx}</td><td>${esc(rq.model||'?')}</td><td class="num">${rq.message_count||0}</td><td>${esc(toolNames)}</td><td class="num ${durCls}">${(dur/1000).toFixed(1)}s</td><td class="num">${fmtNum(tk)}</td><td class="${cls}">${rs.finish_reason||'?'}</td>`;
+  tr.onclick=function(){toggleDetail('nd-'+idx,this)};
+  tbody.appendChild(tr);
+  // Detail row
+  const detTr=document.createElement('tr');detTr.id='nd-'+idx;
+  detTr.innerHTML=`<td colspan="7"><div class="net-detail"><div><span class="lbl">轮次/尝试:</span> turn ${d.turn||'?'}, attempt ${d.attempt||1}</div><div><span class="lbl">请求参数:</span></div><pre>model: ${esc(rq.model||'')}
+messages: ${rq.message_count||0} 条
+tools: ${rq.tool_count||0} 个
+temperature: ${rq.temperature}
+max_tokens: ${rq.max_tokens}</pre><div><span class="lbl">响应数据:</span></div><pre>finish_reason: ${rs.finish_reason||'N/A'}
+content: ${rs.content_length||0} 字符
+tool_calls: ${rs.tool_calls||0}${rs.tool_names?' ('+rs.tool_names.join(', ')+')':''}
+prompt_tokens: ${fmtNum(rs.prompt_tokens||0)}
+completion_tokens: ${fmtNum(rs.completion_tokens||0)}
+total_tokens: ${fmtNum(rs.total_tokens||0)}${rs.has_reasoning?'\nreasoning: '+rs.reasoning_length+' 字符':''}</pre>${rs.content_preview?'<div><span class="lbl">内容预览:</span></div><pre>'+esc(rs.content_preview)+'</pre>':''}</div></td>`;
+  detTr.style.display='none';tbody.appendChild(detTr);
+  el.scrollTop=el.scrollHeight;
+}
+function toggleDetail(id,tr){
+  const det=document.getElementById(id);if(!det)return;
+  const show=det.style.display==='none';
+  // Hide all other details
+  document.querySelectorAll('.net-detail.show').forEach(d=>{d.classList.remove('show');d.parentElement.style.display='none'});
+  if(show){det.style.display='';det.querySelector('.net-detail').classList.add('show')}
+}
+function clearNetwork(){netCalls=[];netTotalTokens=0;netTotalMs=0;
+  $('netCalls').textContent='0';$('netTokens').textContent='0';$('netTime').textContent='0s';$('netCount').textContent='0';
+  $('netWrap').innerHTML='<div class="ph" style="font-size:12px">等待 LLM 请求...</div>';}
+function fmtNum(n){if(n>=1e6)return(n/1e6).toFixed(1)+'M';if(n>=1e3)return(n/1e3).toFixed(1)+'K';return String(n)}
+// ── Permission ──
+function showPerm(e){
+  pPerm={session_id:e.session_id,request_id:e.data.request_id,tool_name:e.data.tool_name,options:e.data.tool_input.options||[]};
+  const isAskUser = e.data.tool_name === 'ask_user';
+  
+  if (isAskUser) {
+    // ask_user 工具：显示问题和选项
+    const q = e.data.tool_input.question || '';
+    const opts = e.data.tool_input.options || [];
+    const multi = e.data.tool_input.multi_select || false;
+    
+    let html = `<div style="font-size:14px;font-weight:500;margin-bottom:12px;color:var(--tx)">${esc(q)}</div>`;
+    if (multi) html += `<div style="font-size:11px;color:var(--tx2);margin-bottom:8px">（可多选）</div>`;
+    
+    html += `<div style="display:flex;flex-direction:column;gap:8px">`;
+    opts.forEach((opt, i) => {
+      const label = opt.label || `选项 ${i+1}`;
+      const desc = opt.description || '';
+      html += `<button class="b" style="text-align:left;padding:10px 12px;white-space:normal;height:auto" onclick="selectAskUserOption(${i})">
+        <div style="font-weight:500">${esc(label)}</div>
+        ${desc ? `<div style="font-size:11px;color:var(--tx2);margin-top:4px">${esc(desc)}</div>` : ''}
+      </button>`;
+    });
+    html += `</div>`;
+    html += `<div style="margin-top:12px;display:flex;gap:8px">
+      <input id="askUserOther" placeholder="或其他..." style="flex:1;background:var(--bg);border:1px solid var(--bd);color:var(--tx);padding:6px 10px;border-radius:5px;font-size:12px">
+      <button class="b p" onclick="submitAskUserOther()">提交</button>
+    </div>`;
+    
+    $('pInf').innerHTML = html;
+    $('pOv').querySelector('h3').textContent = '🤔 请选择';
+    // 隐藏默认的允许/拒绝按钮
+    $('pOv').querySelector('.act').style.display = 'none';
+  } else {
+    // 普通权限请求
+    $('pInf').innerHTML=`<div class="rw"><span class="k">会话:</span><span>${short(e.session_id)}</span></div><div class="rw"><span class="k">工具:</span><span>${esc(e.data.tool_name)}</span></div><div class="rw"><span class="k">描述:</span><span>${esc(e.data.description)}</span></div><pre style="background:var(--bg);padding:6px;border-radius:4px;font-size:10px;margin-top:4px;overflow-x:auto">${esc(JSON.stringify(e.data.tool_input,null,2))}</pre>`;
+    $('pOv').querySelector('h3').textContent = '🔐 权限审批';
+    $('pOv').querySelector('.act').style.display = '';
+  }
+  $('pOv').classList.add('show');
+}
+
+function selectAskUserOption(idx) {
+  if (!pPerm) return;
+  const opt = pPerm.options ? pPerm.options[idx] : null;
+  const label = opt ? opt.label : `选项 ${idx+1}`;
+  // 发送选择结果
+  permRespWithMessage('allow', label);
+}
+
+function submitAskUserOther() {
+  if (!pPerm) return;
+  const other = $('askUserOther').value.trim();
+  if (!other) return;
+  permRespWithMessage('allow', other);
+}
+
+async function permRespWithMessage(b, msg) {
+  if(!pPerm)return;
+  try{
+    await api('POST',`/api/sessions/${pPerm.session_id}/permission`,{
+      request_id:pPerm.request_id,
+      behavior:b,
+      message: msg || ''
+    });
+    tln('sys',`🔐 用户选择: ${msg}`);
+  }catch(e){alert(e.message)}
+  $('pOv').classList.remove('show');
+  $('pOv').querySelector('.act').style.display = '';
+  pPerm=null;
+}
+
+async function permResp(b){if(!pPerm)return;try{await api('POST',`/api/sessions/${pPerm.session_id}/permission`,{request_id:pPerm.request_id,behavior:b});tln('sys',`🔐 权限: ${b==='allow'?'✅ 允许':'❌ 拒绝'}`)}catch(e){alert(e.message)}$('pOv').classList.remove('show');$('pOv').querySelector('.act').style.display = '';pPerm=null}
+
+// ── Plan Mode ──
+let isPlanMode = false;
+
+function updatePlanModeUI() {
+  $('planModeIndicator').style.display = isPlanMode ? 'inline-block' : 'none';
+  $('btnExitPlan').style.display = isPlanMode ? 'inline-block' : 'none';
+}
+
+async function exitPlanMode() {
+  if (!asid) { alert('请先选择会话'); return; }
+  if (!confirm('确定要退出 Plan Mode 吗？')) return;
+  try {
+    // 发送 exit_plan_mode 命令
+    await api('POST', `/api/sessions/${asid}/message`, { content: '/exit_plan_mode' });
+    tln('sys', '🚪 发送退出 Plan Mode 命令...');
+    isPlanMode = false;
+    updatePlanModeUI();
+  } catch(e) {
+    alert('退出失败: ' + e.message);
+  }
+}
+
+// ── Utils ──
+function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+function fmtJ(s){try{return JSON.stringify(JSON.parse(s),null,2)}catch{return String(s||'')}}
+$('inp').addEventListener('input',function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px'});
+setInterval(()=>{$('sb4').textContent=now()},1000);$('sb4').textContent=now();
+</script>
+</body>
+</html>
