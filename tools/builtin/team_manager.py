@@ -654,3 +654,210 @@ register_tool("team_notify_idle", {
     "handler": team_notify_idle_handler,
     "permission_level": "read",
 })
+
+
+# ── 队友通信工具（增强团队协作） ──
+
+def teammate_send_handler(
+    team_name: str,
+    from_name: str,
+    to_name: str,
+    message: str,
+    msg_type: str = "info"
+) -> str:
+    """
+    队友间发送消息（参考标准 SendMessageTool）
+    
+    Args:
+        team_name: 团队名称
+        from_name: 发送者名称
+        to_name: 接收者名称（"*" 表示广播）
+        message: 消息内容
+        msg_type: 消息类型（info/request/response）
+    
+    Returns:
+        发送结果
+    """
+    from core.subagent import subagent_manager
+    
+    # 验证团队存在
+    if team_name not in _TEAMS:
+        return f"❌ Error: Team '{team_name}' not found"
+    
+    # 查找发送者 agent_id
+    from_id = _resolve_teammate_name(team_name, from_name)
+    if not from_id:
+        return f"❌ Error: Teammate '{from_name}' not found in team '{team_name}'"
+    
+    # 查找接收者 agent_id
+    if to_name == "*":
+        to_id = "*"  # 广播
+    else:
+        to_id = _resolve_teammate_name(team_name, to_name)
+        if not to_id:
+            return f"❌ Error: Teammate '{to_name}' not found in team '{team_name}'"
+    
+    # 发送消息
+    msg_id = subagent_manager.mailbox.send(
+        sender=from_id,
+        receiver=to_id,
+        content=f"[{from_name} → {to_name}] {message}",
+        msg_type=msg_type
+    )
+    
+    return f"✅ Message sent: {msg_id}\nFrom: {from_name}\nTo: {to_name}\nType: {msg_type}"
+
+
+def teammate_receive_handler(
+    team_name: str,
+    name: str,
+    msg_type: str = ""
+) -> str:
+    """
+    接收队友消息（参考标准 CheckMailboxTool）
+    
+    Args:
+        team_name: 团队名称
+        name: 接收者名称
+        msg_type: 过滤消息类型（可选）
+    
+    Returns:
+        消息列表
+    """
+    from core.subagent import subagent_manager
+    
+    # 验证团队存在
+    if team_name not in _TEAMS:
+        return f"❌ Error: Team '{team_name}' not found"
+    
+    # 查找接收者 agent_id
+    agent_id = _resolve_teammate_name(team_name, name)
+    if not agent_id:
+        return f"❌ Error: Teammate '{name}' not found in team '{team_name}'"
+    
+    # 接收消息
+    messages = subagent_manager.mailbox.receive(
+        agent_id=agent_id,
+        msg_type=msg_type if msg_type else None
+    )
+    
+    if not messages:
+        return f"📭 No messages for {name}"
+    
+    lines = [f"📬 Messages for {name}:\n"]
+    for msg in messages:
+        lines.append(f"- [{msg.msg_type}] From: {msg.sender}")
+        lines.append(f"  {msg.content}")
+        lines.append(f"  Time: {msg.timestamp}\n")
+    
+    return "\n".join(lines)
+
+
+def team_assign_task_handler(
+    team_name: str,
+    teammate_name: str,
+    task_description: str,
+    create_task_list_entry: bool = True
+) -> str:
+    """
+    分配任务给特定队友（参考标准 TaskAssign）
+    
+    Args:
+        team_name: 团队名称
+        teammate_name: 队友名称
+        task_description: 任务描述
+        create_task_list_entry: 是否同时创建 TaskList 条目
+    
+    Returns:
+        分配结果
+    """
+    from core.subagent import subagent_manager
+    
+    # 验证团队存在
+    if team_name not in _TEAMS:
+        return f"❌ Error: Team '{team_name}' not found"
+    
+    # 查找队友
+    agent_id = _resolve_teammate_name(team_name, teammate_name)
+    if not agent_id:
+        return f"❌ Error: Teammate '{teammate_name}' not found in team '{team_name}'"
+    
+    # 发送任务请求
+    msg_id = subagent_manager.mailbox.send(
+        sender="team-lead",
+        receiver=agent_id,
+        content=f"[Task Assignment]\n\n{task_description}",
+        msg_type="request"
+    )
+    
+    # 可选：创建 TaskList 条目
+    task_id = None
+    if create_task_list_entry:
+        from tools.builtin.task_manager import _TASKS, _short_id
+        task_id = _short_id()
+        _TASKS[task_id] = {
+            "id": task_id,
+            "title": f"[{teammate_name}] {task_description[:50]}...",
+            "description": task_description,
+            "status": "pending",
+            "owner": agent_id,
+            "team": team_name,
+            "created_at": time.time(),
+        }
+    
+    result = f"✅ Task assigned to {teammate_name}\n"
+    result += f"Message ID: {msg_id}\n"
+    if task_id:
+        result += f"Task ID: {task_id}\n"
+    result += f"\nTask Description:\n{task_description}"
+    
+    return result
+
+
+register_tool("teammate_send", {
+    "description": "Send a message to a teammate (use '*' for broadcast)",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "team_name": {"type": "string", "description": "Team name"},
+            "from_name": {"type": "string", "description": "Sender name"},
+            "to_name": {"type": "string", "description": "Receiver name (or '*' for broadcast)"},
+            "message": {"type": "string", "description": "Message content"},
+            "msg_type": {"type": "string", "enum": ["info", "request", "response"], "description": "Message type"},
+        },
+        "required": ["team_name", "from_name", "to_name", "message"],
+    },
+    "handler": teammate_send_handler,
+    "permission_level": "read",
+})
+
+register_tool("teammate_receive", {
+    "description": "Check mailbox for messages from teammates",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "team_name": {"type": "string", "description": "Team name"},
+            "name": {"type": "string", "description": "Your name"},
+            "msg_type": {"type": "string", "description": "Filter by message type (optional)"},
+        },
+        "required": ["team_name", "name"],
+    },
+    "handler": teammate_receive_handler,
+    "permission_level": "read",
+})
+
+register_tool("team_assign_task", {
+    "description": "Assign a task to a specific teammate",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "team_name": {"type": "string", "description": "Team name"},
+            "teammate_name": {"type": "string", "description": "Teammate name"},
+            "task_description": {"type": "string", "description": "Task description"},
+            "create_task_list_entry": {"type": "boolean", "description": "Also create task list entry"},
+        },
+        "required": ["team_name", "teammate_name", "task_description"],
+    },
+    "handler": team_assign_task_handler,
+    "permission_level": "read",
+})
