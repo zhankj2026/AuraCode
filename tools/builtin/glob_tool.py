@@ -116,6 +116,7 @@ def glob_handler(
     max_depth: int = 10,
     max_results: int = 200,
     include_dirs: bool = False,
+    project_root: str = None,  # 新增：用于解析相对路径
 ) -> str:
     """
     使用 Glob 模式查找文件
@@ -131,20 +132,35 @@ def glob_handler(
 
     Args:
         pattern: Glob 模式（支持 ** * ? []）
-        path: 搜索起始路径
+        path: 搜索起始路径（相对路径将基于 project_root 解析）
         max_depth: 最大搜索深度
         max_results: 最大返回数量
         include_dirs: 是否包含目录（默认只返回文件）
+        project_root: 项目根目录（用于解析相对路径）
 
     Returns:
         匹配文件列表（按修改时间降序）
     """
     try:
-        root = Path(path).resolve()
+        # 路径解析优先级：
+        # 1. 绝对路径 -> 直接使用
+        # 2. 相对路径 + project_root -> 基于 project_root 解析
+        # 3. 相对路径 + 无 project_root -> 基于 cwd 解析
+        if os.path.isabs(path):
+            root = Path(path).resolve()
+            logger.info(f"glob: absolute path, use directly: {root}")
+        elif project_root:
+            root = Path(project_root).resolve() / path
+            root = root.resolve()
+            logger.info(f"glob: relative path, resolve against project_root: {root}")
+        else:
+            root = Path(path).resolve()
+            logger.info(f"glob: relative path, resolve against cwd: {root}")
+        
         if not root.exists():
-            return f"错误: 路径不存在: {path}"
+            return f"错误: 路径不存在: {path} (解析为: {root})"
         if not root.is_dir():
-            return f"错误: 路径不是目录: {path}"
+            return f"错误: 路径不是目录: {path} (解析为: {root})"
 
         if not pattern:
             return "错误: pattern 不能为空"

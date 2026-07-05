@@ -1795,6 +1795,11 @@ class AgentLoop:
                     if "working_directory" not in arguments:
                         arguments["working_directory"] = self.project_root
                 
+                # 为搜索类工具传递 project_root（用于解析相对路径）
+                if tool_name in ("glob", "grep"):
+                    if "project_root" not in arguments:
+                        arguments["project_root"] = self.project_root
+                
                 result = handler(**arguments)
                 logger.info(f"Handler returned: {str(result)[:200]}")
 
