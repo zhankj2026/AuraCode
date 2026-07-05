@@ -1720,14 +1720,24 @@ class AgentLoop:
                 for msg in recent_tools[-3:]:  # 只检查最近 3 条 assistant 消息
                     for tc in msg.get("tool_calls", []):
                         if tc.get("function", {}).get("name") == "exit_plan_mode":
-                            # 找到了 exit_plan_mode，检查是否已经等待用户批准
-                            # 通过检查是否有用户消息在 exit_plan_mode 之后
+                            # 找到了 exit_plan_mode，检查是否有用户批准消息
+                            # 用户应该在 exit_plan_mode 之前或之后发送批准消息
                             exit_idx = self.state.messages.index(msg)
-                            has_user_after = any(
-                                m.get("role") == "user"
-                                for m in self.state.messages[exit_idx:]
+                            
+                            # 检查 exit_plan_mode 之前是否有用户消息（用户触发退出）
+                            has_user_before = any(
+                                m.get("role") == "user" and "按计划" in m.get("content", "")
+                                for m in self.state.messages[max(0, exit_idx-5):exit_idx]
                             )
-                            if not has_user_after:
+                            
+                            # 检查 exit_plan_mode 之后是否有用户消息（用户批准）
+                            has_user_after = any(
+                                m.get("role") == "user" and ("按计划" in m.get("content", "") or "开始" in m.get("content", "") or "执行" in m.get("content", ""))
+                                for m in self.state.messages[exit_idx+1:]
+                            )
+                            
+                            # 如果既没有之前的触发消息，也没有之后的批准消息，则阻止
+                            if not has_user_before and not has_user_after:
                                 error_msg = (
                                     "WAIT! You just exited plan mode. "
                                     "You must wait for the user to review and approve your plan "
