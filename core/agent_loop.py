@@ -121,9 +121,12 @@ class AgentLoop:
 
         # 2. 配置参数
         self.model = config.get("model", "glm-4.7")
-        self.max_iterations = config.get("max_iterations", 20)
+        self.max_iterations = config.get("max_iterations")  # None 表示无限制
         # 默认输出 token 限制
-        self.max_tokens = config.get("max_tokens", 32000)
+        self.max_tokens = config.get("default_max_tokens", 32000)
+        # 预算限制
+        self.max_budget_tokens = config.get("max_tokens")  # token 预算（输入+输出）
+        self.max_budget_usd = config.get("max_budget_usd")  # 费用预算（美元）
         # 工作目录：工具文件操作的基准路径（Bridge 模式下为用户指定的 work_dir）
         self.project_root = os.path.abspath(config.get("project_root", "."))
         # 详细日志：显示 project_root 解析结果
@@ -369,9 +372,13 @@ class AgentLoop:
         _turn_retry_count = 0  # 轮次级瞬时错误重试计数
         _consecutive_server_errors = 0  # 跨轮次连续服务器错误计数
 
-        while self.state.turn_count < self.max_iterations:
+        # 无限循环或有限循环
+        while self.max_iterations is None or self.state.turn_count < self.max_iterations:
             self.state.increment_turn()
-            logger.info(f"Turn {self.state.turn_count}/{self.max_iterations}")
+            if self.max_iterations:
+                logger.info(f"Turn {self.state.turn_count}/{self.max_iterations}")
+            else:
+                logger.info(f"Turn {self.state.turn_count} (unlimited)")
             self._emit_event("turn_start", {"turn": self.state.turn_count})
 
             # Rewind 检查点: 在每轮开始前保存快照
@@ -394,6 +401,30 @@ class AgentLoop:
                 )
 
             # 预算检查
+            # 1. Token 预算检查
+            if self.max_budget_tokens is not None:
+                total_tokens = self.state.total_usage.total_tokens
+                if total_tokens >= self.max_budget_tokens:
+                    logger.warning(f"Token budget exceeded: {total_tokens}/{self.max_budget_tokens}")
+                    return self.state.to_result(
+                        status="error_max_tokens",
+                        text=last_assistant_text,
+                        error=f"超出 token 预算上限 {self.max_budget_tokens} (已使用: {total_tokens})",
+                        stop_reason="max_tokens_reached",
+                    )
+            
+            # 2. 美元预算检查
+            if self.max_budget_usd is not None:
+                if self.state.total_cost_usd >= self.max_budget_usd:
+                    logger.warning(f"USD budget exceeded: ${self.state.total_cost_usd:.4f}/${self.max_budget_usd:.4f}")
+                    return self.state.to_result(
+                        status="error_max_budget",
+                        text=last_assistant_text,
+                        error=f"超出费用预算上限 ${self.max_budget_usd:.4f} (已使用: ${self.state.total_cost_usd:.4f})",
+                        stop_reason="max_budget_reached",
+                    )
+            
+            # 3. SessionState 内置预算检查（向后兼容）
             if self.state.is_budget_exceeded():
                 logger.warning(f"Budget exceeded: ${self.state.total_cost_usd:.4f}")
                 return self.state.to_result(
@@ -698,7 +729,13 @@ class AgentLoop:
                 )
 
         # 达到最大迭代次数
-        logger.warning("Reached max iterations")
+        if self.max_iterations:
+            logger.warning(f"Reached max iterations: {self.max_iterations}")
+            error_msg = f"达到最大轮次 {self.max_iterations}，任务未完成"
+        else:
+            logger.warning("Loop terminated (should not reach here with unlimited iterations)")
+            error_msg = "循环异常终止"
+        
         # 即使未完成任务，也尝试提取记忆（对话中可能有值得记录的信息）
         self._trigger_auto_memory_extraction()
         # 关闭会话持久化存储
@@ -706,7 +743,7 @@ class AgentLoop:
         result = self.state.to_result(
             status="error_max_turns",
             text=last_assistant_text,
-            error=f"达到最大轮次 {self.max_iterations}，任务未完成",
+            error=error_msg,
         )
         self._fire_lifecycle_hook("Stop", {"status": result.status})
         return result

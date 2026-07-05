@@ -449,8 +449,20 @@ def main():
     parser.add_argument(
         "--max-iterations",
         type=int,
-        default=20,
-        help="最大迭代次数 (默认: 20)"
+        default=None,  # None 表示无限制
+        help="最大迭代次数 (默认: 无限制)"
+    )
+    parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=None,  # None 表示无限制
+        help="最大 token 预算 (输入+输出总 token 数)"
+    )
+    parser.add_argument(
+        "--max-budget-usd",
+        type=float,
+        default=None,  # None 表示无限制
+        help="最大费用预算 (美元)"
     )
     parser.add_argument(
         "--command", "-c",
@@ -534,7 +546,9 @@ def main():
         "api_key": os.environ.get("OPENAI_API_KEY"),
         "base_url": args.base_url or os.environ.get("OPENAI_BASE_URL") or file_config.get("llm", {}).get("base_url"),
         "model": args.model or file_config.get("llm", {}).get("model", "glm-4-plus"),
-        "max_iterations": args.max_iterations or file_config.get("max_iterations", 20),
+        "max_iterations": args.max_iterations,  # None 表示无限制
+        "max_tokens": args.max_tokens,  # token 预算
+        "max_budget_usd": args.max_budget_usd,  # 费用预算
         "permission_mode": args.mode,
         # 启用扩展系统
         "enable_plugins": True,
@@ -543,7 +557,7 @@ def main():
         "active_skills": [],
         # 从配置文件加载的其他配置
         # 默认输出 token 限制
-        "max_tokens": file_config.get("llm", {}).get("max_tokens", 32000),
+        "default_max_tokens": file_config.get("llm", {}).get("max_tokens", 32000),
         "temperature": file_config.get("llm", {}).get("temperature", 0.2),
     }
 
