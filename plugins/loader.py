@@ -225,17 +225,16 @@ class PluginLoader:
         Returns:
             成功加载的插件列表
         """
-        import sys
         import time
         
         total_start = time.time()
-        print(f"DEBUG [plugins] Starting plugin loading...", file=sys.__stderr__, flush=True)
+        logger.debug("Starting plugin loading...")
         
         # 1. 加载内置插件（来自 builtin.py 注册表）
         step_start = time.time()
         builtin_count = 0
         if include_builtin:
-            print(f"DEBUG [plugins] Step 1: Loading builtin plugins...", file=sys.__stderr__, flush=True)
+            logger.debug("Step 1: Loading builtin plugins...")
             for loaded in get_enabled_builtin_plugins():
                 if loaded.plugin_instance is not None:
                     plugin = loaded.plugin_instance
@@ -246,17 +245,17 @@ class PluginLoader:
                         builtin_count += 1
             if builtin_count:
                 logger.info(f"从 builtin 注册表加载 {builtin_count} 个内置插件")
-        print(f"DEBUG [plugins] Step 1 done: {builtin_count} builtin plugins ({time.time() - step_start:.2f}s)", file=sys.__stderr__, flush=True)
+        logger.debug(f"Step 1 done: {builtin_count} builtin plugins ({time.time() - step_start:.2f}s)")
 
         # 2. 扫描 auracode/plugins/ 目录
         step_start = time.time()
-        print(f"DEBUG [plugins] Step 2: Scanning plugins directory...", file=sys.__stderr__, flush=True)
+        logger.debug("Step 2: Scanning plugins directory...")
         plugin_files = self.scan_plugins()
-        print(f"DEBUG [plugins] Step 2 done: found {len(plugin_files)} files ({time.time() - step_start:.2f}s)", file=sys.__stderr__, flush=True)
+        logger.debug(f"Step 2 done: found {len(plugin_files)} files ({time.time() - step_start:.2f}s)")
         
         dir_count = 0
         step_start = time.time()
-        print(f"DEBUG [plugins] Step 3: Loading directory plugins...", file=sys.__stderr__, flush=True)
+        logger.debug("Step 3: Loading directory plugins...")
         for filename in plugin_files:
             module_name = filename[:-3]
             plugin = self.load_plugin(module_name, source=SOURCE_USER)
@@ -264,37 +263,37 @@ class PluginLoader:
                 self.plugins.append(plugin)
                 self.plugins_map[plugin.name] = plugin
                 dir_count += 1
-        print(f"DEBUG [plugins] Step 3 done: {dir_count} plugins ({time.time() - step_start:.2f}s)", file=sys.__stderr__, flush=True)
+        logger.debug(f"Step 3 done: {dir_count} plugins ({time.time() - step_start:.2f}s)")
 
         # 3. 项目级插件
         step_start = time.time()
-        print(f"DEBUG [plugins] Step 4: Loading project plugins...", file=sys.__stderr__, flush=True)
+        logger.debug("Step 4: Loading project plugins...")
         project_count = self._load_from_dir(self.project_plugins_dir, SOURCE_PROJECT)
-        print(f"DEBUG [plugins] Step 4 done: {project_count} plugins ({time.time() - step_start:.2f}s)", file=sys.__stderr__, flush=True)
+        logger.debug(f"Step 4 done: {project_count} plugins ({time.time() - step_start:.2f}s)")
 
         # 4. 用户级插件
         step_start = time.time()
-        print(f"DEBUG [plugins] Step 5: Loading user plugins...", file=sys.__stderr__, flush=True)
+        logger.debug("Step 5: Loading user plugins...")
         user_count = self._load_from_dir(self.user_plugins_dir, SOURCE_USER)
-        print(f"DEBUG [plugins] Step 5 done: {user_count} plugins ({time.time() - step_start:.2f}s)", file=sys.__stderr__, flush=True)
+        logger.debug(f"Step 5 done: {user_count} plugins ({time.time() - step_start:.2f}s)")
 
         # 4.3 官方 marketplace 自动安装检查（首次启动自动 clone）
-        step_start = time.time()
-        print(f"DEBUG [plugins] Step 6: Checking official marketplace...", file=sys.__stderr__, flush=True)
-        self._check_official_marketplace()
-        print(f"DEBUG [plugins] Step 6 done ({time.time() - step_start:.2f}s)", file=sys.__stderr__, flush=True)
+        # step_start = time.time()
+        # logger.debug("Step 6: Checking official marketplace...")
+        # self._check_official_marketplace()
+        # logger.debug(f"Step 6 done ({time.time() - step_start:.2f}s)")
 
         # 4.5 Seed marketplace 注册（容器/部署预装，优先级最高）
         step_start = time.time()
-        print(f"DEBUG [plugins] Step 7: Registering seed marketplaces...", file=sys.__stderr__, flush=True)
+        logger.debug("Step 7: Registering seed marketplaces...")
         self._register_seed_marketplaces()
-        print(f"DEBUG [plugins] Step 7 done ({time.time() - step_start:.2f}s)", file=sys.__stderr__, flush=True)
+        logger.debug(f"Step 7 done ({time.time() - step_start:.2f}s)")
 
         # 5. Marketplace 安装的插件（从 cache 目录 + installed_plugins.json）
         step_start = time.time()
-        print(f"DEBUG [plugins] Step 8: Loading marketplace plugins...", file=sys.__stderr__, flush=True)
+        logger.debug("Step 8: Loading marketplace plugins...")
         marketplace_count = self._load_marketplace_plugins()
-        print(f"DEBUG [plugins] Step 8 done: {marketplace_count} plugins ({time.time() - step_start:.2f}s)", file=sys.__stderr__, flush=True)
+        logger.debug(f"Step 8 done: {marketplace_count} plugins ({time.time() - step_start:.2f}s)")
 
         total = builtin_count + dir_count + project_count + user_count + marketplace_count
         logger.info(
@@ -303,7 +302,7 @@ class PluginLoader:
             f"project={project_count}, user={user_count}, "
             f"marketplace={marketplace_count})"
         )
-        print(f"DEBUG [plugins] Total: {total} plugins loaded in {time.time() - total_start:.2f}s", file=sys.__stderr__, flush=True)
+        logger.debug(f"Total: {total} plugins loaded in {time.time() - total_start:.2f}s")
         return self.plugins
     
     def get_plugin(self, name: str) -> ToolPlugin:
