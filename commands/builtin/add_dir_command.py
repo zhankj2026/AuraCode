@@ -50,16 +50,39 @@ class AddDirCommand(LocalCommand):
                 output=f"Error: Path is not a directory: {path}"
             )
         
-        # TODO: 实现权限上下文更新
-        # TODO: 实现沙箱配置刷新
+        # 更新权限上下文
+        agent_loop = getattr(context, 'agent_loop', None)
+        added_to_context = False
+        
+        if agent_loop:
+            # 1. 添加到工作目录列表
+            if hasattr(agent_loop, 'work_dirs'):
+                if not isinstance(agent_loop.work_dirs, list):
+                    agent_loop.work_dirs = []
+                if str(path) not in [str(d) for d in agent_loop.work_dirs]:
+                    agent_loop.work_dirs.append(str(path))
+                    added_to_context = True
+            
+            # 2. TODO: 更新权限管理器（如果存在）
+            # if hasattr(agent_loop, 'permission_manager'):
+            #     agent_loop.permission_manager.add_directory(str(path))
+            
+            # 3. TODO: 更新沙箱配置（如果存在）
+            # if hasattr(agent_loop, 'sandbox_manager'):
+            #     agent_loop.sandbox_manager.add_allowed_directory(str(path))
         
         # 返回成功消息
+        status_msg = f"Added {path} as a working directory"
+        if added_to_context:
+            status_msg += " for this session"
+        
         return CommandResult(
             success=True,
-            output=f"Added {path} as a working directory for this session",
+            output=f"✓ {status_msg}\n\nUse /permissions to manage directory access.",
             data={
                 "path": str(path),
-                "added": True
+                "added": True,
+                "added_to_context": added_to_context
             }
         )
     

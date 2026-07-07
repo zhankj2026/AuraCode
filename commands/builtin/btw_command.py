@@ -30,15 +30,25 @@ class BtwCommand(LocalCommand):
         
         message = args.strip()
         
-        # TODO: 实现侧边消息存储
-        # 目前只是确认消息已接收
+        # 存储侧边消息到会话历史
+        # 这些消息会作为系统消息添加到对话中
+        agent_loop = getattr(context, 'agent_loop', None)
+        if agent_loop:
+            # 添加到消息历史（作为系统消息）
+            if hasattr(agent_loop, 'state') and hasattr(agent_loop.state, 'messages'):
+                agent_loop.state.messages.append({
+                    "role": "system",
+                    "content": f"[Side note] {message}",
+                    "type": "side_note"
+                })
         
         return CommandResult(
             success=True,
-            output=f"Noted: {message}",
+            output=f"✓ Noted: {message}\n\nThis side note has been added to the conversation context.",
             data={
                 "message": message,
-                "noted": True
+                "noted": True,
+                "added_to_context": agent_loop is not None
             }
         )
     

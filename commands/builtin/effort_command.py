@@ -48,13 +48,32 @@ class EffortCommand(LocalCommand):
                 output=f"Invalid effort level: {level}\n\nValid levels: {', '.join(self.VALID_LEVELS)}"
             )
         
-        # TODO: 实际应用到 agent_loop
+        # 应用到 agent_loop
+        agent_loop = getattr(context, 'agent_loop', None)
+        if agent_loop:
+            # 设置 effort_level 属性
+            setattr(agent_loop, 'effort_level', level)
+            
+            # 根据 effort 调整 LLM 参数
+            if level == "low":
+                # 快速响应，减少思考
+                setattr(agent_loop, 'temperature', 0.3)
+                setattr(agent_loop, 'max_tokens', 1000)
+            elif level == "medium":
+                # 平衡模式
+                setattr(agent_loop, 'temperature', 0.5)
+                setattr(agent_loop, 'max_tokens', 2000)
+            elif level == "high":
+                # 深度思考
+                setattr(agent_loop, 'temperature', 0.7)
+                setattr(agent_loop, 'max_tokens', 4000)
         
         return CommandResult(
             success=True,
-            output=f"Effort level set to: {level}",
+            output=f"✓ Effort level set to: {level}\n\nThis will affect response depth and detail level.",
             data={
-                "effort": level
+                "effort": level,
+                "applied": agent_loop is not None
             }
         )
     

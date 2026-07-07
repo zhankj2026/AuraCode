@@ -33,16 +33,30 @@ class FastCommand(LocalCommand):
         # 切换状态
         new_fast_mode = not current_fast_mode
         
-        # TODO: 实际应用到 agent_loop
+        # 应用到 agent_loop
+        if agent_loop:
+            # 设置 Fast 模式
+            setattr(agent_loop, 'fast_mode', new_fast_mode)
+            
+            # Fast 模式会调整 LLM 参数
+            if new_fast_mode:
+                # Fast: 降低 temperature，减少 max_tokens
+                setattr(agent_loop, 'temperature', 0.2)
+                setattr(agent_loop, 'max_tokens', 1500)
+            else:
+                # Normal: 恢复默认
+                setattr(agent_loop, 'temperature', 0.5)
+                setattr(agent_loop, 'max_tokens', 2000)
         
         status = "enabled" if new_fast_mode else "disabled"
         
         return CommandResult(
             success=True,
-            output=f"Fast mode {status}",
+            output=f"✓ Fast mode {status}\n\nFast mode reduces response time but may lower quality.",
             data={
                 "fast_mode": new_fast_mode,
-                "status": status
+                "status": status,
+                "applied": agent_loop is not None
             }
         )
     

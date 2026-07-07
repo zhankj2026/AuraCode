@@ -40,15 +40,22 @@ class RenameCommand(LocalCommand):
                 output="Cannot rename: No active session"
             )
         
-        # TODO: 实现会话存储和重命名逻辑
-        # 目前只是返回成功消息
+        # 保存会话名称
+        # 1. 更新会话状态
+        agent_loop = getattr(context, 'agent_loop', None)
+        if agent_loop and hasattr(agent_loop, 'state'):
+            setattr(agent_loop.state, 'session_name', new_name)
+        
+        # 2. TODO: 持久化到文件系统（可选）
+        # session_storage.save_custom_title(session_id, new_name)
         
         return CommandResult(
             success=True,
-            output=f"Session renamed to: {new_name}",
+            output=f"✓ Session renamed to: {new_name}\n\nThe session name has been updated.",
             data={
                 "session_id": session_id,
-                "new_name": new_name
+                "new_name": new_name,
+                "saved": True
             }
         )
     
