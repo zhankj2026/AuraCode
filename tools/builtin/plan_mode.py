@@ -335,103 +335,47 @@ def exit_plan_mode_handler(plan_summary: str = "") -> str:
         has_team_create = "team_create" in TOOL_REGISTRY
         has_task_create = "task_create" in TOOL_REGISTRY
         has_spawn_subagent = "spawn_subagent" in TOOL_REGISTRY
-        has_teammate_send = "teammate_send" in TOOL_REGISTRY
-        has_team_assign = "team_assign_task" in TOOL_REGISTRY
         
-        # 构建多任务处理引导
+        # 构建简洁的多任务引导（参考 Claude 设计）
         task_hint = ""
         if has_team_create or has_task_create or has_spawn_subagent:
-            task_hint = "\n## 🚀 多任务处理建议\n\n"
-            task_hint += "根据你的计划，可以考虑以下方式提高执行效率：\n\n"
+            task_hint = "\n## 🚀 Parallel Execution Hints\n\n"
+            task_hint += "If your plan can be broken into independent tasks:\n\n"
             
-            if has_team_create and has_teammate_send:
-                task_hint += "### 1. 创建多代理团队（推荐用于复杂协作任务）\n"
-                task_hint += "**适用场景**: 任务需要多个专业角色协作，且需要通信协调\n"
-                task_hint += "```\n"
-                task_hint += "# 步骤 1: 创建团队\n"
-                task_hint += "team_create(\n"
-                task_hint += '    team_name="feature-team",\n'
-                task_hint += '    description="实现XX功能的团队",\n'
-                task_hint += '    lead_agent_type="general"\n'
-                task_hint += ")\n\n"
-                task_hint += "# 步骤 2: 启动队友（可并行）\n"
-                task_hint += "team_spawn(\n"
-                task_hint += '    team_name="feature-team",\n'
-                task_hint += '    name="researcher",\n'
-                task_hint += '    agent_type="explore",\n'
-                task_hint += '    initial_prompt="研究认证模块"\n'
-                task_hint += ")\n"
-                task_hint += "team_spawn(\n"
-                task_hint += '    team_name="feature-team",\n'
-                task_hint += '    name="implementer",\n'
-                task_hint += '    agent_type="general",\n'
-                task_hint += '    initial_prompt="实现登录表单"\n'
-                task_hint += ")\n\n"
-                task_hint += "# 步骤 3: 队友间通信协作\n"
-                task_hint += "teammate_send(\n"
-                task_hint += '    team_name="feature-team",\n'
-                task_hint += '    from_name="researcher",\n'
-                task_hint += '    to_name="implementer",\n'
-                task_hint += '    message="发现认证接口在 /api/auth/login"\n'
-                task_hint += ")\n"
-                task_hint += "teammate_receive(\n"
-                task_hint += '    team_name="feature-team",\n'
-                task_hint += '    name="implementer"\n'
-                task_hint += ")\n\n"
-                task_hint += "# 步骤 4: 分配任务给队友\n"
-                task_hint += "team_assign_task(\n"
-                task_hint += '    team_name="feature-team",\n'
-                task_hint += '    teammate_name="tester",\n'
-                task_hint += '    task_description="编写登录功能的单元测试"\n'
-                task_hint += ")\n"
-                task_hint += "```\n\n"
-            
-            elif has_spawn_subagent:
-                task_hint += "### 1. 使用子代理执行独立任务（推荐用于可并行的独立模块）\n"
-                task_hint += "**适用场景**: 任务可以分解为独立子任务，无需复杂通信\n"
-                task_hint += "```\n"
-                task_hint += "# 并行启动多个子代理\n"
-                task_hint += 'spawn_subagent(task="研究认证模块", run_in_background=True)\n'
-                task_hint += 'spawn_subagent(task="实现登录表单", run_in_background=True)\n'
-                task_hint += 'spawn_subagent(task="编写测试用例", run_in_background=True)\n'
-                task_hint += "```\n\n"
+            if has_spawn_subagent:
+                task_hint += "- **Independent modules?** → Use `spawn_subagent` to parallelize\n"
+                task_hint += "  Example: Spawn 3 subagents for UI, API, and tests simultaneously\n\n"
             
             if has_task_create:
-                task_hint += "### 2. 创建任务列表跟踪进度\n"
-                task_hint += "**适用场景**: 任何多步骤任务，跟踪执行状态\n"
-                task_hint += "```\n"
-                task_hint += 'task_create(subject="实现登录表单", active_form="实现登录表单中")\n'
-                task_hint += 'task_create(subject="添加验证逻辑", active_form="添加验证逻辑中")\n'
-                task_hint += 'task_create(subject="集成后端 API", active_form="集成后端 API 中")\n'
-                task_hint += "```\n\n"
+                task_hint += "- **Track progress** → Use `task_create` for each major step\n"
+                task_hint += "  System will execute them efficiently\n\n"
             
-            task_hint += "**选择建议**:\n"
-            task_hint += "- 任务间有依赖？→ 使用 `task_create` 顺序跟踪\n"
-            task_hint += "- 任务可并行且独立？→ 使用 `spawn_subagent`\n"
-            task_hint += "- 需要角色协作？→ 使用 `team_create` + `teammate_send` + `team_assign_task`\n"
-            task_hint += "- 复杂功能？→ 先建团队，再分配任务，通过通信协调\n"
+            if has_team_create:
+                task_hint += "- **Complex collaboration?** → Use `team_create` + `teammate_send`\n"
+                task_hint += "  Best for tasks requiring communication between roles\n\n"
+            
+            task_hint += "**Optimization**: The system automatically parallelizes independent operations!\n"
 
         msg = (
-            "Your plan has been approved. You can now start implementing it.\n\n"
-            "## Plan Content:\n\n"
-            f"{plan_content}\n\n"
-            "---\n"
-            "## 🚀 START IMPLEMENTING NOW\n\n"
-            "**You can start coding immediately!** No need to wait for user approval.\n\n"
-            "Suggested next steps:\n"
-            "1. Review your plan above\n"
-            "2. Start implementing the first step\n"
-            "3. Use the multi-task suggestions below if applicable\n\n"
-            f"Plan file saved to: `{plan_path}`\n"
+            "✅ Your plan has been approved. Start implementing now!\n\n"
+            f"📋 Plan saved to: `{plan_path}`\n"
+            "You can refer back to it during implementation.\n\n"
+            "---\n\n"
+            "## 🎯 Next Steps\n\n"
+            "1. **Review** your plan above\n"
+            "2. **Create todo list** to track progress (recommended)\n"
+            "3. **Start implementing** the first step immediately\n"
+            "4. **Use parallel execution** when creating multiple files\n\n"
             f"{task_hint}"
+            "---\n\n"
+            "## 📋 Approved Plan\n\n"
+            f"{plan_content}\n"
         )
     else:
         msg = (
-            "Plan mode exited. No plan file was written.\n"
+            "⚠️ Plan mode exited. No plan file was written.\n\n"
             "You can now start coding, but consider creating a plan "
-            "for complex tasks.\n\n"
-            "**Note:** If this was a complex task, consider using enter_plan_mode "
-            "to plan before implementing."
+            "for complex tasks using `enter_plan_mode`."
         )
 
     return msg
