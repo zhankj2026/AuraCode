@@ -549,12 +549,17 @@ class AgentLoop:
                     "list_memories", "lsp_tool", "brief_tool",
                     "task_get", "task_list",
                 }
+                
+                # 可并行的写入工具（线程安全，无共享状态）
+                parallel_write_safe = {"write_file"}
 
-                # 将工具调用分组: 连续的只读工具批量化并行，其他顺序执行
+                # 将工具调用分组: 连续的只读/独立写入工具批量化并行，其他顺序执行
                 batches = []
                 current_batch = []
                 for tc in tool_calls_list:
-                    if tc.function.name in parallel_safe:
+                    tool_name = tc.function.name
+                    # 只读工具或独立的文件创建可以并行
+                    if tool_name in parallel_safe or tool_name in parallel_write_safe:
                         current_batch.append(tc)
                     else:
                         if current_batch:
