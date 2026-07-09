@@ -119,7 +119,7 @@ class SessionConfig:
     work_dir: str = "."
     model: str = "glm-4-plus"
     permission_mode: str = "auto"
-    max_iterations: int = 20
+    max_iterations: Optional[int] = None  # None 表示无限制，由配置文件控制
     base_url: Optional[str] = None
     api_key: Optional[str] = None
     session_timeout: int = 3600  # 秒（0=不超时）

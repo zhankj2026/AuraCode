@@ -45,7 +45,7 @@ class CreateSessionRequest(BaseModel):
     work_dir: str = "."
     model: str = ""
     permission_mode: str = ""
-    max_iterations: int = 20
+    max_iterations: Optional[int] = None  # None 表示无限制，由配置文件控制
     api_key: Optional[str] = None
     base_url: Optional[str] = None
 
