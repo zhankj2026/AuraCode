@@ -154,7 +154,7 @@ def _is_dangerous(command: str) -> Optional[str]:
 # ── 主处理函数 ──────────────────────────────────────────────────────────────────
 
 def run_command_handler(
-    command: str,
+    command: str = "",
     timeout: int = 60,
     run_in_background: bool = False,
     working_directory: Optional[str] = None,
@@ -182,6 +182,10 @@ def run_command_handler(
     Returns:
         命令输出或任务状态
     """
+    # 参数验证
+    if not command or not str(command).strip():
+        return "错误: command 参数不能为空"
+    
     # 查看后台任务
     if check_task_id is not None:
         with _bg_lock:
