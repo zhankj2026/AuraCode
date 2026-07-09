@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WorkflowScriptGenerator 使用指南 - AuraCode</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/docs.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Markdown 内容样式 */
+        .md-content { 
+            line-height: 1.8;
+            color: var(--text-primary);
+        }
+        
+        /* 标题样式 */
+        .md-content h1 { 
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin: 2rem 0 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--border-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .md-content h2 { 
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 2.5rem 0 1rem;
+            padding-left: 1rem;
+            border-left: 4px solid var(--primary-color);
+        }
+        .md-content h3 { 
+            font-size: 1.35rem;
+            font-weight: 600;
+            margin: 2rem 0 0.75rem;
+            color: var(--primary-color);
+        }
+        
+        /* 段落样式 */
+        .md-paragraph {
+            margin: 1.25rem 0;
+            line-height: 1.8;
+        }
+        
+        /* 代码块样式 */
+        .code-block {
+            background: var(--darker-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .code-block::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border-radius: 0.75rem 0.75rem 0 0;
+        }
+        .code-block code {
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+        .inline-code {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.35rem;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.85em;
+            color: var(--primary-color);
+        }
+        
+        /* 表格样式 */
+        .md-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 1.5rem 0;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .md-table thead {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        }
+        .md-table th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: white;
+        }
+        .md-table td {
+            padding: 0.875rem 1rem;
+            border-top: 1px solid var(--border-color);
+            background: var(--card-bg);
+        }
+        .md-table tbody tr:hover td {
+            background: rgba(99, 102, 241, 0.05);
+        }
+        
+        /* 引用块样式 */
+        .md-quote {
+            border-left: 4px solid var(--primary-color);
+            background: rgba(99, 102, 241, 0.05);
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 列表样式 */
+        .md-list {
+            margin: 1.25rem 0;
+            padding-left: 2rem;
+        }
+        .md-list li {
+            margin: 0.75rem 0;
+            line-height: 1.7;
+            position: relative;
+        }
+        .md-list li::marker {
+            color: var(--primary-color);
+        }
+        
+        /* 链接样式 */
+        .md-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .md-link:hover {
+            color: var(--secondary-color);
+            border-bottom-color: var(--secondary-color);
+        }
+        
+        /* 粗体和斜体 */
+        .md-strong {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .md-em {
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 分隔线 */
+        .md-hr {
+            border: none;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+            margin: 2.5rem 0;
+        }
+        
+        /* 面包屑导航 */
+        .breadcrumb-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .breadcrumb-link:hover {
+            text-decoration: underline;
+        }
+        .breadcrumb-sep {
+            color: var(--text-secondary);
+            margin: 0 0.5rem;
+        }
+        .breadcrumb-item {
+            color: var(--text-secondary);
+            text-transform: capitalize;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-code"></i>
+                <span>AuraCode</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="../index.html">首页</a></li>
+                <li><a href="../index.html#features">功能</a></li>
+                <li><a href="../index.html#docs">文档</a></li>
+                <li><a href="../index.html#quickstart">快速开始</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 文档内容 -->
+    <div class="docs-container">
+        
+        <aside class="docs-sidebar">
+            <div class="sidebar-section">
+                <h3>入门指南</h3>
+                <ul>
+                    <li><a href="../quick-start.html">快速开始</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>用户指南</h3>
+                <ul>
+                    <li><a href="chat.html">对话交互</a></li>
+                    <li><a href="commands.html">命令参考</a></li>
+                    <li><a href="tools.html">工具系统</a></li>
+                    <li><a href="skills.html">技能系统</a></li>
+                    <li><a href="memory.html">记忆系统</a></li>
+                    <li><a href="permissions.html">权限管理</a></li>
+                    <li><a href="mcp.html">MCP 协议</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>高级功能</h3>
+                <ul>
+                    <li><a href="../advanced/bridge.html">Bridge 远程控制</a></li>
+                    <li><a href="../advanced/hooks.html">钩子系统</a></li>
+                    <li><a href="../advanced/plugins.html">插件系统</a></li>
+                    <li><a href="../advanced/error-recovery.html">错误恢复</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>开发</h3>
+                <ul>
+                    <li><a href="../development/architecture.html">架构总览</a></li>
+                </ul>
+            </div>
+        </aside>
+    
+
+        <main class="docs-content">
+            <div class="docs-header">
+                <h1>WorkflowScriptGenerator 使用指南</h1>
+            </div>
+            <div class="md-content">
+                <h1>WorkflowScriptGenerator 使用指南</h1>
+
+<blockquote class="md-quote"><strong class="md-strong">版本</strong>: v1.0  </blockquote>
+<blockquote class="md-quote"><strong class="md-strong">最后更新</strong>: 2026-06-02  </blockquote>
+<blockquote class="md-quote"><strong class="md-strong">状态</strong>: ✅ 完整实现</blockquote>
+
+<hr class="md-hr">
+
+<h2>概述</h2>
+
+<code class="inline-code">WorkflowScriptGenerator</code> 是 Dynamic Workflows 的核心组件，负责<strong class="md-strong">使用 LLM 动态生成工作流脚本</strong>。
+
+<h3>核心能力</h3>
+
+<p class="md-paragraph">1. <strong class="md-strong">任务分析</strong> - 自动识别任务复杂度和关键领域
+2. <strong class="md-strong">阶段规划</strong> - 生成 DAG 结构的多阶段工作流
+3. <strong class="md-strong">提示词工程</strong> - 为每个 Agent 生成高质量提示词
+4. <strong class="md-strong">脚本验证</strong> - 自动检查依赖关系和完整性
+5. <strong class="md-strong">脚本优化</strong> - 支持基于反馈的迭代优化</p>
+
+<hr class="md-hr">
+
+<h2>架构设计</h2>
+
+<pre class="code-block"><code class="language-">用户任务
+   ↓
+┌─────────────────────────────────┐
+│  WorkflowScriptGenerator        │
+│                                 │
+│  Phase 1: 任务分析              │
+│  - 复杂度评估                   │
+│  - 关键领域识别                 │
+│  - 执行阶段判断                 │
+└─────────────────────────────────┘
+   ↓
+┌─────────────────────────────────┐
+│  Phase 2: 阶段规划              │
+│  - 生成 DAG 结构                │
+│  - 分配 Agent 类型              │
+│  - 设置依赖关系                 │
+└─────────────────────────────────┘
+   ↓
+┌─────────────────────────────────┐
+│  Phase 3: 提示词生成            │
+│  - 研究阶段提示词               │
+│  - 实现阶段提示词               │
+│  - 验证阶段提示词               │
+└─────────────────────────────────┘
+   ↓
+┌─────────────────────────────────┐
+│  Phase 4: 脚本验证              │
+│  - 名称唯一性检查               │
+│  - 依赖关系验证                 │
+│  - 循环依赖检测                 │
+│  - 任务完整性检查               │
+└─────────────────────────────────┘
+   ↓
+WorkflowScript 对象
+</code></pre>
+
+<hr class="md-hr">
+
+<h2>使用方式</h2>
+
+<h3>方式 1: 通过工具调用</h3>
+
+<pre class="code-block"><code class="language-python"># 使用 dynamic_workflow 工具
+result = dynamic_workflow(
+    task="审计所有 API endpoint 的认证检查",
+    auto_approve=False,
+    save_script=True
+)
+</code></pre>
+
+<h3>方式 2: 直接调用生成器</h3>
+
+<pre class="code-block"><code class="language-python">from core.workflow_generator import generate_workflow_script
+
+<h1>生成工作流脚本</h1>
+script = generate_workflow_script(
+    task="审计所有 API endpoint 的认证检查",
+    context={"project_type": "web_api"}
+)
+
+<h1>查看生成的脚本</h1>
+print(script.to_dict())
+
+<h1>验证脚本</h1>
+errors = script.validate()
+if errors:
+    print(f"脚本错误: {errors}")
+
+<h1>获取执行顺序</h1>
+execution_order = script.get_execution_order()
+print(f"执行顺序: {execution_order}")
+</code></pre>
+
+<hr class="md-hr">
+
+<h2>任务分析引擎</h2>
+
+<h3>复杂度评估</h3>
+
+<p class="md-paragraph">自动生成器会根据任务描述评估复杂度：</p>
+
+<table class="md-table">
+<thead><tr><th>关键词</th><th>复杂度</th><th>预估阶段数</th></tr></thead>
+<tbody>
+<tr><td>"所有"、"全部"、"整个"</td><td>complex</td><td>3</td></tr>
+<tr><td>"一些"、"部分"、"几个"</td><td>moderate</td><td>2</td></tr>
+<tr><td>其他</td><td>simple</td><td>1</td></tr>
+</tbody></table>
+<h3>关键领域识别</h3>
+
+<p class="md-paragraph">自动识别任务涉及的关键领域：</p>
+
+<pre class="code-block"><code class="language-python"># 示例 1: API 审计
+task = "审计所有 API endpoint 的认证检查"
+<h1>识别结果: key_areas = ["api", "security"]</h1>
+
+<h1>示例 2: 数据库迁移</h1>
+task = "迁移数据库从 MySQL 到 PostgreSQL"
+<h1>识别结果: key_areas = ["database"]</h1>
+
+<h1>示例 3: 测试覆盖率</h1>
+task = "提高测试覆盖率到 80%"
+<h1>识别结果: key_areas = ["testing"]</h1>
+</code></pre>
+
+<h3>执行阶段判断</h3>
+
+<p class="md-paragraph">根据任务特征自动决定需要的阶段：</p>
+
+<table class="md-table">
+<thead><tr><th>阶段</th><th>触发条件</th><th>Agent 类型</th></tr></thead>
+<tbody>
+<tr><td>研究阶段</td><td>包含"审计"、"分析"、"检查"等词</td><td>explore</td></tr>
+<tr><td>实现阶段</td><td>包含"修改"、"更新"、"重构"等词</td><td>general</td></tr>
+<tr><td>验证阶段</td><td>包含"验证"、"测试"、"确认"等词</td><td>review</td></tr>
+</tbody></table>
+<hr class="md-hr">
+
+<h2>提示词工程</h2>
+
+<h3>研究阶段提示词模板</h3>
+
+<pre class="code-block"><code class="language-">研究任务：{task}
+
+<p class="md-paragraph">你的任务：
+1. 分析项目结构，识别与任务相关的关键文件和目录
+2. 理解现有代码的实现方式
+3. 评估任务的影响范围和复杂度
+4. 列出需要修改的文件清单</p>
+
+<p class="md-paragraph">重点关注：{key_areas}</p>
+
+<p class="md-paragraph">输出格式：
+<h2>研究发现</h2></p>
+
+<h3>关键文件</h3>
+<ul class="md-list">
+<li>文件路径: 作用描述</li>
+</ul>
+
+<h3>影响范围</h3>
+<ul class="md-list">
+<li>受影响的模块/组件</li>
+</ul>
+
+<h3>复杂度评估</h3>
+<ul class="md-list">
+<li>预估工作量：低/中/高</li>
+</ul>
+
+<h3>建议方案</h3>
+<ul class="md-list">
+<li>推荐的实施步骤</li>
+</ul>
+</code></pre>
+
+<h3>实现阶段提示词模板</h3>
+
+<pre class="code-block"><code class="language-">实施任务：{task}
+
+<p class="md-paragraph">基于研究发现，执行以下操作：
+1. 按照建议方案逐步实施修改
+2. 确保代码质量和一致性
+3. 添加必要的注释和文档
+4. 遵循项目的编码规范</p>
+
+<p class="md-paragraph">注意事项：
+<ul class="md-list">
+<li>保持代码可读性</li>
+<li>避免引入新的问题</li>
+<li>考虑边界情况</li>
+</ul></p>
+
+<p class="md-paragraph">输出格式：
+<h2>实施结果</h2></p>
+
+<h3>已完成的修改</h3>
+<ul class="md-list">
+<li>文件路径: 修改描述</li>
+</ul>
+
+<h3>新增功能</h3>
+<ul class="md-list">
+<li>功能描述</li>
+</ul>
+
+<h3>注意事项</h3>
+<ul class="md-list">
+<li>需要后续关注的问题</li>
+</ul>
+</code></pre>
+
+<h3>验证阶段提示词模板</h3>
+
+<pre class="code-block"><code class="language-">验证任务：{task}
+
+<p class="md-paragraph">你的任务：
+1. 检查实施结果是否符合要求
+2. 验证代码的正确性和完整性
+3. 检查是否遗漏了重要方面
+4. 评估整体质量</p>
+
+<p class="md-paragraph">验证清单：
+<ul class="md-list">
+<li>[ ] 所有要求的修改都已完成</li>
+<li>[ ] 代码质量符合标准</li>
+<li>[ ] 没有引入新的问题</li>
+<li>[ ] 文档和注释完整</li>
+</ul></p>
+
+<p class="md-paragraph">输出格式：
+<h2>验证结果</h2></p>
+
+<h3>通过项</h3>
+<ul class="md-list">
+<li>验证项: 状态</li>
+</ul>
+
+<h3>问题项</h3>
+<ul class="md-list">
+<li>问题描述: 建议修复方式</li>
+</ul>
+
+<h3>总体评价</h3>
+<ul class="md-list">
+<li>质量评分：1-10</li>
+<li>建议：后续改进方向</li>
+</ul>
+</code></pre>
+
+<hr class="md-hr">
+
+<h2>脚本验证</h2>
+
+<h3>验证规则</h3>
+
+<p class="md-paragraph">1. <strong class="md-strong">名称唯一性</strong> - 阶段名称必须唯一
+2. <strong class="md-strong">依赖关系</strong> - 依赖的阶段必须存在
+3. <strong class="md-strong">循环依赖</strong> - 不能存在循环依赖
+4. <strong class="md-strong">任务完整性</strong> - 每个阶段必须包含至少一个 Agent
+5. <strong class="md-strong">提示词非空</strong> - Agent 的提示词不能为空</p>
+
+<h3>验证示例</h3>
+
+<pre class="code-block"><code class="language-python">from core.workflow_types import WorkflowScript, WorkflowStage, AgentTask
+
+<p class="md-paragraph">script = WorkflowScript(
+    name="test-workflow",
+    stages=[
+        WorkflowStage(
+            name="stage1",
+            agents=[AgentTask(prompt="任务1")]
+        ),
+        WorkflowStage(
+            name="stage2",
+            agents=[AgentTask(prompt="任务2")],
+            depends=["stage1"]  # ✅ 正确依赖
+        )
+    ]
+)</p>
+
+<p class="md-paragraph">errors = script.validate()
+if errors:
+    print(f"验证失败: {errors}")
+else:
+    print("验证通过")
+</code></pre></p>
+
+<hr class="md-hr">
+
+<h2>高级功能</h2>
+
+<h3>脚本优化</h3>
+
+<pre class="code-block"><code class="language-python">from core.workflow_generator import WorkflowScriptGenerator
+
+<p class="md-paragraph">generator = WorkflowScriptGenerator()</p>
+
+<h1>生成初始脚本</h1>
+script = generator.generate(task="审计 API 认证")
+
+<h1>根据反馈优化</h1>
+optimized_script = generator.optimize_script(
+    script=script,
+    feedback="研究阶段需要更详细的文件分析"
+)
+</code></pre>
+
+<h3>生成历史</h3>
+
+<pre class="code-block"><code class="language-python"># 查看生成历史
+history = generator.generation_history
+for item in history:
+    print(f"任务: {item['task']}")
+    print(f"脚本: {item['script']}")
+</code></pre>
+
+<hr class="md-hr">
+
+<h2>最佳实践</h2>
+
+<h3>1. 任务描述要具体</h3>
+
+<pre class="code-block"><code class="language-python"># ❌ 不好的描述
+task = "修改代码"
+
+<h1>✅ 好的描述</h1>
+task = "将 src/api/ 下所有 endpoint 的认证检查从 JWT 改为 OAuth2"
+</code></pre>
+
+<h3>2. 提供上下文信息</h3>
+
+<pre class="code-block"><code class="language-python">script = generate_workflow_script(
+    task="优化数据库查询性能",
+    context={
+        "project_type": "web_api",
+        "database": "PostgreSQL",
+        "orm": "SQLAlchemy",
+        "target_files": ["src/models/", "src/queries/"]
+    }
+)
+</code></pre>
+
+<h3>3. 验证生成的脚本</h3>
+
+<pre class="code-block"><code class="language-python">script = generate_workflow_script(task="...")
+
+<h1>验证脚本</h1>
+errors = script.validate()
+if errors:
+    print(f"脚本存在错误: {errors}")
+    # 可以选择重新生成或手动修复
+else:
+    # 执行脚本
+    coordinator.load_workflow_script(script.to_dict())
+</code></pre>
+
+<h3>4. 保存常用脚本</h3>
+
+<pre class="code-block"><code class="language-python"># 生成脚本
+script = generate_workflow_script(
+    task="审计所有 API 的认证检查"
+)
+
+<h1>保存供后续复用</h1>
+with open(".auracode/workflows/api-audit.json", "w") as f:
+    json.dump(script.to_dict(), f, indent=2)
+
+<h1>后续可以直接加载执行</h1>
+coordinator.load_workflow_script_from_file(
+    ".auracode/workflows/api-audit.json"
+)
+</code></pre>
+
+<hr class="md-hr">
+
+<h2>故障排查</h2>
+
+<h3>问题 1: 生成的脚本阶段太少</h3>
+
+<strong class="md-strong">原因</strong>: 任务描述过于简单
+
+<strong class="md-strong">解决</strong>: 提供更详细的任务描述
+
+<pre class="code-block"><code class="language-python"># ❌ 阶段太少
+task = "检查代码"  # 可能只生成 1 个阶段
+
+<h1>✅ 阶段丰富</h1>
+task = "审计所有 API 的认证检查，修改不符合要求的地方，并验证修复结果"
+<h1>会生成: 研究 → 实现 → 验证</h1>
+</code></pre>
+
+<h3>问题 2: 提示词质量不高</h3>
+
+<strong class="md-strong">原因</strong>: 缺少上下文信息
+
+<strong class="md-strong">解决</strong>: 使用 <code class="inline-code">context</code> 参数提供更多信息
+
+<pre class="code-block"><code class="language-python">script = generate_workflow_script(
+    task="优化数据库查询",
+    context={
+        "database": "PostgreSQL",
+        "orm": "SQLAlchemy",
+        "slow_queries_file": "logs/slow_queries.log"
+    }
+)
+</code></pre>
+
+<h3>问题 3: 脚本验证失败</h3>
+
+<strong class="md-strong">原因</strong>: 可能存在循环依赖或任务不完整
+
+<strong class="md-strong">解决</strong>: 检查生成的脚本并手动修复
+
+<pre class="code-block"><code class="language-python">script = generate_workflow_script(task="...")
+errors = script.validate()
+
+<p class="md-paragraph">if errors:
+    print(f"错误: {errors}")
+    # 查看具体哪个阶段有问题
+    for stage in script.stages:
+        print(f"阶段: {stage.name}")
+        print(f"  依赖: {stage.depends}")
+        print(f"  Agent 数: {len(stage.agents)}")
+</code></pre></p>
+
+<hr class="md-hr">
+
+<h2>API 参考</h2>
+
+<h3>WorkflowScriptGenerator</h3>
+
+<pre class="code-block"><code class="language-python">class WorkflowScriptGenerator:
+    def __init__(self, llm_client=None):
+        """初始化生成器"""
+    
+    def generate(
+        self,
+        task: str,
+        context: Optional[Dict[str, Any]] = None
+    ) -> WorkflowScript:
+        """生成工作流脚本"""
+    
+    def optimize_script(
+        self,
+        script: WorkflowScript,
+        feedback: str
+    ) -> WorkflowScript:
+        """优化脚本"""
+</code></pre>
+
+<h3>便捷函数</h3>
+
+<pre class="code-block"><code class="language-python">def generate_workflow_script(
+    task: str,
+    context: Optional[Dict[str, Any]] = None
+) -> WorkflowScript:
+    """生成工作流脚本（全局实例）"""
+</code></pre>
+
+<hr class="md-hr">
+
+<h2>相关文档</h2>
+
+<ul class="md-list">
+<li><a href="batch-workflow.md" class="md-link">Dynamic Workflows 完整指南</a></li>
+<li><a href="../development/architecture.md#coordinator-模式" class="md-link">Coordinator 模式</a></li>
+<li><a href="subagent-usage.md" class="md-link">子代理系统</a></li>
+</ul>
+
+<hr class="md-hr">
+
+<strong class="md-strong">最后更新</strong>: 2026-06-02  
+<strong class="md-strong">版本</strong>: v1.0  
+<strong class="md-strong">状态</strong>: ✅ 完整实现
+
+            </div>
+
+            <div class="docs-navigation">
+                <a href="../index.html" class="nav-btn prev">
+                    <i class="fas fa-arrow-left"></i>
+                    返回首页
+                </a>
+            </div>
+        </main>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2026 AuraCode. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+    <script src="../js/docs.js"></script>
+</body>
+</html>

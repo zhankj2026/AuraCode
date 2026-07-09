@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>钩子系统 - AuraCode</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/docs.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Markdown 内容样式 */
+        .md-content { 
+            line-height: 1.8;
+            color: var(--text-primary);
+        }
+        
+        /* 标题样式 */
+        .md-content h1 { 
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin: 2rem 0 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--border-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .md-content h2 { 
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 2.5rem 0 1rem;
+            padding-left: 1rem;
+            border-left: 4px solid var(--primary-color);
+        }
+        .md-content h3 { 
+            font-size: 1.35rem;
+            font-weight: 600;
+            margin: 2rem 0 0.75rem;
+            color: var(--primary-color);
+        }
+        
+        /* 段落样式 */
+        .md-paragraph {
+            margin: 1.25rem 0;
+            line-height: 1.8;
+        }
+        
+        /* 代码块样式 */
+        .code-block {
+            background: var(--darker-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .code-block::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border-radius: 0.75rem 0.75rem 0 0;
+        }
+        .code-block code {
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+        .inline-code {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.35rem;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.85em;
+            color: var(--primary-color);
+        }
+        
+        /* 表格样式 */
+        .md-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 1.5rem 0;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .md-table thead {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        }
+        .md-table th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: white;
+        }
+        .md-table td {
+            padding: 0.875rem 1rem;
+            border-top: 1px solid var(--border-color);
+            background: var(--card-bg);
+        }
+        .md-table tbody tr:hover td {
+            background: rgba(99, 102, 241, 0.05);
+        }
+        
+        /* 引用块样式 */
+        .md-quote {
+            border-left: 4px solid var(--primary-color);
+            background: rgba(99, 102, 241, 0.05);
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 列表样式 */
+        .md-list {
+            margin: 1.25rem 0;
+            padding-left: 2rem;
+        }
+        .md-list li {
+            margin: 0.75rem 0;
+            line-height: 1.7;
+            position: relative;
+        }
+        .md-list li::marker {
+            color: var(--primary-color);
+        }
+        
+        /* 链接样式 */
+        .md-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .md-link:hover {
+            color: var(--secondary-color);
+            border-bottom-color: var(--secondary-color);
+        }
+        
+        /* 粗体和斜体 */
+        .md-strong {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .md-em {
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 分隔线 */
+        .md-hr {
+            border: none;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+            margin: 2.5rem 0;
+        }
+        
+        /* 面包屑导航 */
+        .breadcrumb-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .breadcrumb-link:hover {
+            text-decoration: underline;
+        }
+        .breadcrumb-sep {
+            color: var(--text-secondary);
+            margin: 0 0.5rem;
+        }
+        .breadcrumb-item {
+            color: var(--text-secondary);
+            text-transform: capitalize;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-code"></i>
+                <span>AuraCode</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="../index.html">首页</a></li>
+                <li><a href="../index.html#features">功能</a></li>
+                <li><a href="../index.html#docs">文档</a></li>
+                <li><a href="../index.html#quickstart">快速开始</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 文档内容 -->
+    <div class="docs-container">
+        
+        <aside class="docs-sidebar">
+            <div class="sidebar-section">
+                <h3>入门指南</h3>
+                <ul>
+                    <li><a href="../quick-start.html">快速开始</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>用户指南</h3>
+                <ul>
+                    <li><a href="../user-guide/chat.html">对话交互</a></li>
+                    <li><a href="../user-guide/commands.html">命令参考</a></li>
+                    <li><a href="../user-guide/tools.html">工具系统</a></li>
+                    <li><a href="../user-guide/skills.html">技能系统</a></li>
+                    <li><a href="../user-guide/memory.html">记忆系统</a></li>
+                    <li><a href="../user-guide/permissions.html">权限管理</a></li>
+                    <li><a href="../user-guide/mcp.html">MCP 协议</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>高级功能</h3>
+                <ul>
+                    <li><a href="bridge.html">Bridge 远程控制</a></li>
+                    <li><a href="hooks.html">钩子系统</a></li>
+                    <li><a href="plugins.html">插件系统</a></li>
+                    <li><a href="error-recovery.html">错误恢复</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>开发</h3>
+                <ul>
+                    <li><a href="../development/architecture.html">架构总览</a></li>
+                </ul>
+            </div>
+        </aside>
+    
+
+        <main class="docs-content">
+            <div class="docs-header">
+                <h1>钩子系统</h1>
+            </div>
+            <div class="md-content">
+                <h1>钩子系统</h1>
+
+<p class="md-paragraph">钩子（Hooks）是配置驱动的事件回调机制，让你在 AI 操作的关键节点插入自定义逻辑。</p>
+
+<hr class="md-hr">
+
+<h2>事件类型</h2>
+
+<table class="md-table">
+<thead><tr><th>事件</th><th>触发时机</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">PreToolUse</code></td><td>工具调用前（可拦截）</td></tr>
+<tr><td><code class="inline-code">PostToolUse</code></td><td>工具调用后</td></tr>
+<tr><td><code class="inline-code">Stop</code></td><td>代理循环结束</td></tr>
+<tr><td><code class="inline-code">ToolError</code></td><td>工具执行出错</td></tr>
+<tr><td><code class="inline-code">UserMessage</code></td><td>用户消息接收</td></tr>
+<tr><td><code class="inline-code">PreCompact</code></td><td>上下文压缩前</td></tr>
+<tr><td><code class="inline-code">PostCompact</code></td><td>上下文压缩后</td></tr>
+<tr><td><code class="inline-code">ContextWarning</code></td><td>上下文窗口接近上限</td></tr>
+</tbody></table>
+<hr class="md-hr">
+
+<h2>配置方式</h2>
+
+<h3>项目级配置（<code class="inline-code">.auracode/hooks.yaml</code>）</h3>
+
+<pre class="code-block"><code class="language-yaml">hooks:
+  PreToolUse:
+    - command: "echo 'About to use tool: $TOOL_NAME'"
+      filter: "run_command"     # 只匹配 run_command 工具
+      priority: 10              # 优先级（数字越大越先执行）
+
+<p class="md-paragraph">  PostToolUse:
+    - command: "black $FILE_PATH"
+      filter: "write_file"      # 写 Python 文件后自动格式化
+      matcher: "\\.py$"         # 正则匹配文件路径</p>
+
+<p class="md-paragraph">  Stop:
+    - command: "notify-send 'AuraCode task completed'"
+</code></pre></p>
+
+<h3>运行时注册（插件方式）</h3>
+
+<p class="md-paragraph">插件可通过 <code class="inline-code">get_hooks()</code> 方法注册钩子：</p>
+
+<pre class="code-block"><code class="language-python">def get_hooks(self):
+    return [
+        {
+            "event": "PostToolUse",
+            "handler": self._after_write,
+            "matcher": "write_file"
+        }
+    ]
+</code></pre>
+
+<hr class="md-hr">
+
+<h2>特性</h2>
+
+<h3>优先级排序</h3>
+
+<p class="md-paragraph">通过 <code class="inline-code">priority</code> 控制执行顺序，数字越大越先执行：</p>
+
+<pre class="code-block"><code class="language-yaml">hooks:
+  PreToolUse:
+    - command: "echo first"
+      priority: 100
+    - command: "echo second"
+      priority: 50
+</code></pre>
+
+<h3>短路机制</h3>
+
+<code class="inline-code">PreToolUse</code> 钩子返回非零退出码时，后续钩子和工具调用均被跳过：
+
+<pre class="code-block"><code class="language-yaml">hooks:
+  PreToolUse:
+    - command: "test -f $FILE_PATH"    # 文件不存在时阻止操作
+      filter: "read_file"
+      short_circuit: true              # 启用短路
+</code></pre>
+
+<h3>错误隔离</h3>
+
+<p class="md-paragraph">单个钩子出错不影响其他钩子和主流程，错误会被记录但不中断执行。</p>
+
+<h3>文件监听热重载</h3>
+
+<p class="md-paragraph">修改 <code class="inline-code">.auracode/hooks.yaml</code> 后自动重载，无需重启。</p>
+
+<hr class="md-hr">
+
+<h2>环境变量</h2>
+
+<p class="md-paragraph">钩子执行时可访问以下环境变量：</p>
+
+<table class="md-table">
+<thead><tr><th>变量</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">$TOOL_NAME</code></td><td>当前工具名称</td></tr>
+<tr><td><code class="inline-code">$TOOL_INPUT</code></td><td>工具输入（JSON）</td></tr>
+<tr><td><code class="inline-code">$FILE_PATH</code></td><td>操作的文件路径（如适用）</td></tr>
+<tr><td><code class="inline-code">$SESSION_ID</code></td><td>当前会话 ID</td></tr>
+</tbody></table>
+<hr class="md-hr">
+
+<h2>管理命令</h2>
+
+<pre class="code-block"><code class="language-">> /hooks
+
+<p class="md-paragraph">已注册 Hook (5 个):</p>
+
+<p class="md-paragraph">  PreToolUse (2):
+    1. [priority=100] echo 'About to use tool'  filter: run_command
+    2. [priority=50]  validate.py               filter: write_file</p>
+
+<p class="md-paragraph">  PostToolUse (2):
+    1. black $FILE_PATH                         filter: write_file, matcher: \.py$
+    2. log_hook.py                              filter: *</p>
+
+<p class="md-paragraph">  Stop (1):
+    1. notify-send 'Task completed'</p>
+
+<blockquote class="md-quote">/hooks log</blockquote>
+
+<p class="md-paragraph">最近 Hook 执行日志:
+  14:30:01  PreToolUse   run_command  ✅ 0.01s
+  14:30:02  PostToolUse  write_file   ✅ 0.45s  (black 格式化)
+  14:30:05  Stop                      ✅ 0.00s
+</code></pre></p>
+
+<hr class="md-hr">
+
+<h2>相关命令</h2>
+
+<table class="md-table">
+<thead><tr><th>命令</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">/hooks</code></td><td>查看已注册钩子</td></tr>
+<tr><td><code class="inline-code">/hooks log</code></td><td>查看执行日志</td></tr>
+<tr><td><code class="inline-code">/hooks reload</code></td><td>手动重新加载配置</td></tr>
+</tbody></table>
+            </div>
+
+            <div class="docs-navigation">
+                <a href="../index.html" class="nav-btn prev">
+                    <i class="fas fa-arrow-left"></i>
+                    返回首页
+                </a>
+            </div>
+        </main>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2026 AuraCode. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+    <script src="../js/docs.js"></script>
+</body>
+</html>

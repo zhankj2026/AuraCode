@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>命令参考 - AuraCode</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/docs.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Markdown 内容样式 */
+        .md-content { 
+            line-height: 1.8;
+            color: var(--text-primary);
+        }
+        
+        /* 标题样式 */
+        .md-content h1 { 
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin: 2rem 0 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--border-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .md-content h2 { 
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 2.5rem 0 1rem;
+            padding-left: 1rem;
+            border-left: 4px solid var(--primary-color);
+        }
+        .md-content h3 { 
+            font-size: 1.35rem;
+            font-weight: 600;
+            margin: 2rem 0 0.75rem;
+            color: var(--primary-color);
+        }
+        
+        /* 段落样式 */
+        .md-paragraph {
+            margin: 1.25rem 0;
+            line-height: 1.8;
+        }
+        
+        /* 代码块样式 */
+        .code-block {
+            background: var(--darker-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .code-block::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border-radius: 0.75rem 0.75rem 0 0;
+        }
+        .code-block code {
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+        .inline-code {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.35rem;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.85em;
+            color: var(--primary-color);
+        }
+        
+        /* 表格样式 */
+        .md-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 1.5rem 0;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .md-table thead {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        }
+        .md-table th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: white;
+        }
+        .md-table td {
+            padding: 0.875rem 1rem;
+            border-top: 1px solid var(--border-color);
+            background: var(--card-bg);
+        }
+        .md-table tbody tr:hover td {
+            background: rgba(99, 102, 241, 0.05);
+        }
+        
+        /* 引用块样式 */
+        .md-quote {
+            border-left: 4px solid var(--primary-color);
+            background: rgba(99, 102, 241, 0.05);
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 列表样式 */
+        .md-list {
+            margin: 1.25rem 0;
+            padding-left: 2rem;
+        }
+        .md-list li {
+            margin: 0.75rem 0;
+            line-height: 1.7;
+            position: relative;
+        }
+        .md-list li::marker {
+            color: var(--primary-color);
+        }
+        
+        /* 链接样式 */
+        .md-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .md-link:hover {
+            color: var(--secondary-color);
+            border-bottom-color: var(--secondary-color);
+        }
+        
+        /* 粗体和斜体 */
+        .md-strong {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .md-em {
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 分隔线 */
+        .md-hr {
+            border: none;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+            margin: 2.5rem 0;
+        }
+        
+        /* 面包屑导航 */
+        .breadcrumb-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .breadcrumb-link:hover {
+            text-decoration: underline;
+        }
+        .breadcrumb-sep {
+            color: var(--text-secondary);
+            margin: 0 0.5rem;
+        }
+        .breadcrumb-item {
+            color: var(--text-secondary);
+            text-transform: capitalize;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-code"></i>
+                <span>AuraCode</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="../index.html">首页</a></li>
+                <li><a href="../index.html#features">功能</a></li>
+                <li><a href="../index.html#docs">文档</a></li>
+                <li><a href="../index.html#quickstart">快速开始</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 文档内容 -->
+    <div class="docs-container">
+        
+        <aside class="docs-sidebar">
+            <div class="sidebar-section">
+                <h3>入门指南</h3>
+                <ul>
+                    <li><a href="../quick-start.html">快速开始</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>用户指南</h3>
+                <ul>
+                    <li><a href="chat.html">对话交互</a></li>
+                    <li><a href="commands.html">命令参考</a></li>
+                    <li><a href="tools.html">工具系统</a></li>
+                    <li><a href="skills.html">技能系统</a></li>
+                    <li><a href="memory.html">记忆系统</a></li>
+                    <li><a href="permissions.html">权限管理</a></li>
+                    <li><a href="mcp.html">MCP 协议</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>高级功能</h3>
+                <ul>
+                    <li><a href="../advanced/bridge.html">Bridge 远程控制</a></li>
+                    <li><a href="../advanced/hooks.html">钩子系统</a></li>
+                    <li><a href="../advanced/plugins.html">插件系统</a></li>
+                    <li><a href="../advanced/error-recovery.html">错误恢复</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>开发</h3>
+                <ul>
+                    <li><a href="../development/architecture.html">架构总览</a></li>
+                </ul>
+            </div>
+        </aside>
+    
+
+        <main class="docs-content">
+            <div class="docs-header">
+                <h1>命令参考</h1>
+            </div>
+            <div class="md-content">
+                <h1>命令参考</h1>
+
+<p class="md-paragraph">在对话模式中输入 <code class="inline-code">/命令名</code> 即可执行。AuraCode 内置 46 条命令，覆盖开发全流程。</p>
+
+<hr class="md-hr">
+
+<h2>核心交互</h2>
+
+<table class="md-table">
+<thead><tr><th>命令</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">/help</code> (<code class="inline-code">?</code>)</td><td>查看所有可用命令及简要说明</td></tr>
+<tr><td><code class="inline-code">/status</code></td><td>当前会话状态（模型、Token、迭代次数、费用）</td></tr>
+<tr><td><code class="inline-code">/clear</code></td><td>清空对话历史，重新开始</td></tr>
+<tr><td><code class="inline-code">/compact</code></td><td>LLM 驱动压缩对话历史，保留关键摘要</td></tr>
+<tr><td><code class="inline-code">/context</code></td><td>Token 分布可视化与上下文使用情况</td></tr>
+<tr><td><code class="inline-code">/cost</code></td><td>会话费用追踪（按模型独立计价）</td></tr>
+<tr><td><code class="inline-code">/model <name></code></td><td>运行时切换模型，支持历史回滚</td></tr>
+<tr><td><code class="inline-code">/new</code></td><td>创建新会话</td></tr>
+<tr><td><code class="inline-code">/reset</code></td><td>重置当前会话</td></tr>
+</tbody></table>
+<hr class="md-hr">
+
+<h2>Git 工作流</h2>
+
+<table class="md-table">
+<thead><tr><th>命令</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">/commit</code></td><td>AI 分析当前变更，智能生成 Git 提交信息并执行</td></tr>
+<tr><td><code class="inline-code">/diff</code></td><td>查看 Git 暂存区与工作区差异</td></tr>
+<tr><td><code class="inline-code">/review</code></td><td>代码审查 — 变更影响分析 + 依赖图展示</td></tr>
+<tr><td><code class="inline-code">/security-review</code></td><td>安全漏洞扫描 — 16 类检查规则 + 严重性分级</td></tr>
+<tr><td><code class="inline-code">/worktree</code></td><td>Git Worktree 隔离工作区管理</td></tr>
+</tbody></table>
+<h3>示例</h3>
+
+<pre class="code-block"><code class="language-">> /commit
+
+<p class="md-paragraph">分析变更:
+  - 修改 src/auth.py (添加 JWT 验证)
+  - 新增 src/middleware.py</p>
+
+<p class="md-paragraph">建议提交信息:
+  feat(auth): 添加 JWT Token 验证中间件</p>
+
+<p class="md-paragraph">是否提交? [Y/n]
+</code></pre></p>
+
+<pre class="code-block"><code class="language-">> /security-review
+
+<p class="md-paragraph">扫描结果:
+  🔴 高危 (1): src/auth.py:45 - 硬编码密钥
+  🟡 中危 (2): src/api.py:12 - 未验证的 URL 重定向
+  🟢 低危 (3): src/db.py:8 - SQL 拼接（已参数化）
+</code></pre></p>
+
+<hr class="md-hr">
+
+<h2>会话管理</h2>
+
+<table class="md-table">
+<thead><tr><th>命令</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">/resume</code></td><td>恢复历史会话（含离开摘要）</td></tr>
+<tr><td><code class="inline-code">/history</code></td><td>会话历史列表与全文搜索</td></tr>
+<tr><td><code class="inline-code">/rewind</code></td><td>会话回退 — Checkpoint 撤销上 N 轮对话</td></tr>
+<tr><td><code class="inline-code">/export</code></td><td>导出对话为 Markdown / JSON 文件</td></tr>
+<tr><td><code class="inline-code">/plan</code></td><td>进入任务规划模式 — 分步计划制定与追踪</td></tr>
+</tbody></table>
+<h3>示例</h3>
+
+<pre class="code-block"><code class="language-">> /resume --all
+
+<p class="md-paragraph">会话历史 (共 15 条):
+  #1  2024-01-15  重构 auth 模块      12轮  $0.08
+  #2  2024-01-14  修复分页 bug         5轮  $0.03
+  ...</p>
+
+<p class="md-paragraph">输入编号恢复。
+</code></pre></p>
+
+<hr class="md-hr">
+
+<h2>代码质量</h2>
+
+<table class="md-table">
+<thead><tr><th>命令</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">/analyze</code></td><td>项目级代码分析（结构、复杂度、依赖）</td></tr>
+<tr><td><code class="inline-code">/lint</code></td><td>代码规范检查</td></tr>
+<tr><td><code class="inline-code">/test</code></td><td>运行项目测试</td></tr>
+<tr><td><code class="inline-code">/benchmark</code></td><td>性能基准测试与历史对比</td></tr>
+<tr><td><code class="inline-code">/verify</code></td><td>验证代码变更是否正确（Skill）</td></tr>
+<tr><td><code class="inline-code">/simplify</code></td><td>三路并行代码审查与简化建议（Skill）</td></tr>
+<tr><td><code class="inline-code">/debug</code></td><td>调试会话问题诊断（Skill）</td></tr>
+<tr><td><code class="inline-code">/doctor</code></td><td>环境诊断与健康检查</td></tr>
+</tbody></table>
+<h3>示例</h3>
+
+<pre class="code-block"><code class="language-">> /benchmark
+
+<p class="md-paragraph">运行基准测试...
+  ✅ test_query   1.23s (上次: 1.45s, ↓15%)
+  ⚠️ test_parse   3.89s (上次: 2.10s, ↑85%)
+  ✅ test_save    0.54s (上次: 0.52s, +4%)
+</code></pre></p>
+
+<hr class="md-hr">
+
+<h2>系统管理</h2>
+
+<table class="md-table">
+<thead><tr><th>命令</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">/config-edit</code></td><td>运行时热编辑配置文件（立即生效）</td></tr>
+<tr><td><code class="inline-code">/permissions</code></td><td>权限规则管理（查看/添加/移除/模式切换）</td></tr>
+<tr><td><code class="inline-code">/hooks</code></td><td>Hook 管理 — 配置查看、执行日志、热重载</td></tr>
+<tr><td><code class="inline-code">/plugins</code></td><td>插件系统管理（列表/启用/禁用）</td></tr>
+<tr><td><code class="inline-code">/mcp</code></td><td>MCP 服务器管理（连接/断开/工具列表）</td></tr>
+<tr><td><code class="inline-code">/memory</code></td><td>记忆管理（查看/搜索/编辑/删除/导出）</td></tr>
+<tr><td><code class="inline-code">/tools</code></td><td>工具使用统计与调用追踪</td></tr>
+<tr><td><code class="inline-code">/init</code></td><td>初始化项目文档 <code class="inline-code">AURACODE.md</code></td></tr>
+</tbody></table>
+<h3>示例</h3>
+
+<pre class="code-block"><code class="language-">> /permissions
+
+<p class="md-paragraph">当前模式: normal</p>
+
+<p class="md-paragraph">Allow 规则:
+  ✅ read_file:*
+  ✅ run_command:git *</p>
+
+<p class="md-paragraph">Deny 规则:
+  ❌ run_command:rm -rf
+  ❌ run_command:sudo *</p>
+
+<p class="md-paragraph">用法: /permissions add allow "write_file:src/*"
+</code></pre></p>
+
+<hr class="md-hr">
+
+<h2>代理与技能</h2>
+
+<table class="md-table">
+<thead><tr><th>命令</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">/skills</code></td><td>列出所有可用技能</td></tr>
+<tr><td><code class="inline-code">/activate <name></code></td><td>激活领域技能</td></tr>
+<tr><td><code class="inline-code">/deactivate <name></code></td><td>停用领域技能</td></tr>
+<tr><td><code class="inline-code">/active</code></td><td>查看已激活的技能</td></tr>
+<tr><td><code class="inline-code">/subagents</code></td><td>子代理管理（列表/统计/终止）</td></tr>
+<tr><td><code class="inline-code">/bridge</code></td><td>Bridge 远程控制管理</td></tr>
+<tr><td><code class="inline-code">/cron</code></td><td>定时任务管理</td></tr>
+<tr><td><code class="inline-code">/batch</code></td><td>大规模并行变更编排（Skill）</td></tr>
+</tbody></table>
+<h3>示例</h3>
+
+<pre class="code-block"><code class="language-">> /activate git-workflow
+
+<p class="md-paragraph">✅ 技能 'git-workflow' 已激活
+  描述: Git 工作流规范
+  触发: 涉及 Git 操作时
+</code></pre></p>
+
+<hr class="md-hr">
+
+<h2>其他</h2>
+
+<table class="md-table">
+<thead><tr><th>命令</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">/tips</code></td><td>功能发现提示（展示你还未使用的功能）</td></tr>
+<tr><td><code class="inline-code">/update-config</code></td><td>配置管理（Hooks/权限/环境变量）</td></tr>
+</tbody></table>
+            </div>
+
+            <div class="docs-navigation">
+                <a href="../index.html" class="nav-btn prev">
+                    <i class="fas fa-arrow-left"></i>
+                    返回首页
+                </a>
+            </div>
+        </main>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2026 AuraCode. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+    <script src="../js/docs.js"></script>
+</body>
+</html>

@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>插件系统 - AuraCode</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/docs.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Markdown 内容样式 */
+        .md-content { 
+            line-height: 1.8;
+            color: var(--text-primary);
+        }
+        
+        /* 标题样式 */
+        .md-content h1 { 
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin: 2rem 0 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--border-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .md-content h2 { 
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 2.5rem 0 1rem;
+            padding-left: 1rem;
+            border-left: 4px solid var(--primary-color);
+        }
+        .md-content h3 { 
+            font-size: 1.35rem;
+            font-weight: 600;
+            margin: 2rem 0 0.75rem;
+            color: var(--primary-color);
+        }
+        
+        /* 段落样式 */
+        .md-paragraph {
+            margin: 1.25rem 0;
+            line-height: 1.8;
+        }
+        
+        /* 代码块样式 */
+        .code-block {
+            background: var(--darker-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .code-block::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border-radius: 0.75rem 0.75rem 0 0;
+        }
+        .code-block code {
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+        .inline-code {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.35rem;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.85em;
+            color: var(--primary-color);
+        }
+        
+        /* 表格样式 */
+        .md-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 1.5rem 0;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .md-table thead {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        }
+        .md-table th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: white;
+        }
+        .md-table td {
+            padding: 0.875rem 1rem;
+            border-top: 1px solid var(--border-color);
+            background: var(--card-bg);
+        }
+        .md-table tbody tr:hover td {
+            background: rgba(99, 102, 241, 0.05);
+        }
+        
+        /* 引用块样式 */
+        .md-quote {
+            border-left: 4px solid var(--primary-color);
+            background: rgba(99, 102, 241, 0.05);
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 列表样式 */
+        .md-list {
+            margin: 1.25rem 0;
+            padding-left: 2rem;
+        }
+        .md-list li {
+            margin: 0.75rem 0;
+            line-height: 1.7;
+            position: relative;
+        }
+        .md-list li::marker {
+            color: var(--primary-color);
+        }
+        
+        /* 链接样式 */
+        .md-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .md-link:hover {
+            color: var(--secondary-color);
+            border-bottom-color: var(--secondary-color);
+        }
+        
+        /* 粗体和斜体 */
+        .md-strong {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .md-em {
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 分隔线 */
+        .md-hr {
+            border: none;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+            margin: 2.5rem 0;
+        }
+        
+        /* 面包屑导航 */
+        .breadcrumb-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .breadcrumb-link:hover {
+            text-decoration: underline;
+        }
+        .breadcrumb-sep {
+            color: var(--text-secondary);
+            margin: 0 0.5rem;
+        }
+        .breadcrumb-item {
+            color: var(--text-secondary);
+            text-transform: capitalize;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-code"></i>
+                <span>AuraCode</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="../index.html">首页</a></li>
+                <li><a href="../index.html#features">功能</a></li>
+                <li><a href="../index.html#docs">文档</a></li>
+                <li><a href="../index.html#quickstart">快速开始</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 文档内容 -->
+    <div class="docs-container">
+        
+        <aside class="docs-sidebar">
+            <div class="sidebar-section">
+                <h3>入门指南</h3>
+                <ul>
+                    <li><a href="../quick-start.html">快速开始</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>用户指南</h3>
+                <ul>
+                    <li><a href="../user-guide/chat.html">对话交互</a></li>
+                    <li><a href="../user-guide/commands.html">命令参考</a></li>
+                    <li><a href="../user-guide/tools.html">工具系统</a></li>
+                    <li><a href="../user-guide/skills.html">技能系统</a></li>
+                    <li><a href="../user-guide/memory.html">记忆系统</a></li>
+                    <li><a href="../user-guide/permissions.html">权限管理</a></li>
+                    <li><a href="../user-guide/mcp.html">MCP 协议</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>高级功能</h3>
+                <ul>
+                    <li><a href="bridge.html">Bridge 远程控制</a></li>
+                    <li><a href="hooks.html">钩子系统</a></li>
+                    <li><a href="plugins.html">插件系统</a></li>
+                    <li><a href="error-recovery.html">错误恢复</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>开发</h3>
+                <ul>
+                    <li><a href="../development/architecture.html">架构总览</a></li>
+                </ul>
+            </div>
+        </aside>
+    
+
+        <main class="docs-content">
+            <div class="docs-header">
+                <h1>插件系统</h1>
+            </div>
+            <div class="md-content">
+                <h1>插件系统</h1>
+
+<p class="md-paragraph">auracode 的插件系统允许通过插件扩展工具、钩子和行为。插件可以从四个来源加载，并通过统一的 <code class="inline-code">plugin_id</code> 进行管理。</p>
+
+<hr class="md-hr">
+
+<h2>架构概览</h2>
+
+<pre class="code-block"><code class="language-">plugins/
+├── base.py         # ToolPlugin 抽象基类（接口定义）
+├── builtin.py      # 内置插件注册表（程序化注册）
+├── loader.py       # 插件加载器（四源扫描 + 统一加载）
+└── registry.py     # 插件注册中心（清单 + 查询）
+</code></pre>
+
+<p class="md-paragraph">三层架构：
+<ul class="md-list">
+<li><strong class="md-strong">定义层</strong> — <code class="inline-code">base.py</code> 定义插件接口（<code class="inline-code">ToolPlugin</code>）</li>
+<li><strong class="md-strong">注册层</strong> — <code class="inline-code">builtin.py</code> 管理内置插件的程序化注册</li>
+<li><strong class="md-strong">加载层</strong> — <code class="inline-code">loader.py</code> + <code class="inline-code">registry.py</code> 负责扫描、加载、清单管理</li>
+</ul></p>
+
+<hr class="md-hr">
+
+<h2>插件来源</h2>
+
+<table class="md-table">
+<thead><tr><th>来源</th><th>路径 / 方式</th><th>plugin_id 后缀</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><strong class="md-strong">builtin</strong></td><td><code class="inline-code">register_builtin_plugin()</code> 代码注册</td><td><code class="inline-code">@builtin</code></td><td>随 auracode 发布，不可删除</td></tr>
+<tr><td><strong class="md-strong">目录</strong></td><td><code class="inline-code">auracode/plugins/*.py</code> 文件扫描</td><td><code class="inline-code">@user</code></td><td>项目自带插件</td></tr>
+<tr><td><strong class="md-strong">项目级</strong></td><td><code class="inline-code">.auracode/plugins/</code> 目录</td><td><code class="inline-code">@project</code></td><td>跟随项目仓库</td></tr>
+<tr><td><strong class="md-strong">用户级</strong></td><td><code class="inline-code">~/.auracode/plugins/</code> 目录</td><td><code class="inline-code">@user</code></td><td>全局个人插件</td></tr>
+</tbody></table>
+加载顺序：builtin → 目录 → 项目级 → 用户级。同名插件后加载的覆盖先加载的。
+
+<hr class="md-hr">
+
+<h2>Plugin ID 规范</h2>
+
+<p class="md-paragraph">每个插件都有唯一标识，格式为 <code class="inline-code">{name}@{source}</code>：</p>
+
+<pre class="code-block"><code class="language-">auto-format@builtin       # 内置自动格式化插件
+my-tool@project           # 项目级自定义插件
+web-search@user           # 用户级插件
+</code></pre>
+
+<p class="md-paragraph">Plugin ID 用于：
+<ul class="md-list">
+<li>启用/禁用操作的唯一键</li>
+<li>用户设置持久化的索引</li>
+<li>日志和调试输出</li>
+</ul></p>
+
+<hr class="md-hr">
+
+<h2>编写插件</h2>
+
+<h3>基类接口</h3>
+
+<p class="md-paragraph">所有插件必须继承 <code class="inline-code">ToolPlugin</code> 并实现抽象方法：</p>
+
+<pre class="code-block"><code class="language-python">from plugins.base import ToolPlugin
+
+<p class="md-paragraph">class MyPlugin(ToolPlugin):</p>
+
+<p class="md-paragraph">    @property
+    def name(self) -> str:
+        return "my-plugin"</p>
+
+<p class="md-paragraph">    @property
+    def version(self) -> str:
+        return "1.0.0"</p>
+
+<p class="md-paragraph">    @property
+    def description(self) -> str:
+        return "我的自定义插件"</p>
+
+<p class="md-paragraph">    def get_tools(self):
+        """返回工具定义列表"""
+        return [{
+            "name": "my_tool",
+            "description": "自定义工具",
+            "parameters": { ... },
+            "handler": self._handle_my_tool,
+            "permission_level": "read",
+        }]</p>
+
+<p class="md-paragraph">    def get_hooks(self):
+        """返回钩子定义列表"""
+        return [{
+            "event": "PreToolUse",
+            "handler": self._pre_tool_check,
+            "matcher": "run_command",  # 可选，匹配特定工具
+        }]</p>
+
+<p class="md-paragraph">    def is_available(self) -> bool:
+        """检查插件依赖是否满足"""
+        return True
+</code></pre></p>
+
+<h3>可选属性</h3>
+
+<table class="md-table">
+<thead><tr><th>属性</th><th>默认值</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">default_enabled</code></td><td><code class="inline-code">True</code></td><td>默认启用状态（三级回退链第二级）</td></tr>
+<tr><td><code class="inline-code">source</code></td><td><code class="inline-code">"user"</code></td><td>插件来源标识</td></tr>
+<tr><td><code class="inline-code">mcp_servers</code></td><td><code class="inline-code">[]</code></td><td>携带的 MCP Server 配置列表</td></tr>
+<tr><td><code class="inline-code">plugin_id</code></td><td><code class="inline-code">{name}@{source}</code></td><td>自动计算，通常无需覆盖</td></tr>
+</tbody></table>
+<hr class="md-hr">
+
+<h2>内置插件注册</h2>
+
+<p class="md-paragraph">内置插件通过代码硬编码注册（而非目录扫描），适用于随 auracode 发布的核心扩展：</p>
+
+<pre class="code-block"><code class="language-python">from plugins.builtin import register_builtin_plugin, BuiltinPluginDefinition
+
+<p class="md-paragraph">register_builtin_plugin(BuiltinPluginDefinition(
+    name="auto-format",
+    description="自动格式化代码",
+    version="1.0.0",
+    plugin_class=AutoFormatPlugin,
+    default_enabled=True,
+    is_available_fn=lambda: shutil.which("black") is not None,
+))
+</code></pre></p>
+
+<h3>启用状态三级回退</h3>
+
+<pre class="code-block"><code class="language-">用户设置 (plugins_settings.json) > default_enabled 属性 > True
+</code></pre>
+
+<table class="md-table">
+<thead><tr><th>场景</th><th>用户设置</th><th>default_enabled</th><th>最终状态</th></tr></thead>
+<tbody>
+<tr><td>全新安装</td><td>无</td><td><code class="inline-code">True</code></td><td>启用</td></tr>
+<tr><td>全新安装</td><td>无</td><td><code class="inline-code">False</code></td><td>禁用</td></tr>
+<tr><td>用户禁用</td><td><code class="inline-code">false</code></td><td><code class="inline-code">True</code></td><td>禁用</td></tr>
+<tr><td>用户启用</td><td><code class="inline-code">true</code></td><td><code class="inline-code">False</code></td><td>启用</td></tr>
+</tbody></table>
+<h3>is_available 隐藏</h3>
+
+<p class="md-paragraph">当 <code class="inline-code">is_available_fn</code> 返回 <code class="inline-code">False</code> 时，插件完全隐藏：
+<ul class="md-list">
+<li>不出现在启用列表</li>
+<li>不出现在禁用列表</li>
+<li>不占用用户设置空间</li>
+</ul></p>
+
+<p class="md-paragraph">典型场景：依赖外部工具（如 <code class="inline-code">black</code>、<code class="inline-code">prettier</code>）的插件，未安装时自动隐藏。</p>
+
+<hr class="md-hr">
+
+<h2>用户设置持久化</h2>
+
+<p class="md-paragraph">用户启用/禁用操作持久化到 <code class="inline-code">~/.auracode/plugins_settings.json</code>：</p>
+
+<pre class="code-block"><code class="language-json">{
+  "auto-format@builtin": true,
+  "lint-check@builtin": false,
+  "my-tool@project": true
+}
+</code></pre>
+
+<p class="md-paragraph">管理命令：</p>
+
+<pre class="code-block"><code class="language-python">from plugins.builtin import enable_plugin, disable_plugin
+
+<p class="md-paragraph">enable_plugin("auto-format@builtin")   # 启用
+disable_plugin("lint-check@builtin")   # 禁用
+</code></pre></p>
+
+<hr class="md-hr">
+
+<h2>插件清单</h2>
+
+<code class="inline-code">PluginLoader</code> 在加载时生成 <code class="inline-code">PluginManifest</code>，包含：
+
+<table class="md-table">
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">name</code></td><td>插件名称</td></tr>
+<tr><td><code class="inline-code">version</code></td><td>版本号</td></tr>
+<tr><td><code class="inline-code">description</code></td><td>描述</td></tr>
+<tr><td><code class="inline-code">plugin_id</code></td><td>规范 ID (<code class="inline-code">{name}@{source}</code>)</td></tr>
+<tr><td><code class="inline-code">source</code></td><td>来源标识</td></tr>
+<tr><td><code class="inline-code">default_enabled</code></td><td>默认启用状态</td></tr>
+<tr><td><code class="inline-code">tools</code></td><td>提供的工具列表</td></tr>
+<tr><td><code class="inline-code">hooks</code></td><td>提供的钩子列表</td></tr>
+</tbody></table>
+查询 API：
+
+<pre class="code-block"><code class="language-python">from plugins.registry import PluginRegistry
+
+<p class="md-paragraph">registry = PluginRegistry()
+<h1>列出所有已注册插件</h1>
+all_plugins = registry.list_plugins()
+<h1>仅启用/禁用的插件</h1>
+enabled = registry.get_enabled_plugins()
+disabled = registry.get_disabled_plugins()
+</code></pre></p>
+
+<hr class="md-hr">
+
+<h2>插件工具注册</h2>
+
+<p class="md-paragraph">插件的 <code class="inline-code">get_tools()</code> 返回的工具会在 <code class="inline-code">AgentLoop.__init__</code> 中自动注册到全局 <code class="inline-code">TOOL_REGISTRY</code>：</p>
+
+<pre class="code-block"><code class="language-">PluginLoader.load_all_plugins()
+    → get_all_tools()
+        → TOOL_REGISTRY.register_tool(name, definition)
+</code></pre>
+
+<p class="md-paragraph">插件工具与内置工具在使用上完全一致，LLM 不感知工具来源。</p>
+
+<hr class="md-hr">
+
+<h2>项目级插件</h2>
+
+<p class="md-paragraph">在项目根目录创建 <code class="inline-code">.auracode/plugins/</code> 目录，放入 <code class="inline-code">.py</code> 文件即可：</p>
+
+<pre class="code-block"><code class="language-">my-project/
+├── .auracode/
+│   └── plugins/
+│       └── custom_lint.py
+├── src/
+│   └── ...
+└── README.md
+</code></pre>
+
+<p class="md-paragraph">项目级插件随项目仓库分发，团队成员克隆项目后自动加载。</p>
+
+<hr class="md-hr">
+
+<h2>用户级插件</h2>
+
+<p class="md-paragraph">放入 <code class="inline-code">~/.auracode/plugins/</code> 目录，全局生效：</p>
+
+<pre class="code-block"><code class="language-">~/.auracode/
+├── plugins/
+│   └── my_global_tool.py
+├── config.yaml
+└── plugins_settings.json
+</code></pre>
+
+<p class="md-paragraph">适用于个人常用但与项目无关的扩展。
+</p>
+            </div>
+
+            <div class="docs-navigation">
+                <a href="../index.html" class="nav-btn prev">
+                    <i class="fas fa-arrow-left"></i>
+                    返回首页
+                </a>
+            </div>
+        </main>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2026 AuraCode. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+    <script src="../js/docs.js"></script>
+</body>
+</html>

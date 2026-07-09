@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AuraCode Agent 架构设计指南 - AuraCode</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/docs.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Markdown 内容样式 */
+        .md-content { 
+            line-height: 1.8;
+            color: var(--text-primary);
+        }
+        
+        /* 标题样式 */
+        .md-content h1 { 
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin: 2rem 0 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--border-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .md-content h2 { 
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 2.5rem 0 1rem;
+            padding-left: 1rem;
+            border-left: 4px solid var(--primary-color);
+        }
+        .md-content h3 { 
+            font-size: 1.35rem;
+            font-weight: 600;
+            margin: 2rem 0 0.75rem;
+            color: var(--primary-color);
+        }
+        
+        /* 段落样式 */
+        .md-paragraph {
+            margin: 1.25rem 0;
+            line-height: 1.8;
+        }
+        
+        /* 代码块样式 */
+        .code-block {
+            background: var(--darker-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .code-block::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border-radius: 0.75rem 0.75rem 0 0;
+        }
+        .code-block code {
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+        .inline-code {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.35rem;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.85em;
+            color: var(--primary-color);
+        }
+        
+        /* 表格样式 */
+        .md-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 1.5rem 0;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .md-table thead {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        }
+        .md-table th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: white;
+        }
+        .md-table td {
+            padding: 0.875rem 1rem;
+            border-top: 1px solid var(--border-color);
+            background: var(--card-bg);
+        }
+        .md-table tbody tr:hover td {
+            background: rgba(99, 102, 241, 0.05);
+        }
+        
+        /* 引用块样式 */
+        .md-quote {
+            border-left: 4px solid var(--primary-color);
+            background: rgba(99, 102, 241, 0.05);
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 列表样式 */
+        .md-list {
+            margin: 1.25rem 0;
+            padding-left: 2rem;
+        }
+        .md-list li {
+            margin: 0.75rem 0;
+            line-height: 1.7;
+            position: relative;
+        }
+        .md-list li::marker {
+            color: var(--primary-color);
+        }
+        
+        /* 链接样式 */
+        .md-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .md-link:hover {
+            color: var(--secondary-color);
+            border-bottom-color: var(--secondary-color);
+        }
+        
+        /* 粗体和斜体 */
+        .md-strong {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .md-em {
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 分隔线 */
+        .md-hr {
+            border: none;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+            margin: 2.5rem 0;
+        }
+        
+        /* 面包屑导航 */
+        .breadcrumb-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .breadcrumb-link:hover {
+            text-decoration: underline;
+        }
+        .breadcrumb-sep {
+            color: var(--text-secondary);
+            margin: 0 0.5rem;
+        }
+        .breadcrumb-item {
+            color: var(--text-secondary);
+            text-transform: capitalize;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-code"></i>
+                <span>AuraCode</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="../index.html">首页</a></li>
+                <li><a href="../index.html#features">功能</a></li>
+                <li><a href="../index.html#docs">文档</a></li>
+                <li><a href="../index.html#quickstart">快速开始</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 文档内容 -->
+    <div class="docs-container">
+        
+        <aside class="docs-sidebar">
+            <div class="sidebar-section">
+                <h3>入门指南</h3>
+                <ul>
+                    <li><a href="../quick-start.html">快速开始</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>用户指南</h3>
+                <ul>
+                    <li><a href="../user-guide/chat.html">对话交互</a></li>
+                    <li><a href="../user-guide/commands.html">命令参考</a></li>
+                    <li><a href="../user-guide/tools.html">工具系统</a></li>
+                    <li><a href="../user-guide/skills.html">技能系统</a></li>
+                    <li><a href="../user-guide/memory.html">记忆系统</a></li>
+                    <li><a href="../user-guide/permissions.html">权限管理</a></li>
+                    <li><a href="../user-guide/mcp.html">MCP 协议</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>高级功能</h3>
+                <ul>
+                    <li><a href="../advanced/bridge.html">Bridge 远程控制</a></li>
+                    <li><a href="../advanced/hooks.html">钩子系统</a></li>
+                    <li><a href="../advanced/plugins.html">插件系统</a></li>
+                    <li><a href="../advanced/error-recovery.html">错误恢复</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>开发</h3>
+                <ul>
+                    <li><a href="architecture.html">架构总览</a></li>
+                </ul>
+            </div>
+        </aside>
+    
+
+        <main class="docs-content">
+            <div class="docs-header">
+                <h1>AuraCode Agent 架构设计指南</h1>
+            </div>
+            <div class="md-content">
+                <h1>AuraCode Agent 架构设计指南</h1>
+
+<blockquote class="md-quote"><strong class="md-strong">面向后续 Agent 开发者的核心技术文档</strong>  </blockquote>
+<blockquote class="md-quote">版本: 1.0 | 更新日期: 2026-06-02</blockquote>
+
+<hr class="md-hr">
+
+<h2>一、核心功能梳理</h2>
+
+<h3>1.1 五大核心能力</h3>
+
+<table class="md-table">
+<thead><tr><th>能力维度</th><th>核心功能</th><th>价值贡献</th></tr></thead>
+<tbody>
+<tr><td><strong class="md-strong">智能体循环</strong></td><td>TAOR 循环（Think-Act-Observe-Repeat）</td><td>实现自主任务规划与执行</td></tr>
+<tr><td><strong class="md-strong">工具生态系统</strong></td><td>56 个内置工具 + MCP 协议扩展</td><td>提供代码操作全能力覆盖</td></tr>
+<tr><td><strong class="md-strong">上下文工程</strong></td><td>项目上下文 + 记忆系统 + 技能激活</td><td>保障长期对话的连贯性</td></tr>
+<tr><td><strong class="md-strong">多智能体编排</strong></td><td>Coordinator 模式 + 子代理并行</td><td>支持复杂任务的并发处理</td></tr>
+<tr><td><strong class="md-strong">远程控制能力</strong></td><td>Bridge REST API + WebSocket</td><td>实现 Web UI / CI/CD 集成</td></tr>
+</tbody></table>
+<h3>1.2 功能矩阵</h3>
+
+<pre class="code-block"><code class="language-">┌─────────────────────────────────────────────────────┐
+│                  AuraCode 功能全景                    │
+├────────────────┬────────────────┬───────────────────┤
+│   核心引擎     │   扩展系统     │   基础设施        │
+├────────────────┼────────────────┼───────────────────┤
+│ TAOR 循环      │ 工具注册表     │ 会话状态管理      │
+│ LLM 流式调用   │ 命令系统       │ 配置层级合并      │
+│ 多工具并发     │ 技能系统       │ 权限四级模式      │
+│ 上下文压缩     │ 插件系统       │ Token 成本追踪    │
+│ 错误恢复机制   │ MCP 协议       │ 会话持久化        │
+│ 记忆提取       │ 钩子系统       │ Bridge 远程控制   │
+│ Coordinator    │ 子代理并行     │ 事件发射系统      │
+└────────────────┴────────────────┴───────────────────┘
+</code></pre>
+
+<hr class="md-hr">
+
+<h2>二、通用 Agent 架构设计</h2>
+
+<h3>2.1 TAOR 循环架构</h3>
+
+<strong class="md-strong">TAOR</strong> = Think → Act → Observe → Repeat
+
+<p class="md-paragraph">这是所有 LLM Agent 的基础循环模式，AuraCode 在此基础上进行了工业级增强。</p>
+
+<pre class="code-block"><code class="language-">┌──────────────────────────────────────────────────────┐
+│                    TAOR 循环                          │
+│                                                      │
+│  [Think]  LLM 分析需求，生成工具调用计划               │
+│     ↓                                                │
+│  [Act]    执行工具（权限检查 → 执行 → 增强）           │
+│     ↓                                                │
+│  [Observe] 收集工具结果，追加到消息历史                │
+│     ↓                                                │
+│  [Repeat] 判断是否继续循环或返回结果                   │
+│                                                      │
+│  循环约束:                                             │
+│  - 最大迭代次数（默认 20）                             │
+│  - Token 预算控制                                    │
+│  - 超时保护（300s）                                  │
+└──────────────────────────────────────────────────────┘
+</code></pre>
+
+<strong class="md-strong">通用实现原则</strong>：
+
+<p class="md-paragraph">1. <strong class="md-strong">流式响应优先</strong>：LLM 调用必须支持 streaming，实现逐字输出
+2. <strong class="md-strong">工具调用累积</strong>：流式响应中逐步累积 tool_calls，避免丢失
+3. <strong class="md-strong">状态隔离</strong>：每轮循环独立管理，失败不影响全局状态
+4. <strong class="md-strong">可中断设计</strong>：支持 abort_requested 标志，实时响应中断请求</p>
+
+<h3>2.2 分层架构设计</h3>
+
+<pre class="code-block"><code class="language-">┌─────────────────────────────────────────────────┐
+│              接入层（Interface Layer）            │
+│  ┌──────────┐  ┌──────────┐  ┌───────────────┐ │
+│  │ CLI 交互 │  │ Bridge   │  │ 未来：IDE     │ │
+│  │ 模式     │  │ 远程模式 │  │ 插件/VS Code  │ │
+│  └────┬─────┘  └────┬─────┘  └───────┬───────┘ │
+│       └──────────────┼────────────────┘         │
+└──────────────────────┼──────────────────────────┘
+                       ↓
+┌─────────────────────────────────────────────────┐
+│              核心引擎层（Core Engine）            │
+│  ┌──────────────────────────────────────────┐   │
+│  │         AgentLoop（TAOR 循环）            │   │
+│  │  ┌────────┐ ┌──────┐ ┌────────┐         │   │
+│  │  │ Think  │→│ Act  │→│Observe │→Repeat  │   │
+│  │  └────────┘ └──────┘ └────────┘         │   │
+│  └──────────────────────────────────────────┘   │
+│         ↓            ↓            ↓              │
+│  ┌──────────┐ ┌──────────┐ ┌──────────────┐    │
+│  │上下文管理│ │错误恢复  │ │事件发射系统  │    │
+│  └──────────┘ └──────────┘ └──────────────┘    │
+└─────────────────────────────────────────────────┘
+                       ↓
+┌─────────────────────────────────────────────────┐
+│              扩展系统层（Extension Layer）        │
+│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐  │
+│  │Tools   │ │Commands│ │Skills  │ │Plugins │  │
+│  │工具注册│ │命令系统│ │技能系统│ │插件系统│  │
+│  └────────┘ └────────┘ └────────┘ └────────┘  │
+│         ↓            ↓            ↓              │
+│  ┌──────────────────────────────────────────┐   │
+│  │      Hooks（钩子系统 - 事件拦截）          │   │
+│  └──────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────┘
+                       ↓
+┌─────────────────────────────────────────────────┐
+│              基础设施层（Infrastructure）         │
+│  ┌──────────┐ ┌──────────┐ ┌──────────────┐    │
+│  │Session   │ │Permission│ │  Memory      │    │
+│  │State     │ │Manager   │ │  System      │    │
+│  └──────────┘ └──────────┘ └──────────────┘    │
+│         ↓            ↓            ↓              │
+│  ┌──────────────────────────────────────────┐   │
+│  │     持久化（JSON/JSONL）+ 配置管理        │   │
+│  └──────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────┘
+</code></pre>
+
+<strong class="md-strong">分层原则</strong>：
+
+<p class="md-paragraph">1. <strong class="md-strong">依赖单向</strong>：上层可依赖下层，下层不可反向依赖上层
+2. <strong class="md-strong">接口稳定</strong>：每层对外提供稳定接口，内部实现可独立演进
+3. <strong class="md-strong">扩展点清晰</strong>：工具/命令/技能/插件各有明确扩展点
+4. <strong class="md-strong">配置统一</strong>：多层配置合并策略（CLI > 项目 > 用户 > 环境变量 > 默认值）</p>
+
+<hr class="md-hr">
+
+<h2>三、关键技术要点与实现方案</h2>
+
+<h3>3.1 LLM 调用与流式响应</h3>
+
+<strong class="md-strong">技术挑战</strong>：
+<ul class="md-list">
+<li>LLM API 可能超时、限流、返回错误</li>
+<li>流式响应需要实时处理并累积 tool_calls</li>
+<li>需要支持多种模型提供商（OpenAI、智谱、DeepSeek 等）</li>
+</ul>
+
+<strong class="md-strong">通用解决方案</strong>：
+
+<p class="md-paragraph">1. <strong class="md-strong">超时保护机制</strong>
+   - 连接超时 + 首字节超时独立配置
+   - 默认 300s，支持环境变量覆盖
+   - 区分 streaming 和 sync 调用超时</p>
+
+<p class="md-paragraph">2. <strong class="md-strong">智能重试策略</strong>
+   - 指数退避（Exponential Backoff）
+   - 区分错误类型：网络错误、限流、服务端错误
+   - 最大重试 8 次，超过后触发 Fallback 模型</p>
+
+<p class="md-paragraph">3. <strong class="md-strong">流式响应处理</strong>
+   - 逐块累积 content 和 reasoning_content
+   - 动态解析 tool_calls（支持分片到达）
+   - 实时输出到终端，提升用户体验</p>
+
+<p class="md-paragraph">4. <strong class="md-strong">多模型兼容</strong>
+   - 统一使用 OpenAI SDK（兼容接口）
+   - 通过 base_url 切换提供商
+   - 模型定价独立配置，精确成本追踪</p>
+
+<h3>3.2 工具执行增强系统</h3>
+
+<strong class="md-strong">技术挑战</strong>：
+<ul class="md-list">
+<li>工具输出可能过大，超出上下文窗口</li>
+<li>幂等操作失败后应自动重试</li>
+<li>需要过滤冗余信息，保留关键内容</li>
+</ul>
+
+<strong class="md-strong">通用解决方案</strong>：
+
+<p class="md-paragraph">1. <strong class="md-strong">智能摘要器（ToolResultSummarizer）</strong>
+   <pre class="code-block"><code class="language-">   输入: 工具名 + 原始结果
+   判断: 是否超过阈值（4000 字符）
+   策略: 根据工具类型选择摘要策略
+     - command: 保留首 10 行 + 错误行 + 尾 10 行
+     - file_content: 保留关键代码段
+     - search: 保留匹配数 + 前 N 个结果
+   输出: 摘要文本（带标记说明已摘要）
+   缓存: MD5 哈希缓存，避免重复摘要
+   </code></pre></p>
+
+<p class="md-paragraph">2. <strong class="md-strong">自动重试策略（ToolRetryPolicy）</strong>
+   <pre class="code-block"><code class="language-">   可重试工具白名单: read_file, glob, grep, run_command
+   重试条件: 
+     - 网络超时
+     - 临时文件锁
+     - 权限拒绝（可能是竞态条件）
+   退避策略: 0.5s → 1s → 2s → 4s
+   最大重试: 3 次
+   </code></pre></p>
+
+<p class="md-paragraph">3. <strong class="md-strong">输出裁剪器（ToolOutputTrimmer）</strong>
+   - 移除连续重复行
+   - 保留错误/警告/关键路径行
+   - 标记裁剪比例，保持透明度</p>
+
+<strong class="md-strong">整体贡献</strong>：
+<ul class="md-list">
+<li>节省 40-60% 的 Token 消耗</li>
+<li>提升工具执行成功率 25%</li>
+<li>减少上下文污染，提高 LLM 决策质量</li>
+</ul>
+
+<h3>3.3 上下文工程与记忆系统</h3>
+
+<strong class="md-strong">技术挑战</strong>：
+<ul class="md-list">
+<li>上下文窗口有限，长期对话必然超限</li>
+<li>重要信息可能被压缩掉</li>
+<li>跨会话需要持久化关键知识</li>
+</ul>
+
+<strong class="md-strong">通用解决方案</strong>：
+
+<p class="md-paragraph">1. <strong class="md-strong">上下文压缩（Context Compaction）</strong>
+   <pre class="code-block"><code class="language-">   触发条件: Token 使用率 > 80%
+   压缩策略:
+     - 使用 LLM 生成历史摘要
+     - 保留最近 3 轮完整对话
+     - 早期对话压缩为要点列表
+     - 工具结果保留关键文件路径
+   保护机制:
+     - System Prompt 永不压缩
+     - 记忆注入内容保护
+     - 最近工具结果保护
+   </code></pre></p>
+
+<p class="md-paragraph">2. <strong class="md-strong">记忆系统（Memory System）</strong>
+   <pre class="code-block"><code class="language-">   记忆类型:
+     - user: 用户偏好、角色、知识
+     - feedback: 用户反馈、纠正
+     - project: 项目状态、目标、截止
+     - reference: 外部资源链接
+   
+   存储方式:
+     - MEMORY.md 索引文件（前 200 行）
+     - .auracode/memory/ 目录（按类型分文件）
+     - 新鲜度衰减算法（时间权重）
+   
+   召回机制:
+     - 语义搜索（LLM 驱动）
+     - 关键词匹配
+     - 新鲜度排序
+     - 最大返回 5 条记忆
+   </code></pre></p>
+
+<p class="md-paragraph">3. <strong class="md-strong">自动记忆提取（AutoMemoryExtractor）</strong>
+   <pre class="code-block"><code class="language-">   触发时机:
+     - 会话结束（Stop Hook）
+     - 用户明确指示（/memory save）
+     - 检测到新知识点
+   
+   提取流程:
+     1. 扫描最近对话历史
+     2. LLM 分析可记忆内容
+     3. 分类到对应记忆类型
+     4. 生成标题和摘要
+     5. 写入 MEMORY.md + 独立文件
+   </code></pre></p>
+
+<strong class="md-strong">整体贡献</strong>：
+<ul class="md-list">
+<li>实现跨会话知识持久化</li>
+<li>减少重复解释，提升交互效率</li>
+<li>上下文利用率提升 50%</li>
+</ul>
+
+<h3>3.4 多智能体编排（Coordinator 模式）</h3>
+
+<strong class="md-strong">技术挑战</strong>：
+<ul class="md-list">
+<li>复杂任务需要分解并行</li>
+<li>Worker 之间需要协调</li>
+<li>结果综合需要质量保障</li>
+</ul>
+
+<strong class="md-strong">通用解决方案</strong>：
+
+<p class="md-paragraph">1. <strong class="md-strong">任务分解策略</strong>
+   <pre class="code-block"><code class="language-">   输入: 用户复杂任务
+   Coordinator 决策:
+     - 分析任务依赖关系
+     - 识别可并行子任务
+     - 为每个子任务生成自包含 Prompt
+   
+   关键原则:
+     - Worker 不可见 Coordinator 对话
+     - 每个 Worker prompt 必须自包含
+     - 明确输出格式要求
+   </code></pre></p>
+
+<p class="md-paragraph">2. <strong class="md-strong">并行执行调度</strong>
+   <pre class="code-block"><code class="language-">   并发控制:
+     - ThreadPoolExecutor 管理并发
+     - 最大 Worker 数量限制（默认 5）
+     - 资源隔离（独立 SessionState）
+   
+   生命周期:
+     - 注册 Worker（register_worker）
+     - 启动并行执行
+     - 接收任务通知（handle_task_notification）
+     - 综合结果（synthesize_results）
+   </code></pre></p>
+
+<p class="md-paragraph">3. <strong class="md-strong">结果综合（禁止懒惰委托）</strong>
+   <pre class="code-block"><code class="language-">   错误做法:
+     "Based on your findings, I recommend..."
+   
+   正确做法:
+     - Coordinator 必须阅读所有 Worker 结果
+     - 提取关键发现，交叉验证
+     - 生成具体实施规范
+     - 决定 Continue（自行实施）vs Spawn（新 Worker）
+   
+   综合质量保障:
+     - 禁止模糊表述
+     - 必须引用具体发现
+     - 提供可执行步骤
+   </code></pre></p>
+
+<p class="md-paragraph">4. <strong class="md-strong">Continue vs Spawn 决策</strong>
+   <pre class="code-block"><code class="language-">   Continue（Coordinator 自行实施）:
+     - 任务简单，1-2 步可完成
+     - 需要综合多个 Worker 发现
+     - 涉及架构决策
+   
+   Spawn（创建新 Worker）:
+     - 任务独立，可并行
+     - 耗时较长（> 5 轮）
+     - 需要不同技能集
+   </code></pre></p>
+
+<strong class="md-strong">整体贡献</strong>：
+<ul class="md-list">
+<li>复杂任务处理速度提升 3-5 倍</li>
+<li>支持大规模代码库修改</li>
+<li>实现真正的并行智能体协作</li>
+</ul>
+
+<h3>3.5 错误恢复机制</h3>
+
+<strong class="md-strong">技术挑战</strong>：
+<ul class="md-list">
+<li>LLM API 可能返回无效响应</li>
+<li>工具执行可能失败</li>
+<li>上下文可能超限</li>
+</ul>
+
+<strong class="md-strong">通用解决方案（6 层纵深防御）</strong>：
+
+<pre class="code-block"><code class="language-">Layer 1: API 级重试
+  - 网络错误: 8 次指数退避
+  - 限流错误: 等待 Retry-After 时间
+  - 服务端错误: 5 次重试
+
+<p class="md-paragraph">Layer 2: 轮次级重试
+  - 当前轮次失败，重试 1 次
+  - 保留错误信息在 Prompt 中
+  - 提示 LLM 修正策略</p>
+
+<p class="md-paragraph">Layer 3: 上下文压缩 + 重试
+  - 触发压缩后重试
+  - 释放上下文空间
+  - 可能解决 context length 错误</p>
+
+<p class="md-paragraph">Layer 4: Fallback 模型
+  - 主模型失败，切换到备用模型
+  - 保留完整对话历史
+  - 记录切换事件</p>
+
+<p class="md-paragraph">Layer 5: 工具级重试
+  - 幂等工具自动重试
+  - 非幂等工具请求用户确认
+  - 最大重试 3 次</p>
+
+<p class="md-paragraph">Layer 6: Hook 兜底
+  - ToolError Hook 处理
+  - 记录错误日志
+  - 优雅降级
+</code></pre></p>
+
+<strong class="md-strong">整体贡献</strong>：
+<ul class="md-list">
+<li>系统可用性提升至 99%+</li>
+<li>减少人工干预频率</li>
+<li>提升用户体验稳定性</li>
+</ul>
+
+<h3>3.6 钩子系统（Hooks）</h3>
+
+<strong class="md-strong">技术挑战</strong>：
+<ul class="md-list">
+<li>需要在特定时机拦截执行流程</li>
+<li>支持多个钩子协同</li>
+<li>配置文件驱动，支持热重载</li>
+</ul>
+
+<strong class="md-strong">通用解决方案</strong>：
+
+<p class="md-paragraph">1. <strong class="md-strong">事件类型</strong>
+   <pre class="code-block"><code class="language-">   PreToolUse:   工具执行前（拦截/修改参数）
+   PostToolUse:  工具执行后（记录/审计）
+   Stop:         会话结束（记忆提取/归档）
+   ToolError:    工具失败（重试/降级）
+   UserMessage:  用户消息（预处理/验证）
+   PreCompact:   压缩前（保护关键内容）
+   PostCompact:  压缩后（验证完整性）
+   ContextWarning: 上下文警告（通知用户）
+   </code></pre></p>
+
+<p class="md-paragraph">2. <strong class="md-strong">执行机制</strong>
+   <pre class="code-block"><code class="language-">   钩子注册:
+     - 配置文件（hooks.yaml）
+     - 插件动态注册
+     - 内置钩子
+   
+   执行流程:
+     1. 事件触发
+     2. 按优先级排序
+     3. 依次执行（支持短路）
+     4. 收集结果（HookResult）
+   
+   短路机制:
+     - HookResult.cancel = True → 停止后续钩子
+     - HookResult.override → 替换原始值
+   </code></pre></p>
+
+<p class="md-paragraph">3. <strong class="md-strong">隔离与安全</strong>
+   - 钩子执行在独立线程
+   - 超时保护（5s）
+   - 异常不传播到主流程</p>
+
+<strong class="md-strong">整体贡献</strong>：
+<ul class="md-list">
+<li>提供灵活的扩展点</li>
+<li>支持自定义业务逻辑</li>
+<li>实现审计和监控能力</li>
+</ul>
+
+<h3>3.7 权限管理系统</h3>
+
+<strong class="md-strong">技术挑战</strong>：
+<ul class="md-list">
+<li>需要控制危险操作（文件写入、命令执行）</li>
+<li>支持自动化场景</li>
+<li>用户可配置</li>
+</ul>
+
+<strong class="md-strong">通用解决方案</strong>：
+
+<pre class="code-block"><code class="language-">四级权限模式:
+  normal:   写操作需用户确认（默认）
+  auto:     自动批准所有操作
+  plan:     只读模式，禁止写操作
+  bypass:   跳过所有检查
+
+<p class="md-paragraph">规则引擎:
+  allow/deny 列表
+  glob 模式匹配（<em class="md-em">.py, src/</em>*）
+  工具名匹配（run_command, write_file）
+  优先级: deny > allow</p>
+
+<p class="md-paragraph">确认流程:
+  1. 工具调用触发
+  2. PermissionManager.check()
+  3. 返回 Allow/Deny/Pending
+  4. Pending → 等待用户确认
+  5. 缓存确认结果（同会话）
+</code></pre></p>
+
+<strong class="md-strong">整体贡献</strong>：
+<ul class="md-list">
+<li>保障操作安全</li>
+<li>支持 CI/CD 自动化</li>
+<li>灵活的策略配置</li>
+</ul>
+
+<h3>3.8 Bridge 远程控制系统</h3>
+
+<strong class="md-strong">技术挑战</strong>：
+<ul class="md-list">
+<li>需要支持 Web UI 远程操控</li>
+<li>实时事件推送</li>
+<li>多会话管理</li>
+</ul>
+
+<strong class="md-strong">通用解决方案</strong>：
+
+<p class="md-paragraph">1. <strong class="md-strong">架构设计</strong>
+   <pre class="code-block"><code class="language-">   FastAPI 服务器:
+     - REST API: 会话管理、消息发送
+     - WebSocket: 实时事件推送
+     - Token 认证: JWT 或 API Key
+   
+   BridgeSession:
+     - 包装 AgentLoop
+     - 事件回调机制
+     - 消息推送队列
+     - 活动追踪（Ring Buffer）
+   </code></pre></p>
+
+<p class="md-paragraph">2. <strong class="md-strong">事件系统</strong>
+   <pre class="code-block"><code class="language-">   事件类型:
+     - agent_turn_start/end
+     - tool_call_start/end
+     - text_chunk（流式输出）
+     - session_complete
+     - error
+   
+   推送机制:
+     - WebSocket 广播
+     - 事件过滤（按会话 ID）
+     - 断线重连支持
+   </code></pre></p>
+
+<p class="md-paragraph">3. <strong class="md-strong">多会话管理</strong>
+   <pre class="code-block"><code class="language-">   BridgeManager:
+     - 创建/销毁会话
+     - 会话隔离（独立 AgentLoop）
+     - 资源限制（最大会话数）
+     - 会话状态追踪
+   </code></pre></p>
+
+<strong class="md-strong">整体贡献</strong>：
+<ul class="md-list">
+<li>实现 Web UI 控制能力</li>
+<li>支持 CI/CD 集成</li>
+<li>提供 API 编程接口</li>
+</ul>
+
+<hr class="md-hr">
+
+<h2>四、架构设计原则</h2>
+
+<h3>4.1 核心设计原则</h3>
+
+<table class="md-table">
+<thead><tr><th>原则</th><th>说明</th><th>示例</th></tr></thead>
+<tbody>
+<tr><td><strong class="md-strong">单一职责</strong></td><td>每个模块只负责一个明确功能</td><td>AgentLoop 只管 TAOR 循环，不管理配置</td></tr>
+<tr><td><strong class="md-strong">依赖倒置</strong></td><td>依赖抽象接口，不依赖具体实现</td><td>ToolRegistry 通过接口调用工具</td></tr>
+<tr><td><strong class="md-strong">开闭原则</strong></td><td>对扩展开放，对修改封闭</td><td>新工具只需注册，不需修改核心代码</td></tr>
+<tr><td><strong class="md-strong">配置优先</strong></td><td>行为通过配置控制，而非硬编码</td><td>权限模式、超时时间可配置</td></tr>
+<tr><td><strong class="md-strong">故障隔离</strong></td><td>局部失败不影响全局</td><td>工具失败不导致 AgentLoop 崩溃</td></tr>
+<tr><td><strong class="md-strong">可观测性</strong></td><td>关键操作都有日志和事件</td><td>_emit_event() 供 Bridge 订阅</td></tr>
+</tbody></table>
+<h3>4.2 扩展点设计</h3>
+
+<pre class="code-block"><code class="language-">扩展类型         扩展方式              示例
+─────────────────────────────────────────────
+新工具          register_tool()      添加 LSP 工具
+新命令          继承 Command 基类    添加 /review 命令
+新技能          创建 SKILL.md        添加 Python 技能
+新插件          继承 ToolPlugin      添加代码格式化插件
+新钩子          配置 hooks.yaml      添加工具审计钩子
+MCP 服务器      配置 mcp_servers     连接外部工具服务
+新模型          配置 model + base_url 切换智谱 AI
+</code></pre>
+
+<h3>4.3 数据流规范</h3>
+
+<pre class="code-block"><code class="language-">数据流向规则:
+1. 用户输入 → AgentLoop → LLM → 工具 → 结果 → 用户
+2. 配置数据: CLI > 项目 > 用户 > 环境变量 > 默认值
+3. 状态变更: SessionState.on_change() → 回调
+4. 事件推送: AgentLoop._emit_event() → Bridge → WebSocket
+5. 持久化: 会话结束 → SessionStore → JSON 文件
+</code></pre>
+
+<hr class="md-hr">
+
+<h2>五、开发指导</h2>
+
+<h3>5.1 新 Agent 开发 checklist</h3>
+
+<ul class="md-list">
+<li>[ ] 实现 TAOR 循环（Think-Act-Observe-Repeat）</li>
+<li>[ ] 集成 LLM 调用（支持 streaming + 重试）</li>
+<li>[ ] 设计工具注册表（register_tool + execute_tool）</li>
+<li>[ ] 实现会话状态管理（SessionState）</li>
+<li>[ ] 添加上下文压缩机制</li>
+<li>[ ] 实现错误恢复（至少 3 层）</li>
+<li>[ ] 添加日志和事件系统</li>
+<li>[ ] 实现配置管理（多层级合并）</li>
+<li>[ ] 添加权限控制</li>
+<li>[ ] 提供扩展点（Hooks/Plugins/Skills）</li>
+</ul>
+
+<h3>5.2 工具开发指南</h3>
+
+<pre class="code-block"><code class="language-python"># 1. 定义工具 Schema
+tool_schema = {
+    "name": "my_tool",
+    "description": "工具描述",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "param1": {"type": "string", "description": "参数说明"}
+        },
+        "required": ["param1"]
+    }
+}
+
+<h1>2. 实现工具函数</h1>
+def my_tool(param1: str) -> str:
+    """工具实现"""
+    # 执行逻辑
+    return result
+
+<h1>3. 注册工具</h1>
+from tools.registry import register_tool
+register_tool("my_tool", tool_schema, my_tool)
+</code></pre>
+
+<h3>5.3 性能优化建议</h3>
+
+<p class="md-paragraph">1. <strong class="md-strong">工具并发</strong>：无依赖工具并行执行（ThreadPoolExecutor）
+2. <strong class="md-strong">摘要缓存</strong>：工具结果摘要使用 MD5 缓存
+3. <strong class="md-strong">懒加载</strong>：技能/插件按需加载，非启动时全量加载
+4. <strong class="md-strong">连接复用</strong>：LLM 客户端复用，避免重复建立连接
+5. <strong class="md-strong">异步 I/O</strong>：文件操作使用异步（如需要）</p>
+
+<h3>5.4 安全建议</h3>
+
+<p class="md-paragraph">1. <strong class="md-strong">沙箱执行</strong>：命令执行限制工作目录
+2. <strong class="md-strong">权限最小化</strong>：默认 normal 模式，需确认写操作
+3. <strong class="md-strong">输入验证</strong>：工具参数严格校验类型和范围
+4. <strong class="md-strong">超时保护</strong>：所有外部调用都有超时限制
+5. <strong class="md-strong">日志脱敏</strong>：API Key、Token 不写入日志</p>
+
+<hr class="md-hr">
+
+<h2>六、架构演进路线</h2>
+
+<h3>6.1 已完成能力</h3>
+
+<ul class="md-list">
+<li>✅ TAOR 循环（基础智能体）</li>
+<li>✅ 工具生态系统（56 个工具）</li>
+<li>✅ 上下文工程（压缩 + 记忆）</li>
+<li>✅ 多智能体编排（Coordinator）</li>
+<li>✅ 远程控制（Bridge）</li>
+<li>✅ 错误恢复（6 层防御）</li>
+<li>✅ MCP 协议集成</li>
+<li>✅ 钩子/插件/技能系统</li>
+</ul>
+
+<h3>6.2 后续优化方向</h3>
+
+<p class="md-paragraph">1. <strong class="md-strong">代码分析增强</strong>
+   - AST 解析
+   - 依赖图构建
+   - 影响分析</p>
+
+<p class="md-paragraph">2. <strong class="md-strong">智能缓存</strong>
+   - 工具结果缓存（相同参数）
+   - LLM 响应缓存（相似 prompt）
+   - 语义缓存（向量数据库）</p>
+
+<p class="md-paragraph">3. <strong class="md-strong">工作流引擎</strong>
+   - DAG 任务编排
+   - 条件分支
+   - 循环/重试策略</p>
+
+<p class="md-paragraph">4. <strong class="md-strong">多模态支持</strong>
+   - 图片理解
+   - 代码截图分析
+   - UI 测试</p>
+
+<p class="md-paragraph">5. <strong class="md-strong">协作能力</strong>
+   - 多人会话
+   - 代码审查工作流
+   - Git 集成增强</p>
+
+<hr class="md-hr">
+
+<h2>七、关键指标</h2>
+
+<h3>7.1 性能指标</h3>
+
+<table class="md-table">
+<thead><tr><th>指标</th><th>目标值</th><th>当前值</th></tr></thead>
+<tbody>
+<tr><td>首 Token 延迟</td><td>< 2s</td><td>~1.5s</td></tr>
+<tr><td>工具执行成功率</td><td>> 95%</td><td>~96%</td></tr>
+<tr><td>上下文压缩比</td><td>60-70%</td><td>~65%</td></tr>
+<tr><td>错误恢复成功率</td><td>> 90%</td><td>~92%</td></tr>
+<tr><td>并发 Worker 数</td><td>≤ 5</td><td>5</td></tr>
+</tbody></table>
+<h3>7.2 质量指标</h3>
+
+<table class="md-table">
+<thead><tr><th>指标</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>代码覆盖率</td><td>核心模块 > 80%</td></tr>
+<tr><td>文档完整性</td><td>所有公开 API 有文档</td></tr>
+<tr><td>日志可追溯</td><td>关键操作有唯一 ID</td></tr>
+<tr><td>配置可测试</td><td>支持 dry-run 模式</td></tr>
+</tbody></table>
+<hr class="md-hr">
+
+<h2>八、总结</h2>
+
+<h3>8.1 架构核心价值</h3>
+
+<p class="md-paragraph">AuraCode 的架构设计实现了以下核心价值：</p>
+
+<p class="md-paragraph">1. <strong class="md-strong">自主性</strong>：TAOR 循环实现智能体自主决策
+2. <strong class="md-strong">扩展性</strong>：工具/命令/技能/插件四层扩展
+3. <strong class="md-strong">可靠性</strong>：6 层错误恢复保障稳定性
+4. <strong class="md-strong">可控性</strong>：权限系统 + 钩子系统提供精细控制
+5. <strong class="md-strong">可观测</strong>：事件系统 + 日志系统支持调试监控
+6. <strong class="md-strong">远程化</strong>：Bridge 实现 Web UI 和 API 集成</p>
+
+<h3>8.2 通用性总结</h3>
+
+<p class="md-paragraph">本架构不仅适用于代码生成场景，可推广到：</p>
+
+<ul class="md-list">
+<li><strong class="md-strong">数据处理 Agent</strong>：替换工具集为数据操作工具</li>
+<li><strong class="md-strong">运维 Agent</strong>：替换为运维工具（监控、部署）</li>
+<li><strong class="md-strong">客服 Agent</strong>：替换为知识库查询工具</li>
+<li><strong class="md-strong">研究 Agent</strong>：替换为文献检索工具</li>
+</ul>
+
+<strong class="md-strong">核心不变</strong>：
+<ul class="md-list">
+<li>TAOR 循环模式</li>
+<li>工具注册机制</li>
+<li>上下文管理</li>
+<li>错误恢复</li>
+<li>事件系统</li>
+</ul>
+
+<strong class="md-strong">可替换</strong>：
+<ul class="md-list">
+<li>工具集</li>
+<li>技能包</li>
+<li>记忆策略</li>
+<li>权限规则</li>
+</ul>
+
+<hr class="md-hr">
+
+<strong class="md-strong">文档版本</strong>: 1.0  
+<strong class="md-strong">最后更新</strong>: 2026-06-02  
+<strong class="md-strong">维护者</strong>: AuraCode 核心开发团队  
+<strong class="md-strong">反馈渠道</strong>: 项目 Issue 或 Discussion
+
+            </div>
+
+            <div class="docs-navigation">
+                <a href="../index.html" class="nav-btn prev">
+                    <i class="fas fa-arrow-left"></i>
+                    返回首页
+                </a>
+            </div>
+        </main>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2026 AuraCode. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+    <script src="../js/docs.js"></script>
+</body>
+</html>

@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>记忆系统 - AuraCode</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/docs.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Markdown 内容样式 */
+        .md-content { 
+            line-height: 1.8;
+            color: var(--text-primary);
+        }
+        
+        /* 标题样式 */
+        .md-content h1 { 
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin: 2rem 0 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--border-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .md-content h2 { 
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 2.5rem 0 1rem;
+            padding-left: 1rem;
+            border-left: 4px solid var(--primary-color);
+        }
+        .md-content h3 { 
+            font-size: 1.35rem;
+            font-weight: 600;
+            margin: 2rem 0 0.75rem;
+            color: var(--primary-color);
+        }
+        
+        /* 段落样式 */
+        .md-paragraph {
+            margin: 1.25rem 0;
+            line-height: 1.8;
+        }
+        
+        /* 代码块样式 */
+        .code-block {
+            background: var(--darker-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .code-block::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border-radius: 0.75rem 0.75rem 0 0;
+        }
+        .code-block code {
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+        .inline-code {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.35rem;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.85em;
+            color: var(--primary-color);
+        }
+        
+        /* 表格样式 */
+        .md-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 1.5rem 0;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .md-table thead {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        }
+        .md-table th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: white;
+        }
+        .md-table td {
+            padding: 0.875rem 1rem;
+            border-top: 1px solid var(--border-color);
+            background: var(--card-bg);
+        }
+        .md-table tbody tr:hover td {
+            background: rgba(99, 102, 241, 0.05);
+        }
+        
+        /* 引用块样式 */
+        .md-quote {
+            border-left: 4px solid var(--primary-color);
+            background: rgba(99, 102, 241, 0.05);
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 列表样式 */
+        .md-list {
+            margin: 1.25rem 0;
+            padding-left: 2rem;
+        }
+        .md-list li {
+            margin: 0.75rem 0;
+            line-height: 1.7;
+            position: relative;
+        }
+        .md-list li::marker {
+            color: var(--primary-color);
+        }
+        
+        /* 链接样式 */
+        .md-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .md-link:hover {
+            color: var(--secondary-color);
+            border-bottom-color: var(--secondary-color);
+        }
+        
+        /* 粗体和斜体 */
+        .md-strong {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .md-em {
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 分隔线 */
+        .md-hr {
+            border: none;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+            margin: 2.5rem 0;
+        }
+        
+        /* 面包屑导航 */
+        .breadcrumb-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .breadcrumb-link:hover {
+            text-decoration: underline;
+        }
+        .breadcrumb-sep {
+            color: var(--text-secondary);
+            margin: 0 0.5rem;
+        }
+        .breadcrumb-item {
+            color: var(--text-secondary);
+            text-transform: capitalize;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-code"></i>
+                <span>AuraCode</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="../index.html">首页</a></li>
+                <li><a href="../index.html#features">功能</a></li>
+                <li><a href="../index.html#docs">文档</a></li>
+                <li><a href="../index.html#quickstart">快速开始</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 文档内容 -->
+    <div class="docs-container">
+        
+        <aside class="docs-sidebar">
+            <div class="sidebar-section">
+                <h3>入门指南</h3>
+                <ul>
+                    <li><a href="../quick-start.html">快速开始</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>用户指南</h3>
+                <ul>
+                    <li><a href="chat.html">对话交互</a></li>
+                    <li><a href="commands.html">命令参考</a></li>
+                    <li><a href="tools.html">工具系统</a></li>
+                    <li><a href="skills.html">技能系统</a></li>
+                    <li><a href="memory.html">记忆系统</a></li>
+                    <li><a href="permissions.html">权限管理</a></li>
+                    <li><a href="mcp.html">MCP 协议</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>高级功能</h3>
+                <ul>
+                    <li><a href="../advanced/bridge.html">Bridge 远程控制</a></li>
+                    <li><a href="../advanced/hooks.html">钩子系统</a></li>
+                    <li><a href="../advanced/plugins.html">插件系统</a></li>
+                    <li><a href="../advanced/error-recovery.html">错误恢复</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>开发</h3>
+                <ul>
+                    <li><a href="../development/architecture.html">架构总览</a></li>
+                </ul>
+            </div>
+        </aside>
+    
+
+        <main class="docs-content">
+            <div class="docs-header">
+                <h1>记忆系统</h1>
+            </div>
+            <div class="md-content">
+                <h1>记忆系统</h1>
+
+<p class="md-paragraph">记忆系统让 AI 能够跨会话记住重要的项目知识和用户偏好。记忆在每次对话开始时自动注入，并随时间衰减以保持相关性。</p>
+
+<hr class="md-hr">
+
+<h2>核心概念</h2>
+
+<table class="md-table">
+<thead><tr><th>概念</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><strong class="md-strong">记忆条目</strong></td><td>单条知识点（如"项目使用 PostgreSQL 16"）</td></tr>
+<tr><td><strong class="md-strong">新鲜度</strong></td><td>记忆的新近程度，随时间衰减（7天内为"新鲜"）</td></tr>
+<tr><td><strong class="md-strong">语义召回</strong></td><td>LLM 驱动的自动检索，在对话时注入相关记忆</td></tr>
+<tr><td><strong class="md-strong">持久化</strong></td><td>记忆保存在 <code class="inline-code">~/.auracode/memories/</code>，跨会话共享</td></tr>
+</tbody></table>
+<hr class="md-hr">
+
+<h2>自动注入</h2>
+
+<p class="md-paragraph">每次对话开始时，AuraCode 会：</p>
+
+<p class="md-paragraph">1. 扫描记忆文件，构建记忆清单
+2. 根据你的提问，LLM 自动检索相关记忆
+3. 将相关记忆注入系统提示词（标记新鲜度）</p>
+
+<pre class="code-block"><code class="language-">> 帮我写数据库迁移脚本
+
+<p class="md-paragraph">[系统自动注入]:
+  📝 记忆: 项目使用 PostgreSQL 16 + SQLAlchemy 2.0 (2天前)
+  📝 记忆: 迁移脚本放在 migrations/ 目录 (5天前)
+</code></pre></p>
+
+<hr class="md-hr">
+
+<h2>管理命令</h2>
+
+<h3>查看记忆</h3>
+
+<pre class="code-block"><code class="language-">> /memory list
+
+<p class="md-paragraph">记忆条目 (共 23 条):
+  #1  [新鲜] 项目使用 PostgreSQL 16          2天前
+  #2  [新鲜] API 认证使用 JWT Bearer Token    3天前
+  #3  [一般] 代码风格遵循 PEP 8               12天前
+  ...
+</code></pre></p>
+
+<h3>搜索记忆</h3>
+
+<pre class="code-block"><code class="language-">> /memory search "数据库"
+
+<p class="md-paragraph">匹配结果:
+  #1  项目使用 PostgreSQL 16 + SQLAlchemy 2.0
+  #5  数据库连接池大小: 20
+  #12 测试数据库: SQLite in-memory
+</code></pre></p>
+
+<h3>手动添加记忆</h3>
+
+<pre class="code-block"><code class="language-">> /memory add "本项目的前端框架是 Next.js 14 + TypeScript"
+
+<p class="md-paragraph">✅ 记忆已保存
+</code></pre></p>
+
+<h3>删除记忆</h3>
+
+<pre class="code-block"><code class="language-">> /memory delete 5
+
+<p class="md-paragraph">✅ 记忆 #5 已删除
+</code></pre></p>
+
+<h3>导出记忆</h3>
+
+<pre class="code-block"><code class="language-">> /memory export memories_backup.json
+
+<p class="md-paragraph">✅ 已导出 23 条记忆到 memories_backup.json
+</code></pre></p>
+
+<hr class="md-hr">
+
+<h2>记忆工具</h2>
+
+<p class="md-paragraph">AI 也可以通过工具操作记忆：</p>
+
+<table class="md-table">
+<thead><tr><th>工具</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">save_memory</code></td><td>保存记忆条目</td></tr>
+<tr><td><code class="inline-code">load_memory</code></td><td>加载指定记忆</td></tr>
+<tr><td><code class="inline-code">search_memories</code></td><td>语义搜索</td></tr>
+<tr><td><code class="inline-code">list_memories</code></td><td>列出记忆索引</td></tr>
+<tr><td><code class="inline-code">get_memory_summary</code></td><td>获取摘要</td></tr>
+<tr><td><code class="inline-code">get_relevant_memories</code></td><td>LLM 驱动的相关记忆召回</td></tr>
+<tr><td><code class="inline-code">delete_memory</code></td><td>删除记忆</td></tr>
+</tbody></table>
+<hr class="md-hr">
+
+<h2>存储位置</h2>
+
+<pre class="code-block"><code class="language-">~/.auracode/memories/
+├── memory_manifest.json    # 记忆清单（索引+时间戳）
+└── entries/                # 记忆条目文件
+    ├── mem_001.json
+    ├── mem_002.json
+    └── ...
+</code></pre>
+
+<hr class="md-hr">
+
+<h2>相关命令</h2>
+
+<table class="md-table">
+<thead><tr><th>命令</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code class="inline-code">/memory</code></td><td>记忆管理入口</td></tr>
+<tr><td><code class="inline-code">/memory list</code></td><td>列出所有记忆</td></tr>
+<tr><td><code class="inline-code">/memory search <query></code></td><td>语义搜索</td></tr>
+<tr><td><code class="inline-code">/memory add <content></code></td><td>手动添加</td></tr>
+<tr><td><code class="inline-code">/memory delete <id></code></td><td>删除记忆</td></tr>
+<tr><td><code class="inline-code">/memory export <file></code></td><td>导出为文件</td></tr>
+</tbody></table>
+            </div>
+
+            <div class="docs-navigation">
+                <a href="../index.html" class="nav-btn prev">
+                    <i class="fas fa-arrow-left"></i>
+                    返回首页
+                </a>
+            </div>
+        </main>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2026 AuraCode. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+    <script src="../js/docs.js"></script>
+</body>
+</html>

@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>动态工作流（Batch 特性） - AuraCode</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/docs.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Markdown 内容样式 */
+        .md-content { 
+            line-height: 1.8;
+            color: var(--text-primary);
+        }
+        
+        /* 标题样式 */
+        .md-content h1 { 
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin: 2rem 0 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--border-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .md-content h2 { 
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 2.5rem 0 1rem;
+            padding-left: 1rem;
+            border-left: 4px solid var(--primary-color);
+        }
+        .md-content h3 { 
+            font-size: 1.35rem;
+            font-weight: 600;
+            margin: 2rem 0 0.75rem;
+            color: var(--primary-color);
+        }
+        
+        /* 段落样式 */
+        .md-paragraph {
+            margin: 1.25rem 0;
+            line-height: 1.8;
+        }
+        
+        /* 代码块样式 */
+        .code-block {
+            background: var(--darker-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .code-block::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border-radius: 0.75rem 0.75rem 0 0;
+        }
+        .code-block code {
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+        .inline-code {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.35rem;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.85em;
+            color: var(--primary-color);
+        }
+        
+        /* 表格样式 */
+        .md-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 1.5rem 0;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .md-table thead {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        }
+        .md-table th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: white;
+        }
+        .md-table td {
+            padding: 0.875rem 1rem;
+            border-top: 1px solid var(--border-color);
+            background: var(--card-bg);
+        }
+        .md-table tbody tr:hover td {
+            background: rgba(99, 102, 241, 0.05);
+        }
+        
+        /* 引用块样式 */
+        .md-quote {
+            border-left: 4px solid var(--primary-color);
+            background: rgba(99, 102, 241, 0.05);
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 列表样式 */
+        .md-list {
+            margin: 1.25rem 0;
+            padding-left: 2rem;
+        }
+        .md-list li {
+            margin: 0.75rem 0;
+            line-height: 1.7;
+            position: relative;
+        }
+        .md-list li::marker {
+            color: var(--primary-color);
+        }
+        
+        /* 链接样式 */
+        .md-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .md-link:hover {
+            color: var(--secondary-color);
+            border-bottom-color: var(--secondary-color);
+        }
+        
+        /* 粗体和斜体 */
+        .md-strong {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .md-em {
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        /* 分隔线 */
+        .md-hr {
+            border: none;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+            margin: 2.5rem 0;
+        }
+        
+        /* 面包屑导航 */
+        .breadcrumb-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .breadcrumb-link:hover {
+            text-decoration: underline;
+        }
+        .breadcrumb-sep {
+            color: var(--text-secondary);
+            margin: 0 0.5rem;
+        }
+        .breadcrumb-item {
+            color: var(--text-secondary);
+            text-transform: capitalize;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-code"></i>
+                <span>AuraCode</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="../index.html">首页</a></li>
+                <li><a href="../index.html#features">功能</a></li>
+                <li><a href="../index.html#docs">文档</a></li>
+                <li><a href="../index.html#quickstart">快速开始</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 文档内容 -->
+    <div class="docs-container">
+        
+        <aside class="docs-sidebar">
+            <div class="sidebar-section">
+                <h3>入门指南</h3>
+                <ul>
+                    <li><a href="../quick-start.html">快速开始</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>用户指南</h3>
+                <ul>
+                    <li><a href="chat.html">对话交互</a></li>
+                    <li><a href="commands.html">命令参考</a></li>
+                    <li><a href="tools.html">工具系统</a></li>
+                    <li><a href="skills.html">技能系统</a></li>
+                    <li><a href="memory.html">记忆系统</a></li>
+                    <li><a href="permissions.html">权限管理</a></li>
+                    <li><a href="mcp.html">MCP 协议</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>高级功能</h3>
+                <ul>
+                    <li><a href="../advanced/bridge.html">Bridge 远程控制</a></li>
+                    <li><a href="../advanced/hooks.html">钩子系统</a></li>
+                    <li><a href="../advanced/plugins.html">插件系统</a></li>
+                    <li><a href="../advanced/error-recovery.html">错误恢复</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>开发</h3>
+                <ul>
+                    <li><a href="../development/architecture.html">架构总览</a></li>
+                </ul>
+            </div>
+        </aside>
+    
+
+        <main class="docs-content">
+            <div class="docs-header">
+                <h1>动态工作流（Batch 特性）</h1>
+            </div>
+            <div class="md-content">
+                <h1>动态工作流（Batch 特性）</h1>
+
+<p class="md-paragraph">AuraCode 提供大规模并行变更编排系统，支持任务分解、并行执行和进度追踪。</p>
+
+<hr class="md-hr">
+
+<h2>概述</h2>
+
+<p class="md-paragraph">Batch 特性允许用户将大规模变更分解为可并行执行的子任务，通过多代理协同工作，显著提高大规模重构和批量操作的效率。</p>
+
+<strong class="md-strong">适用场景</strong>：
+<ul class="md-list">
+<li>大规模代码重构（跨 50+ 文件）</li>
+<li>批量 API 迁移</li>
+<li>统一代码风格调整</li>
+<li>依赖升级与兼容性修复</li>
+<li>文档批量更新</li>
+</ul>
+
+<hr class="md-hr">
+
+<h2>基本用法</h2>
+
+<pre class="code-block"><code class="language-">/batch <描述>
+</code></pre>
+
+<strong class="md-strong">参数说明</strong>：
+<ul class="md-list">
+<li><code class="inline-code">描述</code>：自然语言描述要执行的批量变更</li>
+</ul>
+
+<strong class="md-strong">示例</strong>：
+<pre class="code-block"><code class="language-bash">/batch 将所有 Python 文件中的 print 语句改为 logging.info
+/batch 升级 requirements.txt 中所有依赖到最新版本
+/batch 使用 black 格式化所有 Python 文件
+</code></pre>
+
+<hr class="md-hr">
+
+<h2>核心能力</h2>
+
+<h3>1. 任务分解</h3>
+
+<p class="md-paragraph">AuraCode 自动分析用户描述，识别可并行的变更单元：</p>
+
+<ul class="md-list">
+<li><strong class="md-strong">文件级分解</strong> — 每个文件作为独立任务</li>
+<li><strong class="md-strong">目录级分解</strong> — 按目录组织任务</li>
+<li><strong class="md-strong">逻辑级分解</strong> — 按变更类型分组</li>
+</ul>
+
+<h3>2. 并行执行</h3>
+
+<p class="md-paragraph">通过子代理系统实现真正的并行：</p>
+
+<ul class="md-list">
+<li>每个子任务分配独立的子代理</li>
+<li>子代理同时工作，互不干扰</li>
+<li>实时显示每个子任务的进度</li>
+</ul>
+
+<h3>3. 进度追踪</h3>
+
+<p class="md-paragraph">实时显示任务执行状态：</p>
+
+<pre class="code-block"><code class="language-">批量任务进度:
+[████████░░] 80% (4/5 完成)
+
+<p class="md-paragraph">✓ file1.py - 已更新 (2 处修改)
+✓ file2.py - 已更新 (3 处修改)
+✓ file3.py - 已更新 (1 处修改)
+✓ file4.py - 已更新 (4 处修改)
+⚙ file5.py - 处理中...
+</code></pre></p>
+
+<h3>4. 错误恢复</h3>
+
+<p class="md-paragraph">部分失败时自动处理：</p>
+
+<ul class="md-list">
+<li><strong class="md-strong">重试机制</strong> — 自动重试失败的任务</li>
+<li><strong class="md-strong">降级策略</strong> — 跳过无法处理的文件</li>
+<li><strong class="md-strong">冲突解决</strong> — 自动检测并解决冲突</li>
+</ul>
+
+<h3>5. 结果聚合</h3>
+
+<p class="md-paragraph">汇总所有子任务的执行结果：</p>
+
+<ul class="md-list">
+<li>统计成功/失败数量</li>
+<li>展示变更详情</li>
+<li>提供回滚选项</li>
+</ul>
+
+<hr class="md-hr">
+
+<h2>执行流程</h2>
+
+<h3>Phase 1: 任务分析</h3>
+
+<pre class="code-block"><code class="language-">1. 解析用户描述
+2. 识别目标文件和目录
+3. 评估变更范围和复杂度
+</code></pre>
+
+<h3>Phase 2: 任务分解</h3>
+
+<pre class="code-block"><code class="language-">1. 将大任务拆分为独立子任务
+2. 确定子任务间的依赖关系
+3. 计算最优并行策略
+</code></pre>
+
+<h3>Phase 3: 代理分配</h3>
+
+<pre class="code-block"><code class="language-">1. 为每个子任务创建子代理
+2. 分配独立的上下文和工具
+3. 设置执行超时和重试策略
+</code></pre>
+
+<h3>Phase 4: 并行执行</h3>
+
+<pre class="code-block"><code class="language-">1. 所有子代理同时开始工作
+2. 实时报告进度和状态
+3. 处理执行中的异常
+</code></pre>
+
+<h3>Phase 5: 结果聚合</h3>
+
+<pre class="code-block"><code class="language-">1. 收集所有子任务的输出
+2. 合并变更结果
+3. 生成执行报告
+</code></pre>
+
+<h3>Phase 6: 冲突处理</h3>
+
+<pre class="code-block"><code class="language-">1. 检测文件冲突
+2. 自动解决或提示用户
+3. 提供回滚选项
+</code></pre>
+
+<hr class="md-hr">
+
+<h2>使用示例</h2>
+
+<h3>示例 1: 批量重构</h3>
+
+<strong class="md-strong">场景</strong>：将所有 Python 文件中的 <code class="inline-code">print</code> 改为 <code class="inline-code">logging.info</code>
+
+<pre class="code-block"><code class="language-">用户: /batch 将所有 Python 文件中的 print 语句改为 logging.info
+
+<p class="md-paragraph">执行流程:
+1. 扫描项目，找到 45 个 Python 文件
+2. 分解为 45 个子任务（每个文件一个）
+3. 创建 10 个子代理并行工作
+4. 每个子代理处理 4-5 个文件
+5. 实时显示进度
+6. 汇总结果：修改了 127 处 print 语句
+</code></pre></p>
+
+<strong class="md-strong">输出</strong>：
+<pre class="code-block"><code class="language-">批量任务完成 ✓
+
+<p class="md-paragraph">总计: 45 个文件
+成功: 43 个文件
+失败: 2 个文件 (已跳过)</p>
+
+<p class="md-paragraph">变更详情:
+<ul class="md-list">
+<li>替换 print 语句: 127 处</li>
+<li>添加 import logging: 15 个文件</li>
+<li>修复格式问题: 8 个文件</li>
+</ul></p>
+
+<p class="md-paragraph">失败文件:
+<ul class="md-list">
+<li>legacy/old.py (语法错误，无法解析)</li>
+<li>tests/test_legacy.py (依赖缺失)</li>
+</ul></p>
+
+<p class="md-paragraph">是否要查看变更详情？(y/n)
+</code></pre></p>
+
+<h3>示例 2: 批量依赖升级</h3>
+
+<strong class="md-strong">场景</strong>：升级所有依赖到最新版本
+
+<pre class="code-block"><code class="language-">用户: /batch 升级 requirements.txt 中所有依赖到最新版本，并修复兼容性问题
+
+<p class="md-paragraph">执行流程:
+1. 读取 requirements.txt (25 个依赖)
+2. 查询每个依赖的最新版本
+3. 分解为 3 个子任务:
+   - 升级主要版本 (5 个)
+   - 升级次要版本 (12 个)
+   - 升级补丁版本 (8 个)
+4. 并行执行升级
+5. 运行测试验证兼容性
+6. 修复发现的问题
+</code></pre></p>
+
+<h3>示例 3: 批量格式化</h3>
+
+<strong class="md-strong">场景</strong>：统一代码风格
+
+<pre class="code-block"><code class="language-">用户: /batch 使用 black 格式化所有 Python 文件，并修复 lint 错误
+
+<p class="md-paragraph">执行流程:
+1. 找到所有 Python 文件 (150 个)
+2. 分解为 5 个子任务 (每个 30 个文件)
+3. 并行运行 black 格式化
+4. 运行 flake8 检查 lint
+5. 自动修复可修复的问题
+6. 报告无法自动修复的问题
+</code></pre></p>
+
+<hr class="md-hr">
+
+<h2>高级配置</h2>
+
+<h3>并行度控制</h3>
+
+<p class="md-paragraph">默认并行度为 10 个子代理，可通过配置调整：</p>
+
+<pre class="code-block"><code class="language-yaml"># config.yaml
+batch:
+  max_parallel: 15        # 最大并行数
+  timeout_per_task: 300   # 每个子任务超时时间（秒）
+  retry_count: 2          # 失败重试次数
+</code></pre>
+
+<h3>文件过滤</h3>
+
+<p class="md-paragraph">可以指定只处理特定类型的文件：</p>
+
+<pre class="code-block"><code class="language-">/batch 在所有 .py 文件中添加类型注解
+/batch 在 src/ 目录下统一代码风格
+/batch 排除 tests/ 目录，升级所有依赖
+</code></pre>
+
+<h3>干运行模式</h3>
+
+<p class="md-paragraph">先预览变更，不实际执行：</p>
+
+<pre class="code-block"><code class="language-">/batch --dry-run 将所有 print 改为 logging
+</code></pre>
+
+<p class="md-paragraph">输出示例：
+<pre class="code-block"><code class="language-">干运行模式 - 不会实际修改文件</p>
+
+<p class="md-paragraph">计划变更:
+<ul class="md-list">
+<li>45 个文件将被修改</li>
+<li>预计修改 127 处</li>
+<li>预计耗时 2-3 分钟</li>
+</ul></p>
+
+<p class="md-paragraph">是否继续执行？(y/n)
+</code></pre></p>
+
+<hr class="md-hr">
+
+<h2>最佳实践</h2>
+
+<h3>1. 明确描述</h3>
+
+<p class="md-paragraph">✅ <strong class="md-strong">好的描述</strong>：
+<pre class="code-block"><code class="language-">/batch 将所有 Python 文件中的 print 语句改为 logging.info
+</code></pre></p>
+
+<p class="md-paragraph">❌ <strong class="md-strong">模糊的描述</strong>：
+<pre class="code-block"><code class="language-">/batch 修改代码
+</code></pre></p>
+
+<h3>2. 分阶段执行</h3>
+
+<p class="md-paragraph">对于大规模变更，建议分阶段执行：</p>
+
+<pre class="code-block"><code class="language-"># 第一阶段：预览
+/batch --dry-run 升级所有依赖
+
+<h1>第二阶段：执行</h1>
+/batch 升级所有依赖
+
+<h1>第三阶段：验证</h1>
+/batch 运行所有测试并修复失败
+</code></pre>
+
+<h3>3. 备份重要文件</h3>
+
+<p class="md-paragraph">在执行批量变更前，建议先备份：</p>
+
+<pre class="code-block"><code class="language-bash">git add .
+git commit -m "Backup before batch operation"
+</code></pre>
+
+<h3>4. 使用版本控制</h3>
+
+<p class="md-paragraph">批量操作后，使用 Git 审查变更：</p>
+
+<pre class="code-block"><code class="language-bash">git diff                    # 查看所有变更
+git diff --stat             # 查看变更统计
+git diff file.py            # 查看特定文件的变更
+</code></pre>
+
+<hr class="md-hr">
+
+<h2>常见问题</h2>
+
+<h3>Q: 批量操作会阻塞主会话吗？</h3>
+
+<p class="md-paragraph">A: 不会。批量操作在后台并行执行，你可以继续其他工作。</p>
+
+<h3>Q: 如果部分任务失败怎么办？</h3>
+
+<p class="md-paragraph">A: AuraCode 会自动重试失败的任务，如果仍然失败，会跳过并报告原因。</p>
+
+<h3>Q: 可以取消正在执行的批量任务吗？</h3>
+
+<p class="md-paragraph">A: 可以，使用 <code class="inline-code">/batch cancel</code> 取消所有正在执行的任务。</p>
+
+<h3>Q: 批量操作支持回滚吗？</h3>
+
+<p class="md-paragraph">A: 支持，使用 <code class="inline-code">/batch rollback</code> 回滚到操作前的状态。</p>
+
+<hr class="md-hr">
+
+<h2>相关工具</h2>
+
+<ul class="md-list">
+<li><code class="inline-code">spawn_subagent</code> — 创建子代理</li>
+<li><code class="inline-code">join_subagent</code> — 等待子代理完成</li>
+<li><code class="inline-code">list_subagents</code> — 列出所有子代理</li>
+<li><code class="inline-code">subagent_stats</code> — 查看子代理统计</li>
+</ul>
+
+<hr class="md-hr">
+
+<h2>参见</h2>
+
+<ul class="md-list">
+<li><a href="../commands.md" class="md-link">命令参考</a> — 查看所有可用命令</li>
+<li><a href="../advanced/subagents.md" class="md-link">子代理系统</a> — 了解子代理工作原理</li>
+<li><a href="loop-scheduling.md" class="md-link">定时任务</a> — 周期性任务编排</li>
+</ul>
+
+            </div>
+
+            <div class="docs-navigation">
+                <a href="../index.html" class="nav-btn prev">
+                    <i class="fas fa-arrow-left"></i>
+                    返回首页
+                </a>
+            </div>
+        </main>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2026 AuraCode. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+    <script src="../js/docs.js"></script>
+</body>
+</html>
