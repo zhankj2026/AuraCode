@@ -82,6 +82,7 @@ def run_powershell_handler(
     timeout: int = 60,
     working_directory: Optional[str] = None,
     ignore_danger_warning: bool = False,
+    run_in_background: bool = False,
 ) -> str:
     """
     在 Windows PowerShell 中执行命令。
@@ -106,6 +107,10 @@ def run_powershell_handler(
 
     if platform.system() != "Windows":
         return "错误: run_powershell 工具仅支持 Windows 系统，请使用 run_command"
+
+    # 后台执行（简单实现，不支持复杂的后台任务管理）
+    if run_in_background:
+        return "警告: run_powershell 不支持后台执行，请使用 run_command 工具进行后台操作"
 
     # 超时限制
     timeout = min(max(timeout, 1), 600)
@@ -217,6 +222,11 @@ register_tool("run_powershell", {
             "ignore_danger_warning": {
                 "type": "boolean",
                 "description": "忽略危险命令警告，强制执行",
+                "default": False
+            },
+            "run_in_background": {
+                "type": "boolean",
+                "description": "后台执行（不支持，请使用 run_command）",
                 "default": False
             }
         },
