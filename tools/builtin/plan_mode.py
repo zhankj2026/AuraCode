@@ -336,25 +336,56 @@ def exit_plan_mode_handler(plan_summary: str = "") -> str:
         has_task_create = "task_create" in TOOL_REGISTRY
         has_spawn_subagent = "spawn_subagent" in TOOL_REGISTRY
         
-        # 构建简洁的多任务引导（参考 Claude 设计）
+        # 构建自适应多任务引导（根据实际可用工具动态生成）
         task_hint = ""
         if has_team_create or has_task_create or has_spawn_subagent:
-            task_hint = "\n## 🚀 Parallel Execution Hints\n\n"
-            task_hint += "If your plan can be broken into independent tasks:\n\n"
-            
-            if has_spawn_subagent:
-                task_hint += "- **Independent modules?** → Use `spawn_subagent` to parallelize\n"
-                task_hint += "  Example: Spawn 3 subagents for UI, API, and tests simultaneously\n\n"
+            # 1. 推荐工作流（动态适配可用工具）
+            task_hint = "\n## 🎯 Recommended Workflow\n\n"
             
             if has_task_create:
-                task_hint += "- **Track progress** → Use `task_create` for each major step\n"
-                task_hint += "  System will execute them efficiently\n\n"
+                task_hint += "### Step 1: Break Down Work\n"
+                task_hint += "Use `task_create` to track progress:\n"
+                task_hint += "```\n"
+                task_hint += "# Example for a web project:\n"
+                task_hint += "task_create('Setup structure', 'Create HTML/CSS skeleton')\n"
+                task_hint += "task_create('Core logic', 'Implement main functionality')\n"
+                task_hint += "task_create('Testing', 'Write unit tests')\n"
+                task_hint += "```\n\n"
             
+            # 2. 并行执行（更真实的示例）
+            task_hint += "### Step 2: Batch Independent Operations\n"
+            task_hint += "When creating multiple independent files, **batch them in one response**:\n"
+            task_hint += "```\n"
+            task_hint += "# ✅ Good: 3 calls in same response\n"
+            task_hint += "write_file('config.js', content1)\n"
+            task_hint += "write_file('utils.js', content2)\n"
+            task_hint += "write_file('api.js', content3)\n"
+            task_hint += "# System parallelizes: ~3s vs sequential 15s\n"
+            task_hint += "```\n\n"
+            
+            # 3. 进度跟踪（更完整的状态）
+            if has_task_create:
+                task_hint += "### Step 3: Update Progress\n"
+                task_hint += "```\n"
+                task_hint += "task_update(id=1, status='complete')\n"
+                task_hint += "task_update(id=2, status='in_progress')\n"
+                task_hint += "task_update(id=3, status='blocked', reason='Waiting for API spec')\n"
+                task_hint += "```\n\n"
+            
+            # 4. 工具选择（根据实际能力动态生成）
+            task_hint += "## 🚀 Tool Selection Guide\n\n"
+            choices = []
+            if has_spawn_subagent:
+                choices.append("- **Independent modules?** → `spawn_subagent` (3 subagents for UI/API/tests)")
+            if has_task_create:
+                choices.append("- **Track multi-step work?** → `task_create` + `task_update`")
             if has_team_create:
-                task_hint += "- **Complex collaboration?** → Use `team_create` + `teammate_send`\n"
-                task_hint += "  Best for tasks requiring communication between roles\n\n"
+                choices.append("- **Complex collaboration?** → `team_create` (multiple agents coordinate)")
+            task_hint += "\n".join(choices) + "\n\n"
             
-            task_hint += "**Optimization**: The system automatically parallelizes independent operations!\n"
+            # 5. 性能提示（更具体）
+            task_hint += "**⚡ Performance**: Independent operations are auto-parallelized. "
+            task_hint += "Batch them in the same response for best results.\n"
 
         msg = (
             "✅ Your plan has been approved. Start implementing now!\n\n"
