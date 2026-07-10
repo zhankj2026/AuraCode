@@ -19,9 +19,12 @@ Glob 工具 - 使用 Glob 模式快速查找文件
 
 import os
 import fnmatch
+import logging
 from pathlib import Path
 from typing import Optional, List
 from tools.registry import register_tool
+
+logger = logging.getLogger(__name__)
 
 
 # 默认忽略的目录（提升搜索性能，避免扫描无用路径）
