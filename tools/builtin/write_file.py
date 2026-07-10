@@ -82,6 +82,12 @@ def write_file_handler(path: str, content: str, project_root: str = None) -> str
         else:
             logger.error(f"write_file ERROR: file does not exist after write: {abs_path}")
         
+        # 自动语法检查（参考 Claude 架构验证机制）
+        syntax_check_result = _auto_syntax_check(abs_path)
+        if syntax_check_result:
+            result += f"\n\n⚠️ 语法检查发现错误:\n{syntax_check_result}"
+            result += "\n建议立即修复。"
+        
         return result
     except Exception as e:
         logger.error(f"write_file failed: {e}", exc_info=True)
@@ -99,6 +105,78 @@ def _create_backup(path: str) -> str:
         with open(backup_path, 'w', encoding='utf-8') as dst:
             dst.write(src.read())
     return backup_path
+
+
+def _auto_syntax_check(file_path: str) -> str:
+    """
+    自动语法检查（参考 Claude 架构验证机制）
+    
+    对于代码文件，在创建后立即进行语法检查，
+    发现错误时立即返回给 LLM，让 LLM 自动修复。
+    
+    Args:
+        file_path: 文件绝对路径
+    
+    Returns:
+        错误信息字符串，如果没有错误则返回空字符串
+    """
+    import subprocess
+    import platform
+    
+    # 根据文件扩展名选择语法检查命令
+    ext = os.path.splitext(file_path)[1].lower()
+    
+    # Python 文件
+    if ext == '.py':
+        cmd = ['python', '-m', 'py_compile', file_path]
+    # JavaScript 文件
+    elif ext == '.js':
+        cmd = ['node', '--check', file_path]
+    # TypeScript 文件
+    elif ext == '.ts':
+        cmd = ['tsc', '--noEmit', file_path]
+    # JSON 文件
+    elif ext == '.json':
+        try:
+            import json
+            with open(file_path, 'r', encoding='utf-8') as f:
+                json.load(f)
+            return ""  # JSON 有效
+        except json.JSONDecodeError as e:
+            return f"JSON 解析错误: {e}"
+    # 其他文件类型不检查
+    else:
+        return ""
+    
+    # 执行语法检查
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10  # 10秒超时
+        )
+        
+        # 如果返回码非零，表示有错误
+        if result.returncode != 0:
+            error_msg = result.stderr.strip()
+            # 限制错误信息长度
+            if len(error_msg) > 500:
+                error_msg = error_msg[:500] + "\n... (错误信息过长，已截断)"
+            return error_msg
+        
+        return ""  # 语法正确
+    
+    except subprocess.TimeoutExpired:
+        logger.warning(f"Syntax check timeout for {file_path}")
+        return ""  # 超时不报错
+    except FileNotFoundError as e:
+        # 检查工具不存在（如 node, tsc）
+        logger.debug(f"Syntax checker not found: {e}")
+        return ""  # 工具不存在不报错
+    except Exception as e:
+        logger.debug(f"Syntax check failed: {e}")
+        return ""  # 其他错误不报错
 
 
 register_tool("write_file", {
