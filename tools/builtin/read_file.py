@@ -39,9 +39,9 @@ def read_file_handler(
         end_line: 结束行号（1-based 含尾，0 表示到文件末尾）
     """
     if not os.path.exists(path):
-        raise FileNotFoundError(f"File not found: {path}")
+        return f"错误: 文件不存在 - {path}"
     if not os.path.isfile(path):
-        raise IsADirectoryError(f"Path is a directory: {path}")
+        return f"错误: 路径不是文件 - {path}"
 
     with open(path, "r", encoding="utf-8", errors="replace") as f:
         all_lines = f.readlines()
