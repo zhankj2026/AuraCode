@@ -758,13 +758,16 @@ class AgentLoop:
         logger.debug(f"Messages initialized, system prompt length: {len(system_prompt)}")
     
     def _build_system_prompt(self) -> str:
-        """构建系统提示词(增强版 6 层)"""
+        """构建系统提示词(增强版 7 层)"""
         parts = []
 
         # 第 1 层: 基础角色定义
         parts.append(self._base_role())
 
-        # 第 2 层: 记忆系统(用户信息、反馈、项目上下文)
+        # 第 2 层: 环境信息（参考 Claude 设计）
+        parts.append(self._build_environment_context())
+
+        # 第 3 层: 记忆系统(用户信息、反馈、项目上下文)
         if self.memory_manager and self.memory_enabled:
             memory_context = self._build_memory_context()
             if memory_context:
@@ -869,6 +872,9 @@ class AgentLoop:
 
         # 第 6 层: 安全规则
         parts.append(self._security_rules())
+
+        # 第 7 层: 上下文管理指导（参考 Claude 设计）
+        parts.append(self._build_context_management_guidance())
 
         return "\n\n".join(parts)
     
@@ -977,7 +983,7 @@ class AgentLoop:
 - **如果不确定是否需要规划，偏向于先规划** — 与用户对齐方案比返工更有价值。用户 appreciates 在重大变更之前被征询意见。"""
 
     def _get_doing_tasks_section(self) -> str:
-        """执行任务 - 添加代码风格约束"""
+        """执行任务 - 添加代码风格约束和结果报告规范"""
         return """## 执行任务
 
 - 用户主要会要求你执行软件工程任务。这些任务可能包括解决bug、添加新功能、重构代码、解释代码等。对于不明确或笼统的指令，请结合这些软件工程任务和当前工作目录的上下文来理解。例如，如果用户要求你将"methodName"改为蛇形命名法，不要只回复"method_name"，而应该在代码中找到该方法并修改代码。
@@ -999,7 +1005,17 @@ class AgentLoop:
 
 - 对于UI或前端更改，在报告任务完成之前，启动开发服务器并在浏览器中使用该功能。确保测试功能的主路径和边缘情况，并监控其他功能是否有回归。类型检查和测试套件验证代码正确性，而不是功能正确性——如果你无法测试UI，请明确说明，而不要声称成功。
 - 如果用户需要帮助或想要提供反馈，告知他们以下内容：
-  - `/help`：获取使用帮助"""
+  - `/help`：获取使用帮助
+
+### 结果报告
+
+如实报告结果：
+- 如果测试失败，请说明并附上输出
+- 如果跳过某个步骤，请说明
+- 当某件事完成并已验证时，请直接、明确地陈述，不要含糊其辞
+- 不要声称"所有测试通过"当输出显示失败时
+- 不要隐藏或简化失败的检查以制造绿色结果
+- 同样，当检查确实通过或任务完成时，直接陈述——不要用不必要的免责声明来削弱已确认的结果"""
 
     def _get_actions_section(self) -> str:
         """操作谨慎性 - 添加风险分类"""
@@ -1102,6 +1118,151 @@ class AgentLoop:
 - 对于简单的、有明确目标的代码库搜索（例如查找特定的文件/类/函数），直接使用`Glob`或`Grep`。
 - 对于更广泛的代码库探索和深入研究，使用`Agent`工具，子代理类型为`Explore`。这比直接使用`Glob`或`Grep`慢，因此仅在简单、定向搜索被证明不足，或者你的任务明确需要超过3次查询时使用。
 - `/`（例如`/commit`）是用户调用用户可调用技能的快捷方式。当执行时，技能会被扩展成一个完整的提示。使用`Skill`工具来执行它们。**重要提示**：仅对用户可调用技能列表中列出的技能使用`Skill`——不要猜测或使用内置的CLI命令。"""
+
+    def _build_environment_context(self) -> str:
+        """构建环境上下文（参考 Claude 设计）"""
+        import platform
+        import os
+        import subprocess
+        
+        sections = []
+        
+        # 1. 工作目录
+        work_dir = getattr(self, 'work_dir', os.getcwd())
+        sections.append(f"## 环境\n\n您在以下环境中被调用：")
+        sections.append(f"主工作目录：{work_dir}")
+        
+        # 2. Git 状态
+        is_git = self._is_git_repository()
+        sections.append(f"是否为git仓库：{'是' if is_git else '否'}")
+        
+        if is_git:
+            git_info = self._get_git_status_snapshot()
+            if git_info:
+                if git_info.get('branch'):
+                    sections.append(f"当前分支：{git_info['branch']}")
+                if git_info.get('main_branch'):
+                    sections.append(f"主分支：{git_info['main_branch']}")
+                if git_info.get('user'):
+                    sections.append(f"Git用户：{git_info['user']}")
+        
+        # 3. 平台信息
+        sections.append(f"平台：{platform.system().lower()}")
+        shell = os.environ.get('SHELL', 'powershell' if platform.system() == 'Windows' else 'bash')
+        sections.append(f"Shell：{shell}")
+        sections.append(f"操作系统版本：{platform.platform()}")
+        
+        # 4. 模型信息
+        model_name = getattr(self, 'model_name', 'unknown')
+        sections.append(f"您由模型{model_name}驱动。")
+        
+        # 5. Git 状态快照（如果有）
+        if is_git:
+            git_status = self._get_git_status_detailed()
+            if git_status:
+                sections.append("\n## gitStatus\n\n")
+                sections.append("这是对话开始时的git状态。请注意，此状态是某个时间点的快照，在对话期间不会更新。")
+                sections.append(f"状态：\n{git_status}")
+        
+        return "\n".join(sections)
+
+    def _is_git_repository(self) -> bool:
+        """检查是否是 git 仓库"""
+        import subprocess
+        import os
+        
+        try:
+            result = subprocess.run(
+                ['git', 'rev-parse', '--git-dir'],
+                cwd=getattr(self, 'work_dir', os.getcwd()),
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            return result.returncode == 0
+        except:
+            return False
+
+    def _get_git_status_snapshot(self) -> dict:
+        """获取 git 状态快照"""
+        import subprocess
+        import os
+        
+        info = {}
+        work_dir = getattr(self, 'work_dir', os.getcwd())
+        
+        try:
+            # 当前分支
+            result = subprocess.run(
+                ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+                cwd=work_dir,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                info['branch'] = result.stdout.strip()
+            
+            # 主分支
+            result = subprocess.run(
+                ['git', 'symbolic-ref', 'refs/remotes/origin/HEAD'],
+                cwd=work_dir,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                info['main_branch'] = result.stdout.strip().split('/')[-1]
+            
+            # Git 用户
+            result = subprocess.run(
+                ['git', 'config', 'user.name'],
+                cwd=work_dir,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                info['user'] = result.stdout.strip()
+        
+        except Exception as e:
+            logger.debug(f"Failed to get git status: {e}")
+        
+        return info
+
+    def _get_git_status_detailed(self) -> str:
+        """获取详细的 git 状态"""
+        import subprocess
+        import os
+        
+        try:
+            result = subprocess.run(
+                ['git', 'status', '--short'],
+                cwd=getattr(self, 'work_dir', os.getcwd()),
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                # 限制长度，避免过长
+                status = result.stdout.strip()
+                if len(status) > 2000:
+                    status = status[:2000] + "\n... (截断，如需更多信息，请使用Bash运行\"git status\")"
+                return status
+        except:
+            pass
+        
+        return ""
+
+    def _build_context_management_guidance(self) -> str:
+        """构建上下文管理指导（参考 Claude 设计）"""
+        return """## 上下文管理
+
+当对话变长时，当前上下文的部分或全部会被总结；总结内容以及任何剩余未总结的上下文会在下一个上下文窗口中提供，以便继续工作——您无需提前收尾或在中途交接任务。
+
+当您拥有足够的信息来行动时，就直接行动。不要重新推导对话中已经确立的事实，不要重新讨论用户已经做出的决定，也不要叙述您不会采用的选项。
+
+如果您在权衡选择，请给出建议，而不是枚举所有选项。"""
     
     def _tools_description(self) -> str:
         """生成工具说明（增强版：分类 + 使用策略）"""
