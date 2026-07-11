@@ -100,6 +100,15 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .net-detail.show{display:block}
 .net-detail .lbl{color:var(--tx2);min-width:120px;display:inline-block}
 .net-detail pre{background:var(--bg);padding:8px;border-radius:4px;overflow-x:auto;font-size:10px;margin:4px 0 8px;max-height:200px;overflow-y:auto;white-space:pre-wrap;word-break:break-word}
+/* Activity indicator in status bar */
+.sbar .activity{color:var(--yl);transition:opacity .3s;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sbar .activity.fade{opacity:0}
+/* Tool result context */
+.ln .ctx{color:var(--tx2);font-size:11px;margin-left:6px}
+/* Result stats */
+.result-stats{display:flex;gap:12px;flex-wrap:wrap;margin-top:4px;font-size:11px;color:var(--tx2)}
+.result-stats .rs{display:flex;align-items:center;gap:3px}
+.result-stats .rs b{color:var(--tx);font-size:12px}
 /* Status */
 .sbar{display:flex;align-items:center;gap:14px;padding:5px 14px;background:var(--s1);border-top:1px solid var(--bd);font-size:10px;color:var(--tx2);flex-shrink:0}
 .ph{display:flex;align-items:center;justify-content:center;height:100%;color:var(--tx2);font-size:13px;flex-direction:column;gap:6px}
@@ -186,7 +195,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   </div>
 </div>
 <div class="sbar">
-  <span id="sb1">未连接</span><span id="sb2"></span><span id="sb3">事件: 0</span>
+  <span id="sb1">未连接</span><span id="sb2"></span><span id="sbActivity" class="activity"></span><span id="sb3">事件: 0</span>
   <span id="planModeIndicator" style="display:none;margin-left:8px;padding:2px 8px;background:#d29922;border-radius:10px;color:#fff;font-size:11px;font-weight:600">📝 Plan Mode</span>
   <button id="btnExitPlan" onclick="exitPlanMode()" style="display:none;margin-left:8px;padding:2px 8px;background:#238636;border:1px solid #2ea043;border-radius:4px;color:#fff;cursor:pointer;font-size:11px">🚪 退出</button>
   <span style="margin-left:auto" id="sb4"></span>
@@ -194,8 +203,58 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 <script>
 let ws=null,sess={},asid=null,evts=[],rnd=0,pPerm=null;
 let dedup=new Set(),tcDedup=new Set(),trDedup=new Set();
-let fileRoot='',filePath='';
+let fileRoot='', filePath='';
 let netCalls=[],netTotalTokens=0,netTotalMs=0;
+// ── Activity tracking (P2) ──
+let lastToolSummary=null, lastToolTime=0;
+const TOOL_DISPLAY_EXPIRY_MS=30000;
+// ── Tool stats per session (P3) ──
+let toolStats={}; // {tool_name: {count, success, failed}}
+// ── TOOL_VERBS mapping (P0) ──
+const TOOL_VERBS={
+  read_file:'Reading',write_file:'Writing',replace_in_file:'Editing',
+  run_command:'Running',run_powershell:'Running',run_bash:'Running',
+  glob:'Searching',grep:'Searching',find:'Searching',
+  web_fetch:'Fetching',web_search:'Searching',
+  notebook_edit:'Editing notebook',lsp:'Analyzing',
+  todo_write:'Planning',task_create:'Creating task',task_update:'Updating task',
+  task_list:'Listing tasks',task_get:'Getting task',task_stop:'Stopping task',
+  list_directory:'Browsing',sleep:'Waiting',config_tool:'Configuring',
+  brief_tool:'Toggling brief',ask_user:'Asking',
+  enter_plan_mode:'Entering plan',exit_plan_mode:'Exiting plan',
+  file_history:'Viewing history',search_files:'Searching',
+  mcp_invoke:'Calling MCP',worktree_enter:'Creating worktree',worktree_exit:'Exiting worktree',
+  cron_create:'Scheduling',cron_delete:'Removing cron',cron_list:'Listing crons',
+};
+// ── toolSummary: extract most relevant target from tool args (P0+P1) ──
+function toolSummary(toolName, args){
+  const verb=TOOL_VERBS[toolName]||toolName;
+  if(!args)return verb;
+  const a=typeof args==='string'?(tryParse(args)||{}):args;
+  const target=a.file_path||a.filePath||a.path||a.pattern||a.url||a.query||
+    (a.command||'').substring(0,60)||a.content?.substring(0,40)||'';
+  return target?`${verb} ${target}`:verb;
+}
+function tryParse(s){try{return JSON.parse(s)}catch{return null}}
+// ── updateActivity: show tool activity in status bar (P2) ──
+function updateActivity(summary){
+  lastToolSummary=summary;lastToolTime=Date.now();
+  const el=$('sbActivity');
+  el.textContent='⚡ '+summary;el.classList.remove('fade');
+}
+function clearActivityIfExpired(){
+  if(lastToolSummary&&Date.now()-lastToolTime>TOOL_DISPLAY_EXPIRY_MS){
+    const el=$('sbActivity');el.classList.add('fade');
+    setTimeout(()=>{if(Date.now()-lastToolTime>TOOL_DISPLAY_EXPIRY_MS){el.textContent='';lastToolSummary=null;}},300);
+  }
+}
+setInterval(clearActivityIfExpired,5000);
+// ── trackTool: accumulate tool stats (P3) ──
+function trackTool(name,success){
+  if(!toolStats[name])toolStats[name]={count:0,success:0,failed:0};
+  toolStats[name].count++;
+  if(success!==false)toolStats[name].success++;else toolStats[name].failed++;
+}
 const $=id=>document.getElementById(id),now=()=>new Date().toLocaleTimeString('zh-CN',{hour12:false}),short=s=>s.substring(0,8);
 function url(){return $('sUrl').value.replace(/\/$/,'')}
 function tok(){return $('sTok').value}
@@ -212,10 +271,11 @@ function connect(){
 }
 function disconnect(){if(ws){ws.close();ws=null}}
 // ── Terminal output ──
-function tln(cls,text,tag){
+function tln(cls,text,tag,isHtml){
   const el=$('term'),ph=el.querySelector('.ph');if(ph)ph.remove();
   const d=document.createElement('div');d.className='ln '+cls;
-  if(tag)d.innerHTML=`<span class="tag ${tag}">${tag==='exec'?'⚙️':tag==='ok'?'✅':tag==='err'?'❌':'ℹ️'}</span>`+esc(text);
+  if(tag)d.innerHTML=`<span class="tag ${tag}">${tag==='exec'?'⚡':tag==='ok'?'✅':tag==='err'?'❌':'ℹ️'}</span>`+(isHtml?text:esc(text));
+  else if(isHtml)d.innerHTML=text;
   else d.textContent=text;
   el.appendChild(d);el.scrollTop=el.scrollHeight;
 }
@@ -225,7 +285,7 @@ function tuser(text){
   d.innerHTML=`<span class="prompt">[${rnd+1}]&gt; </span>`+esc(text);
   el.appendChild(d);el.scrollTop=el.scrollHeight;
 }
-function tclear(){const el=$('term');el.innerHTML='';rnd=0;dedup.clear();tcDedup.clear();trDedup.clear();clearNetwork()}
+function tclear(){const el=$('term');el.innerHTML='';rnd=0;dedup.clear();tcDedup.clear();trDedup.clear();toolStats={};lastToolSummary=null;lastToolTime=0;$('sbActivity').textContent='';clearNetwork()}
 // ── Sessions ──
 async function refreshSessions(){
   try{const l=await api('GET','/api/sessions');sess={};l.forEach(s=>sess[s.session_id]=s);renderSess();$('sb2').textContent=`会话: ${l.length}`}catch(e){console.error(e)}
@@ -321,7 +381,13 @@ function handle(e){
       // 工具执行前，先终结当前流式元素（工具调用意味着本轮 LLM 文本输出结束）
       finalizeStreaming();
       const tn=e.data.tool_name||'?';
-      tln('tool',`⚙️ 执行: ${tn}`+(e.data.arguments?` ${formatArgs(e.data)}`:''),'exec');
+      // P0: 语义化显示 (动词 + 目标)
+      const summary=toolSummary(tn,e.data.arguments);
+      tln('tool',`⚡ ${summary}`,'exec');
+      // P2: 更新状态栏活动指示
+      updateActivity(summary);
+      // P3: 追踪工具统计
+      trackTool(tn,true);
       // 检测 Plan Mode 进入
       if (tn === 'enter_plan_mode') {
         isPlanMode = true;
@@ -331,7 +397,23 @@ function handle(e){
       break}
     case'tool_complete':{
       const tn=e.data.tool_name||'?',ok=e.data.success!==false;
-      tln(ok?'result':'error',`${ok?'✅':'❌'} ${tn} ${ok?'完成':'失败'}`,ok?'ok':'err');
+      // P1: 显示工具结果上下文（大小/行数等）
+      const result=e.data.result||{};
+      let ctxStr='';
+      if(typeof result==='object'&&result!==null){
+        const parts=[];
+        if(result.size!==undefined)parts.push(fmtSize(result.size));
+        if(result.lines!==undefined)parts.push(`${result.lines}行`);
+        if(result.line_count!==undefined)parts.push(`${result.line_count}行`);
+        if(result.file_count!==undefined)parts.push(`${result.file_count}个文件`);
+        if(result.char_count!==undefined)parts.push(`${result.char_count}字符`);
+        if(result.match_count!==undefined)parts.push(`${result.match_count}个匹配`);
+        if(result.truncated)parts.push('⚠️已截断');
+        if(parts.length)ctxStr=`<span class="ctx">(${parts.join(', ')})</span>`;
+      }
+      // P3: 追踪失败
+      if(!ok)trackTool(tn,false);
+      tln(ok?'result':'error',`${ok?'✅':'❌'} ${TOOL_VERBS[tn]||tn} ${ok?'完成':'失败'} ${ctxStr}`,ok?'ok':'err',true);
       // 检测 Plan Mode 退出
       if (tn === 'exit_plan_mode' && ok) {
         isPlanMode = false;
@@ -383,20 +465,44 @@ function handle(e){
 }
 function showResult(e){
   const d=e.data,st=d.status||(d.success?'success':'error'),nt=d.num_turns||'?',dur=d.duration_ms?` ${(d.duration_ms/1000).toFixed(1)}s`:'';
+  // P3: stop_reason 展示
+  const sr=d.stop_reason||'';
+  const srLabel=sr?{end_turn:'正常结束',max_tokens:'Token上限',stop_sequence:'停止序列',tool_calls:'工具完成'}[sr]||sr:'';
+  // P3: 工具统计摘要
+  const tNames=Object.keys(toolStats);
+  const tTotal=tNames.reduce((s,n)=>s+toolStats[n].count,0);
+  const tFailed=tNames.reduce((s,n)=>s+toolStats[n].failed,0);
   // 无总结时仅显示简洁状态行
   if(!d.summary){
     tln('','');
-    tln('sys',`── ${st==='success'?'✅':'❌'} ${st} | ${nt} 轮${dur} ──`);
+    let statusLine=`── ${st==='success'?'✅':'❌'} ${st} | ${nt} 轮${dur}`;
+    if(srLabel)statusLine+=` | ${srLabel}`;
+    if(tTotal)statusLine+=` | 🔧 ${tTotal} 次调用`+(tFailed?` (${tFailed} 失败)`:'');
+    statusLine+=' ──';
+    tln('sys',statusLine);
+    // 显示工具统计详情
+    if(tTotal>1){
+      const parts=tNames.map(n=>`${TOOL_VERBS[n]||n}×${toolStats[n].count}`);
+      tln('sys',`   ${parts.join(' · ')}`);
+    }
     tln('','');
     return;
   }
   // 有总结时显示完整总结框
   tln('','');
-  tln('sys',`┌─ ${st==='success'?'✅':'❌'} ${nt} 轮${dur} ─────────`);
+  let header=`┌─ ${st==='success'?'✅':'❌'} ${nt} 轮${dur}`;
+  if(srLabel)header+=` | ${srLabel}`;
+  header+=' ─────────';
+  tln('sys',header);
   tln('sys',`│ 📋 会话总结:`);
   d.summary.split('\n').forEach(line=>{
     if(line.trim())tln('sys',`│ ${line}`);
   });
+  // P3: 工具统计
+  if(tTotal){
+    const parts=tNames.map(n=>`${TOOL_VERBS[n]||n}×${toolStats[n].count}`);
+    tln('sys',`│ 🔧 工具: ${parts.join(' · ')}`+(tFailed?` (${tFailed} 失败)`:''));
+  }
   tln('sys','└───────────────────────────');
   tln('','');
 }

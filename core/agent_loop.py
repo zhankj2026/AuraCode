@@ -599,9 +599,12 @@ class AgentLoop:
                             else:
                                 tc_obj, tool_result = tc, {"success": False, "error": "并行执行超时"}
 
+                            # 构建结果元数据（供前端显示上下文信息）
+                            result_meta = self._build_result_metadata(tool_result)
                             self._emit_event("tool_complete", {
                                 "tool_name": tc_obj.function.name,
                                 "success": tool_result.get("success", False),
+                                "result": result_meta,
                             })
                             if tool_result.get("success"):
                                 result_content = tool_result.get("result")
@@ -625,9 +628,12 @@ class AgentLoop:
                                 "tool_name": tool_call.function.name,
                             })
                             tool_result = self._execute_tool(tool_call)
+                            # 构建结果元数据（供前端显示上下文信息）
+                            result_meta = self._build_result_metadata(tool_result)
                             self._emit_event("tool_complete", {
                                 "tool_name": tool_call.function.name,
                                 "success": tool_result.get("success", False),
+                                "result": result_meta,
                             })
 
                             # Step 5: 工具结果以 role=tool 返回（OpenAI 规范）
@@ -2750,6 +2756,49 @@ class AgentLoop:
             })
 
     # ========== 事件回调 ==========
+
+    def _build_result_metadata(self, tool_result: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        从工具结果中提取元数据（供前端显示上下文信息）。
+
+        返回包含 size/lines/char_count/truncated 等字段的字典。
+        """
+        meta = {}
+        try:
+            result = tool_result.get("result")
+            if result is None:
+                return meta
+
+            if isinstance(result, str):
+                meta["char_count"] = len(result)
+                lines = result.splitlines()
+                meta["line_count"] = len(lines)
+                # 检测是否被截断
+                if "truncated" in result.lower() or "... (截断" in result:
+                    meta["truncated"] = True
+                # 检测文件数量（搜索结果）
+                if "个文件" in result or "files found" in result.lower():
+                    import re
+                    m = re.search(r'(\d+)\s*(?:个文件|files)', result)
+                    if m:
+                        meta["file_count"] = int(m.group(1))
+                # 检测匹配数量（grep 结果）
+                if "个匹配" in result or "matches" in result.lower():
+                    import re
+                    m = re.search(r'(\d+)\s*(?:个匹配|matches)', result)
+                    if m:
+                        meta["match_count"] = int(m.group(1))
+            elif isinstance(result, dict):
+                # 某些工具直接返回字典
+                if "size" in result:
+                    meta["size"] = result["size"]
+                if "lines" in result:
+                    meta["lines"] = result["lines"]
+                if "file_count" in result:
+                    meta["file_count"] = result["file_count"]
+        except Exception as e:
+            logger.debug(f"Failed to build result metadata: {e}")
+        return meta
 
     def _emit_event(self, event_type: str, data: Dict[str, Any] = None):
         """
