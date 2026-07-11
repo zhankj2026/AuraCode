@@ -804,7 +804,10 @@ class AgentLoop:
                 temperature=0.3,  # 低温度，更稳定
             )
             
-            summary = response.choices[0].message.content.strip()
+            content = response.choices[0].message.content
+            if not content:
+                return ""
+            summary = content.strip()
             logger.info(f"Session summary generated: {summary[:100]}...")
             return summary
         

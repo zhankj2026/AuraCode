@@ -607,6 +607,7 @@ class SessionState:
         text: str = "",
         error: Optional[str] = None,
         stop_reason: Optional[str] = None,
+        summary: Optional[str] = None,
     ) -> QueryResult:
         """从当前状态生成结构化结果"""
         return QueryResult(
@@ -619,6 +620,7 @@ class SessionState:
             error=error,
             stop_reason=stop_reason,
             permission_denials=list(self.permission_denials),
+            summary=summary,
         )
 
     # ========== 重置 ==========
