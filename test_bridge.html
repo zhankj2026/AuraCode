@@ -274,6 +274,14 @@ async function send(){
   inp.value='';inp.style.height='auto';tuser(c);
   try{await api('POST',`/api/sessions/${asid}/message`,{content:c})}catch(e){tln('error','发送失败: '+e.message)}
 }
+// ── Streaming lifecycle ──
+// 终结当前流式元素：移除 .streaming 类，使其不再被后续事件误判
+function finalizeStreaming(){
+  const el=document.querySelector('.ln.ai.streaming');
+  if(el){el.classList.remove('streaming');}
+  return el;
+}
+
 // ── Events ──
 function handle(e){
   evts.push(e);$('sb3').textContent=`事件: ${evts.length}`;
@@ -281,36 +289,37 @@ function handle(e){
   if(e.session_id!==asid)return;
   switch(e.type){
     case'turn_start':{
+      // 新 turn 开始前，先终结上一轮的流式元素（防御性清理）
+      finalizeStreaming();
       rnd=e.data.turn||(rnd+1);
       tln('think',`🤔 思考中... (轮次 ${rnd})`);
       break}
     case'turn_complete':{
-      // 不再显示 content_preview，避免与 text_chunk/assistant_message 重复
+      // Turn 完成：终结流式元素，标记本轮文本输出结束
+      finalizeStreaming();
       break}
     case'text_chunk':{
       // Token 级流式输出 — 打字机效果
       const content = e.data.content || '';
       if (content) {
-        // 使用去重集合避免重复显示
-        if (!tcDedup.has(content)) {
-          tcDedup.add(content);
-          // 查找或创建当前 AI 消息元素
-          let aiEl = document.querySelector('.ln.ai.streaming');
-          if (!aiEl) {
-            // 创建新的流式消息元素
-            aiEl = document.createElement('div');
-            aiEl.className = 'ln ai streaming';
-            aiEl.textContent = '🤖 Assistant: ';
-            $('term').appendChild(aiEl);
-          }
-          // 追加文本内容
-          aiEl.textContent += content;
-          // 滚动到底部
-          $('term').scrollTop = $('term').scrollHeight;
+        // 查找或创建当前 AI 消息元素（必须有 .streaming 类才算"活跃"）
+        let aiEl = document.querySelector('.ln.ai.streaming');
+        if (!aiEl) {
+          // 创建新的流式消息元素
+          aiEl = document.createElement('div');
+          aiEl.className = 'ln ai streaming';
+          aiEl.textContent = '🤖 Assistant: ';
+          $('term').appendChild(aiEl);
         }
+        // 追加文本内容
+        aiEl.textContent += content;
+        // 滚动到底部
+        $('term').scrollTop = $('term').scrollHeight;
       }
       break}
     case'tool_execute':{
+      // 工具执行前，先终结当前流式元素（工具调用意味着本轮 LLM 文本输出结束）
+      finalizeStreaming();
       const tn=e.data.tool_name||'?';
       tln('tool',`⚙️ 执行: ${tn}`+(e.data.arguments?` ${formatArgs(e.data)}`:''),'exec');
       // 检测 Plan Mode 进入
@@ -331,7 +340,7 @@ function handle(e){
       }
       break}
     case'assistant_message':{
-      // 如果已经有流式输出，则不再重复显示
+      // 如果当前有活跃的流式输出（.streaming 类），则不重复显示
       const c=e.data.content||'',h=c.substring(0,200);
       if(dedup.has(h) || document.querySelector('.ln.ai.streaming'))break;
       dedup.add(h);
@@ -343,7 +352,7 @@ function handle(e){
     case'tool_result':{
       const id=e.data.tool_call_id;if(id&&trDedup.has(id))break;if(id)trDedup.add(id);
       tln('sys',`📋 ${(e.data.content||'').substring(0,400)}`);break}
-    case'result':showResult(e);break;
+    case'result':finalizeStreaming();showResult(e);break;
     // output 事件不再展示（已由 text_chunk/assistant_message/result.summary 覆盖）
     case'context_compacted':tln('info',`🗜️ 上下文压缩: ${e.data.messages_before} → ${e.data.messages_after} 条`,'info');break;
     case'fallback_activated':tln('error',`⚠️ 备用模型: ${e.data.model}`,'err');break;
