@@ -877,7 +877,7 @@ class BridgeSession:
                 result_data["duration_ms"] = result.duration_ms
                 # 将 LLM 生成的会话总结透传给前端
                 _summary = getattr(result, 'summary', None)
-                logger.info(f"Result summary check: summary={repr((_summary or '')[:80])}, truthy={bool(_summary)}")
+                logger.warning(f"[SUMMARY] Bridge check: summary={repr((_summary or '')[:80])}, truthy={bool(_summary)}")
                 if _summary:
                     result_data["summary"] = _summary
             else:
