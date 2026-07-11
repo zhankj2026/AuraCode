@@ -532,9 +532,9 @@ class AgentLoop:
                     # 关闭会话持久化存储
                     self._close_session_persistence()
                     
-                    # 生成 LLM 会话总结（如果对话成功完成）
+                    # 生成 LLM 会话总结（仅多轮对话时生成，单轮无需总结）
                     summary = None
-                    if last_assistant_text:
+                    if last_assistant_text and self.state.turn_count > 1:
                         summary = self._generate_session_summary(last_assistant_text)
                     
                     return self.state.to_result(
