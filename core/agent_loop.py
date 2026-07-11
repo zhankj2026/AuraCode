@@ -818,13 +818,28 @@ class AgentLoop:
             return ""
 
     def _init_messages(self, user_input: str):
-        """初始化消息历史"""
-        system_prompt = self._build_system_prompt()
-        self.messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_input}
-        ]
-        logger.debug(f"Messages initialized, system prompt length: {len(system_prompt)}")
+        """准备消息历史（参考 Claude QueryEngine 设计）
+        
+        - 首次调用：初始化 system + user
+        - 后续调用：追加 user 消息到已有历史（保留完整对话上下文）
+        - /clear 命令后：self.messages 为空，重新初始化
+        
+        这修复了之前的"失忆"bug：每次用户发消息时不会丢失之前的对话历史。
+        """
+        if not self.messages:
+            # 首次调用或 /clear 后：初始化 system + user
+            system_prompt = self._build_system_prompt()
+            self.messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_input}
+            ]
+            logger.debug(f"Messages initialized, system prompt length: {len(system_prompt)}")
+        else:
+            # 后续调用：追加 user 消息（保留完整对话历史）
+            self.messages.append({"role": "user", "content": user_input})
+            # 更新 system prompt（反映最新的记忆/上下文变化）
+            self.messages[0] = {"role": "system", "content": self._build_system_prompt()}
+            logger.debug(f"User message appended, total messages: {len(self.messages)}")
     
     def _build_system_prompt(self) -> str:
         """构建系统提示词(增强版 7 层)"""
