@@ -532,16 +532,12 @@ class AgentLoop:
                     # 关闭会话持久化存储
                     self._close_session_persistence()
                     
-                    # 生成 LLM 会话总结（仅多轮对话时生成，单轮无需总结）
-                    summary = None
-                    if last_assistant_text and self.state.turn_count > 1:
-                        summary = self._generate_session_summary(last_assistant_text)
-                    
+                    # 会话总结由 Bridge 层根据消息轮次数决定是否生成
+                    # agent_loop 只负责返回结果，不负责总结逻辑
                     return self.state.to_result(
                         status="success",
                         text=last_assistant_text,
                         stop_reason="end_turn",
-                        summary=summary,
                     )
 
                 # 重置截断计数器（有工具调用说明输出正常结束）
