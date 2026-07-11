@@ -1596,6 +1596,10 @@ class AgentLoop:
         for attempt in range(1, max_retries + 1):
             try:
                 _llm_call_start = time.time()
+                
+                # ── 写入请求日志 ──
+                self._write_llm_log("REQUEST", active_model, attempt)
+                
                 response = self.client.chat.completions.create(
                     model=active_model,
                     messages=self.messages,
@@ -1749,6 +1753,18 @@ class AgentLoop:
                         "has_reasoning": bool(reasoning_content),
                         "reasoning_length": len(reasoning_content),
                     },
+                })
+                
+                # ── 写入响应日志 ──
+                self._write_llm_log("RESPONSE", active_model, attempt, {
+                    "finish_reason": finish_reason,
+                    "content_length": len(full_content),
+                    "content_preview": full_content[:1000] if full_content else "",
+                    "tool_calls": len(tool_calls_list),
+                    "tool_names": [tc.function.name for tc in tool_calls_list],
+                    "prompt_tokens": getattr(usage, 'prompt_tokens', 0) or 0 if usage else 0,
+                    "completion_tokens": getattr(usage, 'completion_tokens', 0) or 0 if usage else 0,
+                    "duration_ms": _llm_duration,
                 })
 
                 return StreamResult(
@@ -2799,6 +2815,70 @@ class AgentLoop:
         except Exception as e:
             logger.debug(f"Failed to build result metadata: {e}")
         return meta
+
+    def _write_llm_log(self, direction: str, model: str, attempt: int, data: Dict[str, Any] = None):
+        """
+        将 LLM 请求/响应写入调试日志文件。
+        
+        Args:
+            direction: "REQUEST" 或 "RESPONSE"
+            model: 使用的模型名称
+            attempt: 重试次数
+            data: 附加数据（响应时包含 finish_reason, content_preview 等）
+        """
+        try:
+            import os
+            log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
+            os.makedirs(log_dir, exist_ok=True)
+            log_file = os.path.join(log_dir, "llm_calls.log")
+            
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+            turn = self.state.turn_count
+            
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(f"\n{'='*80}\n")
+                f.write(f"[{timestamp}] {direction} | turn={turn} | attempt={attempt} | model={model}\n")
+                f.write(f"{'='*80}\n")
+                
+                if direction == "REQUEST":
+                    # 写入请求信息
+                    f.write(f"\n--- MESSAGES ({len(self.messages)} total) ---\n")
+                    for i, msg in enumerate(self.messages):
+                        role = msg.get("role", "?")
+                        content = msg.get("content", "")
+                        if isinstance(content, str):
+                            content_preview = content[:500] + ("..." if len(content) > 500 else "")
+                        else:
+                            content_preview = str(content)[:500]
+                        f.write(f"\n[{i}] role={role}\n{content_preview}\n")
+                        
+                        # 工具调用
+                        tool_calls = msg.get("tool_calls", [])
+                        if tool_calls:
+                            f.write(f"  tool_calls: {len(tool_calls)}\n")
+                            for tc in tool_calls:
+                                func = tc.get("function", {}) if isinstance(tc, dict) else {}
+                                f.write(f"    - {func.get('name', '?')}\n")
+                    
+                    # 工具定义数量
+                    if self.tools:
+                        f.write(f"\n--- TOOLS ({len(self.tools)} defined) ---\n")
+                        tool_names = [t.get("function", {}).get("name", "?") for t in self.tools]
+                        f.write(f"  {', '.join(tool_names)}\n")
+                
+                elif direction == "RESPONSE" and data:
+                    f.write(f"\n--- RESPONSE ---\n")
+                    f.write(f"finish_reason: {data.get('finish_reason', '?')}\n")
+                    f.write(f"duration: {data.get('duration_ms', 0)}ms\n")
+                    f.write(f"tokens: prompt={data.get('prompt_tokens', 0)}, completion={data.get('completion_tokens', 0)}\n")
+                    f.write(f"tool_calls: {data.get('tool_calls', 0)} ({', '.join(data.get('tool_names', []))})\n")
+                    f.write(f"\n--- CONTENT PREVIEW ---\n")
+                    f.write(data.get('content_preview', '')[:2000])
+                    f.write("\n")
+            
+            logger.debug(f"LLM log written to {log_file}")
+        except Exception as e:
+            logger.warning(f"Failed to write LLM log: {e}")
 
     def _emit_event(self, event_type: str, data: Dict[str, Any] = None):
         """
