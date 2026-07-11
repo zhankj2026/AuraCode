@@ -2832,7 +2832,9 @@ class AgentLoop:
             # 使用工作目录下的 .auraCode 目录
             log_dir = os.path.join(self.project_root or os.getcwd(), ".auraCode")
             os.makedirs(log_dir, exist_ok=True)
-            log_file = os.path.join(log_dir, "llm_calls.log")
+            # 日志文件名带日期: llm_calls_2026-07-12.log
+            date_str = time.strftime("%Y-%m-%d")
+            log_file = os.path.join(log_dir, f"llm_calls_{date_str}.log")
             
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
             turn = self.state.turn_count
