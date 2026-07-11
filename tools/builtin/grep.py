@@ -29,7 +29,8 @@ def grep_handler(
     path: str = ".",
     file_pattern: str = "*",
     case_sensitive: bool = False,
-    max_lines: int = 100
+    max_lines: int = 100,
+    **kwargs
 ) -> str:
     """
     增强版 grep - 支持文件过滤和大小写控制
@@ -40,6 +41,7 @@ def grep_handler(
         file_pattern: 文件匹配模式(如 *.py),默认为所有文件
         case_sensitive: 是否区分大小写,默认不区分
         max_lines: 最大返回行数,防止上下文溢出
+        **kwargs: 兼容 LLM 发送的额外参数
     
     Returns:
         匹配结果,格式为 "文件:行号:内容"
