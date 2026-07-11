@@ -532,14 +532,10 @@ class AgentLoop:
                     # 关闭会话持久化存储
                     self._close_session_persistence()
                     
-                    # 生成 LLM 会话总结（仅多轮对话时生成，单轮无需总结）
+                    # 生成会话总结（仅多轮对话时生成，单轮无需总结）
                     summary = None
                     if last_assistant_text and self.state.turn_count > 1:
-                        logger.warning(f"[SUMMARY] Generating: turn_count={self.state.turn_count}, text_len={len(last_assistant_text)}")
-                        summary = self._generate_session_summary(last_assistant_text)
-                        logger.warning(f"[SUMMARY] Result: '{(summary or '')[:80]}...' (len={len(summary or '')})")
-                    else:
-                        logger.warning(f"[SUMMARY] Skipped: turn_count={self.state.turn_count}, has_text={bool(last_assistant_text)}")
+                        summary = self._build_programmatic_summary(last_assistant_text)
                     
                     return self.state.to_result(
                         status="success",
@@ -759,65 +755,61 @@ class AgentLoop:
         self._fire_lifecycle_hook("Stop", {"status": result.status})
         return result
 
-    def _generate_session_summary(self, final_text: str) -> str:
+    def _build_programmatic_summary(self, final_text: str) -> str:
         """
-        生成 LLM 会话总结
-        
-        调用 LLM 对整个会话进行总结，提取关键信息：
-        - 用户的主要需求
-        - 完成的任务
-        - 使用的工具
-        - 最终结果
-        
+        程序化生成会话总结（不依赖额外 LLM 调用）
+
+        从已有的会话数据中提取关键信息，构建结构化总结。
+        零失败率，无需额外 API 调用。
+
         Args:
             final_text: 最后的助手响应文本
-        
+
         Returns:
-            会话总结文本（如果生成失败则返回空字符串）
+            会话总结文本
         """
         try:
-            # 构建总结提示词
-            summary_prompt = """请对这次对话进行简洁总结（不超过 100 字）：
+            # 1. 提取用户首条消息（需求）
+            user_request = ""
+            for msg in self.messages:
+                if msg.get("role") == "user":
+                    content = msg.get("content", "")
+                    if isinstance(content, str) and content.strip():
+                        user_request = content[:120].strip()
+                        break
 
-要求：
-1. 用一句话概括用户的主要需求
-2. 用一句话说明完成了什么任务
-3. 用一句话提及使用了哪些关键工具（如有）
-4. 用一句话说明最终结果
+            # 2. 统计工具调用
+            tool_names = []
+            for msg in self.messages:
+                if msg.get("role") == "assistant":
+                    for tc in msg.get("tool_calls", []):
+                        func_name = tc.get("function", {}).get("name", "")
+                        if func_name and func_name not in tool_names:
+                            tool_names.append(func_name)
 
-格式：
-📋 需求：...
-✅ 完成：...
-🔧 工具：...
-🎯 结果：...
+            # 3. 构建总结
+            lines = []
+            if user_request:
+                lines.append(f"📋 需求：{user_request}")
 
-对话内容：
-{final_text}
-"""
-            
-            # 调用 LLM 生成总结（使用非流式，快速返回）
-            messages = [
-                {"role": "system", "content": "你是一个对话总结助手，请简洁地总结对话内容。"},
-                {"role": "user", "content": summary_prompt.format(final_text=final_text[:1000])}  # 限制输入长度
-            ]
-            
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                max_tokens=200,  # 限制总结长度
-                temperature=0.3,  # 低温度，更稳定
-            )
-            
-            content = response.choices[0].message.content
-            if not content:
-                return ""
-            summary = content.strip()
-            logger.info(f"Session summary generated: {summary[:100]}...")
-            return summary
-        
+            # 最终回复摘要（取前 200 字符）
+            clean_text = final_text.strip()
+            if clean_text:
+                preview = clean_text[:200].replace('\n', ' ').strip()
+                if len(clean_text) > 200:
+                    preview += "..."
+                lines.append(f"✅ 完成：{preview}")
+
+            if tool_names:
+                lines.append(f"🔧 工具：{', '.join(tool_names[:8])}")
+
+            lines.append(f"📊 迭代：{self.state.turn_count} 轮 | 耗时：{self.state.elapsed_ms() / 1000:.1f}s")
+
+            return "\n".join(lines)
+
         except Exception as e:
-            logger.warning(f"Failed to generate session summary: {e}")
-            return ""  # 总结失败不影响主流程
+            logger.warning(f"Programmatic summary failed: {e}")
+            return ""
 
     def _init_messages(self, user_input: str):
         """初始化消息历史"""
