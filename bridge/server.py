@@ -519,6 +519,32 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
+    @app.delete("/api/sessions/{session_id}/files")
+    async def delete_file(
+        session_id: str,
+        path: str = Query(...),
+        auth: bool = Depends(_auth.verify),
+    ):
+        """删除会话工作目录下的文件"""
+        session = _manager.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        work_dir = session.config.work_dir or "."
+        target = os.path.normpath(os.path.join(work_dir, path))
+        if not os.path.abspath(target).startswith(os.path.abspath(work_dir)):
+            raise HTTPException(status_code=403, detail="Path traversal denied")
+        if not os.path.exists(target):
+            raise HTTPException(status_code=404, detail=f"File not found: {path}")
+        if os.path.isdir(target):
+            raise HTTPException(status_code=400, detail="Cannot delete directory")
+        try:
+            os.remove(target)
+            return {"success": True, "path": path, "message": f"Deleted: {path}"}
+        except PermissionError:
+            raise HTTPException(status_code=403, detail="Permission denied")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
     # ── WebSocket 端点 ────────────────────────────────────────────────
 
     @app.websocket("/ws/events")
