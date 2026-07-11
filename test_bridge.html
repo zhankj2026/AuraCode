@@ -250,7 +250,8 @@ function selSess(id){
       }
       else if(e.type==='result'){rnd++;showResult(e)}
       else if(e.type==='output'&&e.data.text)tln('sys',e.data.text);
-      else if(['turn_start','turn_complete','tool_execute','tool_complete','context_compacted','fallback_activated','aborted','llm_call'].includes(e.type))handle(e);
+      else if(['tool_execute','tool_complete','context_compacted','fallback_activated','aborted'].includes(e.type))handle(e);
+      // turn_start, turn_complete, llm_call 等事件在历史回放时不显示，避免冗余
       else if(e.type==='session_stopped')tln('sys','🏁 会话已停止');
     });
   }).catch(e=>console.error(e));
