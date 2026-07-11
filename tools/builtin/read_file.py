@@ -28,6 +28,7 @@ def read_file_handler(
     path: str,
     start_line: int = 0,
     end_line: int = 0,
+    **kwargs
 ) -> str:
     """
     读取文件内容。默认返回纯净内容（无行号前缀），
@@ -37,7 +38,13 @@ def read_file_handler(
         path: 文件路径
         start_line: 起始行号（1-based，0 表示从头开始）
         end_line: 结束行号（1-based 含尾，0 表示到文件末尾）
+        **kwargs: 兼容 LLM 发送的别名参数 (start, end)
     """
+    # 兼容 LLM 发送的别名参数
+    if start_line == 0 and 'start' in kwargs:
+        start_line = kwargs['start']
+    if end_line == 0 and 'end' in kwargs:
+        end_line = kwargs['end']
     if not os.path.exists(path):
         return f"错误: 文件不存在 - {path}"
     if not os.path.isfile(path):
