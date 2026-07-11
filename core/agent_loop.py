@@ -2848,7 +2848,7 @@ class AgentLoop:
             log_dir = os.path.join(self.project_root or os.getcwd(), ".auraCode")
             os.makedirs(log_dir, exist_ok=True)
             # 日志文件名: llm_{session_id}_{date}.log (同一会话同一天写入同一文件)
-            session_id = (self.session_id or "unknown")[:8]
+            session_id = getattr(self, '_session_id', '') or str(id(self))[:8]
             date_str = time.strftime("%Y-%m-%d")
             log_file = os.path.join(log_dir, f"llm_{session_id}_{date_str}.log")
             
