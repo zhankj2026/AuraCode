@@ -374,17 +374,20 @@ function handle(e){
 }
 function showResult(e){
   const d=e.data,st=d.status||(d.success?'success':'error'),nt=d.num_turns||'?',dur=d.duration_ms?` ${(d.duration_ms/1000).toFixed(1)}s`:'';
-  tln('','');
-  tln('sys',`┌─ ${st==='success'?'✅':'❌'} 结果: ${st} | ${nt} 轮${dur} ─────────`);
-  // 显示 LLM 生成的会话总结
-  if(d.summary){
-    tln('sys',`│ 📋 会话总结:`);
-    d.summary.split('\n').forEach(line=>{
-      if(line.trim())tln('sys',`│ ${line}`);
-    });
+  // 无总结时仅显示简洁状态行
+  if(!d.summary){
+    tln('','');
+    tln('sys',`── ${st==='success'?'✅':'❌'} ${st} | ${nt} 轮${dur} ──`);
+    tln('','');
+    return;
   }
-  if(d.stop_reason)tln('sys',`│ stop_reason: ${d.stop_reason}`);
-  if(d.error)tln('error',`│ ❌ ${d.error}`);
+  // 有总结时显示完整总结框
+  tln('','');
+  tln('sys',`┌─ ${st==='success'?'✅':'❌'} ${nt} 轮${dur} ─────────`);
+  tln('sys',`│ 📋 会话总结:`);
+  d.summary.split('\n').forEach(line=>{
+    if(line.trim())tln('sys',`│ ${line}`);
+  });
   tln('sys','└───────────────────────────');
   tln('','');
 }
