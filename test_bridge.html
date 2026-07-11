@@ -249,9 +249,8 @@ function selSess(id){
         if(!dedup.has(h)){dedup.add(h);tln('ai',c)}
       }
       else if(e.type==='result'){rnd++;showResult(e)}
-      else if(e.type==='output'&&e.data.text)tln('sys',e.data.text);
       else if(['tool_execute','tool_complete','context_compacted','fallback_activated','aborted'].includes(e.type))handle(e);
-      // turn_start, turn_complete, llm_call 等事件在历史回放时不显示，避免冗余
+      // output、turn_start、turn_complete、llm_call 等事件在历史回放时不显示，避免冗余
       else if(e.type==='session_stopped')tln('sys','🏁 会话已停止');
     });
   }).catch(e=>console.error(e));
@@ -345,7 +344,7 @@ function handle(e){
       const id=e.data.tool_call_id;if(id&&trDedup.has(id))break;if(id)trDedup.add(id);
       tln('sys',`📋 ${(e.data.content||'').substring(0,400)}`);break}
     case'result':showResult(e);break;
-    case'output':if(e.data.text)tln('sys',e.data.text);break;
+    // output 事件不再展示（已由 text_chunk/assistant_message/result.summary 覆盖）
     case'context_compacted':tln('info',`🗜️ 上下文压缩: ${e.data.messages_before} → ${e.data.messages_after} 条`,'info');break;
     case'fallback_activated':tln('error',`⚠️ 备用模型: ${e.data.model}`,'err');break;
     case'api_retry':tln('sys',`⚠️ API重试 (${e.data.attempt}/${e.data.max_retries}): ${e.data.error}`);break;

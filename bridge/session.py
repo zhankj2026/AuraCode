@@ -875,6 +875,9 @@ class BridgeSession:
                 result_data["stop_reason"] = result.stop_reason
                 result_data["num_turns"] = result.num_turns
                 result_data["duration_ms"] = result.duration_ms
+                # 将 LLM 生成的会话总结透传给前端
+                if getattr(result, 'summary', None):
+                    result_data["summary"] = result.summary
             else:
                 result_data["result"] = ""
 
