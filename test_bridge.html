@@ -377,7 +377,13 @@ function showResult(e){
   const d=e.data,st=d.status||(d.success?'success':'error'),nt=d.num_turns||'?',dur=d.duration_ms?` ${(d.duration_ms/1000).toFixed(1)}s`:'';
   tln('','');
   tln('sys',`┌─ ${st==='success'?'✅':'❌'} 结果: ${st} | ${nt} 轮${dur} ─────────`);
-  // 不再显示 d.result 内容，避免与流式输出重复
+  // 显示 LLM 生成的会话总结
+  if(d.summary){
+    tln('sys',`│ 📋 会话总结:`);
+    d.summary.split('\n').forEach(line=>{
+      if(line.trim())tln('sys',`│ ${line}`);
+    });
+  }
   if(d.stop_reason)tln('sys',`│ stop_reason: ${d.stop_reason}`);
   if(d.error)tln('error',`│ ❌ ${d.error}`);
   tln('sys','└───────────────────────────');

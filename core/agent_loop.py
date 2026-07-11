@@ -531,10 +531,17 @@ class AgentLoop:
                     self._trigger_auto_memory_extraction()
                     # 关闭会话持久化存储
                     self._close_session_persistence()
+                    
+                    # 生成 LLM 会话总结（如果对话成功完成）
+                    summary = None
+                    if last_assistant_text:
+                        summary = self._generate_session_summary(last_assistant_text)
+                    
                     return self.state.to_result(
                         status="success",
                         text=last_assistant_text,
                         stop_reason="end_turn",
+                        summary=summary,
                     )
 
                 # 重置截断计数器（有工具调用说明输出正常结束）
@@ -747,6 +754,63 @@ class AgentLoop:
         )
         self._fire_lifecycle_hook("Stop", {"status": result.status})
         return result
+
+    def _generate_session_summary(self, final_text: str) -> str:
+        """
+        生成 LLM 会话总结
+        
+        调用 LLM 对整个会话进行总结，提取关键信息：
+        - 用户的主要需求
+        - 完成的任务
+        - 使用的工具
+        - 最终结果
+        
+        Args:
+            final_text: 最后的助手响应文本
+        
+        Returns:
+            会话总结文本（如果生成失败则返回空字符串）
+        """
+        try:
+            # 构建总结提示词
+            summary_prompt = """请对这次对话进行简洁总结（不超过 100 字）：
+
+要求：
+1. 用一句话概括用户的主要需求
+2. 用一句话说明完成了什么任务
+3. 用一句话提及使用了哪些关键工具（如有）
+4. 用一句话说明最终结果
+
+格式：
+📋 需求：...
+✅ 完成：...
+🔧 工具：...
+🎯 结果：...
+
+对话内容：
+{final_text}
+"""
+            
+            # 调用 LLM 生成总结（使用非流式，快速返回）
+            messages = [
+                {"role": "system", "content": "你是一个对话总结助手，请简洁地总结对话内容。"},
+                {"role": "user", "content": summary_prompt.format(final_text=final_text[:1000])}  # 限制输入长度
+            ]
+            
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                max_tokens=200,  # 限制总结长度
+                temperature=0.3,  # 低温度，更稳定
+            )
+            
+            summary = response.choices[0].message.content.strip()
+            logger.info(f"Session summary generated: {summary[:100]}...")
+            return summary
+        
+        except Exception as e:
+            logger.warning(f"Failed to generate session summary: {e}")
+            return ""  # 总结失败不影响主流程
 
     def _init_messages(self, user_input: str):
         """初始化消息历史"""

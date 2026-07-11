@@ -99,9 +99,10 @@ class QueryResult:
     error: Optional[str] = None
     stop_reason: Optional[str] = None
     permission_denials: List[Dict] = field(default_factory=list)
-
+    summary: Optional[str] = None  # LLM 生成的会话总结
+    
     def to_dict(self) -> Dict[str, Any]:
-        """序列化为字典（供 Bridge JSON 返回等场景使用）"""
+        """序列化为字典（供 Bridge json 返回等场景使用）"""
         return {
             "status": self.status,
             "text": self.text,
@@ -112,6 +113,7 @@ class QueryResult:
             "error": self.error,
             "stop_reason": self.stop_reason,
             "permission_denials": self.permission_denials,
+            "summary": self.summary,  # LLM 生成的会话总结
         }
 
     def format_summary(self) -> str:
