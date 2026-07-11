@@ -2819,6 +2819,7 @@ class AgentLoop:
     def _write_llm_log(self, direction: str, model: str, attempt: int, data: Dict[str, Any] = None):
         """
         将 LLM 请求/响应写入调试日志文件。
+        日志写入工作目录下的 .auraCode/llm_calls.log
         
         Args:
             direction: "REQUEST" 或 "RESPONSE"
@@ -2828,7 +2829,8 @@ class AgentLoop:
         """
         try:
             import os
-            log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
+            # 使用工作目录下的 .auraCode 目录
+            log_dir = os.path.join(self.project_root or os.getcwd(), ".auraCode")
             os.makedirs(log_dir, exist_ok=True)
             log_file = os.path.join(log_dir, "llm_calls.log")
             
