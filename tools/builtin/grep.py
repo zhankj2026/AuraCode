@@ -30,6 +30,7 @@ def grep_handler(
     file_pattern: str = "*",
     case_sensitive: bool = False,
     max_lines: int = 100,
+    project_root: str = None,
     **kwargs
 ) -> str:
     """
@@ -41,6 +42,7 @@ def grep_handler(
         file_pattern: 文件匹配模式(如 *.py),默认为所有文件
         case_sensitive: 是否区分大小写,默认不区分
         max_lines: 最大返回行数,防止上下文溢出
+        project_root: 项目根目录（用于解析相对路径）
         **kwargs: 兼容 LLM 发送的额外参数
     
     Returns:
@@ -48,7 +50,17 @@ def grep_handler(
     """
     try:
         matches = []
-        path = os.path.abspath(path)
+        
+        # 路径解析优先级：
+        # 1. 绝对路径 -> 直接使用
+        # 2. 相对路径 + project_root -> 基于 project_root 解析
+        # 3. 相对路径 + 无 project_root -> 基于 cwd 解析
+        if os.path.isabs(path):
+            search_path = os.path.abspath(path)
+        elif project_root:
+            search_path = os.path.abspath(os.path.join(project_root, path))
+        else:
+            search_path = os.path.abspath(path)
         
         # 编译正则表达式
         flags = 0 if case_sensitive else re.IGNORECASE
@@ -63,7 +75,7 @@ def grep_handler(
                 with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                     for line_num, line in enumerate(f, 1):
                         if regex.search(line):
-                            rel_path = os.path.relpath(filepath, path)
+                            rel_path = os.path.relpath(filepath, search_path)
                             matches.append(f"{rel_path}:{line_num}:{line.rstrip()}")
                             if len(matches) >= max_lines:
                                 return True
@@ -90,7 +102,7 @@ def grep_handler(
             except PermissionError:
                 pass
         
-        search_dir(path)
+        search_dir(search_path)
         
         total = len(matches)
         if total == 0:
