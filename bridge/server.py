@@ -58,6 +58,7 @@ class CreateSessionResponse(BaseModel):
 
 class MessageRequest(BaseModel):
     content: str
+    attachments: list = []  # [{path, name, type, content?}]
 
 
 class PermissionRequest(BaseModel):
@@ -326,8 +327,8 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
         req: MessageRequest,
         auth: bool = Depends(_auth.verify),
     ):
-        """发送消息到会话"""
-        if not _manager.send_message(session_id, req.content):
+        """发送消息到会话（支持附件）"""
+        if not _manager.send_message(session_id, req.content, attachments=req.attachments):
             raise HTTPException(status_code=404, detail="Session not found or stopped")
         return {"status": "sent", "session_id": session_id}
 
@@ -544,6 +545,49 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
             raise HTTPException(status_code=403, detail="Permission denied")
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/sessions/{session_id}/files/search")
+    async def search_files(
+        session_id: str,
+        q: str = Query(..., min_length=1),
+        limit: int = Query(20, ge=1, le=100),
+        auth: bool = Depends(_auth.verify),
+    ):
+        """搜索会话工作目录下的文件（按文件名匹配）"""
+        session = _manager.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        work_dir = session.config.work_dir or "."
+        results = []
+        q_lower = q.lower()
+        try:
+            for root, dirs, files in os.walk(work_dir):
+                # 跳过隐藏目录和常见非源码目录
+                dirs[:] = [d for d in dirs if not d.startswith('.')
+                           and d not in ('node_modules', '__pycache__', '.git', 'venv', '.venv')]
+                rel_root = os.path.relpath(root, work_dir)
+                for fname in files:
+                    if q_lower in fname.lower():
+                        rel_path = os.path.join(rel_root, fname) if rel_root != '.' else fname
+                        rel_path = rel_path.replace('\\', '/')
+                        fpath = os.path.join(root, fname)
+                        try:
+                            sz = os.path.getsize(fpath)
+                        except:
+                            sz = 0
+                        results.append({
+                            "name": fname,
+                            "path": rel_path,
+                            "size": sz,
+                            "type": "file",
+                        })
+                        if len(results) >= limit:
+                            break
+                if len(results) >= limit:
+                    break
+        except Exception as e:
+            logger.warning(f"File search error: {e}")
+        return {"query": q, "results": results, "total": len(results)}
 
     # ── WebSocket 端点 ────────────────────────────────────────────────
 

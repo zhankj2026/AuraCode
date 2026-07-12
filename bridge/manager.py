@@ -172,13 +172,13 @@ class BridgeSessionManager:
             return session.respond_permission(request_id, behavior, message)
         return False
 
-    def send_message(self, session_id: str, content: str) -> bool:
-        """向会话发送消息"""
+    def send_message(self, session_id: str, content: str, attachments: list = None) -> bool:
+        """向会话发送消息（支持附件）"""
         with self._lock:
             session = self._sessions.get(session_id)
         if session:
             try:
-                session.send_message(content)
+                session.send_message(content, attachments=attachments)
                 return True
             except RuntimeError:
                 # 会话已停止（_stop_flag 已设置）

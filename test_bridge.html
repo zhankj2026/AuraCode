@@ -115,6 +115,26 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .ctab{padding:8px 18px;font-size:12px;cursor:pointer;border-bottom:2px solid transparent;color:var(--tx2);transition:.15s}
 .ctab:hover{color:var(--tx)}.ctab.active{color:var(--acc);border-bottom-color:var(--acc)}
 .ctab .count{background:var(--bd);padding:0 5px;border-radius:8px;font-size:10px;margin-left:4px}
+/* Drag overlay */
+.drag-ov{display:none;position:absolute;inset:0;background:rgba(88,166,255,.12);border:2px dashed var(--acc);border-radius:8px;z-index:50;justify-content:center;align-items:center;font-size:14px;color:var(--acc);font-weight:600;pointer-events:none}
+.drag-ov.show{display:flex}
+/* Attachment chips */
+.atchips{display:flex;flex-wrap:wrap;gap:4px;padding:4px 12px 0;min-height:0}
+.atchip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:rgba(88,166,255,.1);border:1px solid rgba(88,166,255,.3);border-radius:12px;font-size:11px;color:var(--acc);max-width:200px}
+.atchip .x{cursor:pointer;color:var(--tx2);font-size:13px;margin-left:2px}.atchip .x:hover{color:var(--rd)}
+.atchip .ic{font-size:12px;flex-shrink:0}
+.atchip .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+/* @ Popup */
+.atpop{display:none;position:absolute;bottom:100%;left:12px;right:12px;max-height:220px;background:var(--s1);border:1px solid var(--bd);border-radius:8px;overflow-y:auto;z-index:60;box-shadow:0 -4px 16px rgba(0,0,0,.4)}
+.atpop.show{display:block}
+.atpop .hd{padding:6px 10px;font-size:10px;color:var(--tx2);border-bottom:1px solid var(--bd);position:sticky;top:0;background:var(--s1)}
+.atpop .fi{padding:6px 10px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(48,54,61,.3)}
+.atpop .fi:hover,.atpop .fi.sel{background:rgba(88,166,255,.1)}
+.atpop .fi .ic{width:16px;text-align:center;font-size:13px;flex-shrink:0}
+.atpop .fi .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.atpop .fi .sz{color:var(--tx2);font-size:10px;flex-shrink:0}
+.atpop .fi .pth{color:var(--tx2);font-size:10px;margin-left:4px}
+.atpop .empty{padding:12px;text-align:center;color:var(--tx2);font-size:12px}
 </style>
 </head>
 <body>
@@ -146,10 +166,13 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
       <div class="ctab active" data-ct="term" onclick="switchCTab('term')">💬 终端</div>
       <div class="ctab" data-ct="net" onclick="switchCTab('net')">📡 网络<span class="count" id="netCount">0</span></div>
     </div>
-    <div id="cpane-term" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+    <div id="cpane-term" style="flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative">
       <div class="term" id="term"><div class="ph">选择或创建会话开始对话</div></div>
+      <div class="atchips" id="atChips"></div>
+      <div class="atpop" id="atPop"><div class="hd">输入 @ 搜索文件，Esc 关闭</div><div class="empty">输入关键字搜索文件...</div></div>
+      <div class="drag-ov" id="dragOv">📎 拖放文件以上传</div>
       <div class="ibar">
-        <textarea id="inp" placeholder="输入消息... (Enter发送, Shift+Enter换行)" rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"></textarea>
+        <textarea id="inp" placeholder="输入消息... (@引用文件, Enter发送, Shift+Enter换行)" rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}" oninput="onInpInput(event)" onpaste="onPaste(event)"></textarea>
         <button class="b p" onclick="send()">发送</button>
         <button class="b" onclick="interrupt()">中断</button>
         <button class="b d" onclick="stopSess()">停止</button>
@@ -285,7 +308,7 @@ function tuser(text){
   d.innerHTML=`<span class="prompt">[${rnd+1}]&gt; </span>`+esc(text);
   el.appendChild(d);el.scrollTop=el.scrollHeight;
 }
-function tclear(){const el=$('term');el.innerHTML='';rnd=0;dedup.clear();tcDedup.clear();trDedup.clear();toolStats={};lastToolSummary=null;lastToolTime=0;$('sbActivity').textContent='';clearNetwork()}
+function tclear(){const el=$('term');el.innerHTML='';rnd=0;dedup.clear();tcDedup.clear();trDedup.clear();toolStats={};lastToolSummary=null;lastToolTime=0;$('sbActivity').textContent='';clearNetwork();pendingAttachments=[];renderChips();hideAtPop()}
 // ── Sessions ──
 async function refreshSessions(){
   try{const l=await api('GET','/api/sessions');sess={};l.forEach(s=>sess[s.session_id]=s);renderSess();$('sb2').textContent=`会话: ${l.length}`}catch(e){console.error(e)}
@@ -330,9 +353,12 @@ async function interrupt(){if(!asid)return;try{const r=await api('POST',`/api/se
 // ── Chat ──
 async function send(){
   if(!asid){alert('请先选择会话');return}
-  const inp=$('inp'),c=inp.value.trim();if(!c)return;
-  inp.value='';inp.style.height='auto';tuser(c);
-  try{await api('POST',`/api/sessions/${asid}/message`,{content:c})}catch(e){tln('error','发送失败: '+e.message)}
+  const inp=$('inp'),c=inp.value.trim();if(!c&&!pendingAttachments.length)return;
+  inp.value='';inp.style.height='auto';tuser(c||'(附件)');
+  // 收集附件并发送
+  const atts=[...pendingAttachments];
+  pendingAttachments=[];renderChips();
+  try{await api('POST',`/api/sessions/${asid}/message`,{content:c,attachments:atts})}catch(e){tln('error','发送失败: '+e.message)}
 }
 // ── Streaming lifecycle ──
 // 终结当前流式元素：移除 .streaming 类，使其不再被后续事件误判
@@ -781,6 +807,172 @@ function esc(s){const d=document.createElement('div');d.textContent=s||'';return
 function fmtJ(s){try{return JSON.stringify(JSON.parse(s),null,2)}catch{return String(s||'')}}
 $('inp').addEventListener('input',function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px'});
 setInterval(()=>{$('sb4').textContent=now()},1000);$('sb4').textContent=now();
+
+// ── P0+P1: 拖拽上传 + 粘贴图片 + @引用 ──
+let pendingAttachments=[]; // [{name, path, type, content?, size?}]
+let atPopVisible=false, atPopQuery='', atPopSelIdx=0, atPopResults=[], atPopDebounce=null;
+
+// ── 附件管理 ──
+function addAttachment(att){
+  // 去重：同 path 不重复添加
+  if(att.path && pendingAttachments.some(a=>a.path===att.path))return;
+  pendingAttachments.push(att);
+  renderChips();
+}
+function removeAttachment(idx){
+  pendingAttachments.splice(idx,1);
+  renderChips();
+}
+function renderChips(){
+  const el=$('atChips');
+  if(!pendingAttachments.length){el.innerHTML='';return;}
+  el.innerHTML=pendingAttachments.map((a,i)=>{
+    const ic=a.type==='image'?'🖼️':fileIcon(a.name);
+    return`<span class="atchip"><span class="ic">${ic}</span><span class="nm">${esc(a.name)}</span><span class="x" onclick="removeAttachment(${i})">×</span></span>`;
+  }).join('');
+}
+
+// ── P0: 拖拽上传 ──
+(function initDrag(){
+  const pane=document.getElementById('cpane-term');
+  if(!pane)return;
+  let dragCtr=0;
+  pane.addEventListener('dragenter',e=>{e.preventDefault();dragCtr++;$('dragOv').classList.add('show')});
+  pane.addEventListener('dragleave',e=>{e.preventDefault();dragCtr--;if(dragCtr<=0){dragCtr=0;$('dragOv').classList.remove('show')}});
+  pane.addEventListener('dragover',e=>{e.preventDefault()});
+  pane.addEventListener('drop',async e=>{
+    e.preventDefault();dragCtr=0;$('dragOv').classList.remove('show');
+    if(!asid){alert('请先选择会话');return;}
+    const files=e.dataTransfer.files;
+    for(const f of files){
+      try{
+        const reader=new FileReader();
+        const content=await new Promise((res,rej)=>{reader.onload=()=>res(reader.result);reader.onerror=rej});
+        reader.readAsText(f);
+        // 上传到服务器
+        await api('POST',`/api/sessions/${asid}/files`,{path:f.name,content:content,type:'file'});
+        addAttachment({name:f.name,path:f.name,type:'file',size:f.size});
+        tln('sys',`📎 拖拽上传: ${f.name}`);
+      }catch(err){alert('上传失败: '+f.name+' - '+err.message)}
+    }
+  });
+})();
+
+// ── P0: 粘贴图片 ──
+function onPaste(e){
+  const items=e.clipboardData?.items;
+  if(!items)return;
+  for(const item of items){
+    if(item.type.startsWith('image/')){
+      e.preventDefault();
+      const file=item.getAsFile();
+      if(!file||!asid)continue;
+      const reader=new FileReader();
+      reader.onload=async()=>{
+        const name=`paste_${Date.now()}.png`;
+        try{
+          await api('POST',`/api/sessions/${asid}/files`,{path:name,content:reader.result,type:'file'});
+          addAttachment({name:name,path:name,type:'image',size:file.size});
+          tln('sys',`📎 粘贴图片: ${name}`);
+        }catch(err){alert('粘贴上传失败: '+err.message)}
+      };
+      reader.readAsText(file);
+      return;
+    }
+  }
+}
+
+// ── P1: @ 引用弹窗 ──
+function onInpInput(e){
+  const val=e.target.value;
+  const cur=e.target.selectionStart;
+  // 查找光标前的 @ 符号
+  const before=val.substring(0,cur);
+  const atIdx=before.lastIndexOf('@');
+  if(atIdx<0||(atIdx>0&&before[atIdx-1]!==' '&&before[atIdx-1]!=='\n')){
+    hideAtPop();return;
+  }
+  // 提取 @ 后的查询文本
+  const query=before.substring(atIdx+1);
+  if(query.includes(' ')&&query.length>30){hideAtPop();return;}
+  atPopQuery=query;
+  showAtPop(query);
+}
+function showAtPop(q){
+  atPopVisible=true;atPopSelIdx=0;
+  $('atPop').classList.add('show');
+  // 防抖搜索
+  clearTimeout(atPopDebounce);
+  if(q.length===0){
+    $('atPop').innerHTML='<div class="hd">输入 @ 搜索文件，Esc 关闭</div><div class="empty">输入关键字搜索文件...</div>';
+    return;
+  }
+  atPopDebounce=setTimeout(()=>searchFiles(q),200);
+  $('atPop').innerHTML='<div class="hd">搜索中...</div>';
+}
+function hideAtPop(){
+  atPopVisible=false;atPopQuery='';atPopResults=[];atPopSelIdx=0;
+  $('atPop').classList.remove('show');
+}
+async function searchFiles(q){
+  if(!asid||!q){hideAtPop();return;}
+  try{
+    const r=await api('GET',`/api/sessions/${asid}/files/search?q=${encodeURIComponent(q)}&limit=15`);
+    atPopResults=r.results||[];
+    if(!atPopResults.length){
+      $('atPop').innerHTML=`<div class="hd">搜索结果</div><div class="empty">未找到匹配 "${esc(q)}" 的文件</div>`;
+      return;
+    }
+    let html='<div class="hd">匹配文件 ('+atPopResults.length+')</div>';
+    html+=atPopResults.map((f,i)=>{
+      const ic=fileIcon(f.name);
+      const sz=f.size?fmtSize(f.size):'';
+      const sel=i===atPopSelIdx?' sel':'';
+      return`<div class="fi${sel}" onclick="pickAtFile(${i})" onmouseenter="atPopSelIdx=${i};highlightAtSel()"><span class="ic">${ic}</span><span class="nm">${esc(f.name)}</span><span class="pth">${esc(f.path)}</span><span class="sz">${sz}</span></div>`;
+    }).join('');
+    $('atPop').innerHTML=html;
+  }catch(e){
+    $('atPop').innerHTML=`<div class="hd">搜索失败</div><div class="empty">${esc(e.message)}</div>`;
+  }
+}
+function highlightAtSel(){
+  const items=$('atPop').querySelectorAll('.fi');
+  items.forEach((el,i)=>el.classList.toggle('sel',i===atPopSelIdx));
+}
+function pickAtFile(idx){
+  const f=atPopResults[idx];
+  if(!f)return;
+  // 替换输入框中的 @query 为 @path
+  const inp=$('inp');
+  const val=inp.value;
+  const cur=inp.selectionStart;
+  const before=val.substring(0,cur);
+  const atIdx=before.lastIndexOf('@');
+  if(atIdx>=0){
+    const after=val.substring(cur);
+    inp.value=before.substring(0,atIdx)+'@'+f.path+' '+after;
+    inp.selectionStart=inp.selectionEnd=atIdx+f.path.length+2;
+  }
+  // 添加到附件
+  addAttachment({name:f.name,path:f.path,type:'file',size:f.size});
+  hideAtPop();
+  inp.focus();
+}
+
+// @ 弹窗键盘导航
+document.addEventListener('keydown',function(e){
+  if(!atPopVisible)return;
+  if(e.key==='Escape'){hideAtPop();e.preventDefault();}
+  else if(e.key==='ArrowDown'){atPopSelIdx=Math.min(atPopSelIdx+1,atPopResults.length-1);highlightAtSel();e.preventDefault();}
+  else if(e.key==='ArrowUp'){atPopSelIdx=Math.max(atPopSelIdx-1,0);highlightAtSel();e.preventDefault();}
+  else if(e.key==='Enter'&&atPopResults.length){pickAtFile(atPopSelIdx);e.preventDefault();e.stopPropagation();}
+  else if(e.key==='Tab'&&atPopResults.length){pickAtFile(atPopSelIdx);e.preventDefault();e.stopPropagation();}
+});
+
+// 点击外部关闭 @ 弹窗
+document.addEventListener('click',function(e){
+  if(atPopVisible&&!$('atPop').contains(e.target)&&e.target!=$('inp')){hideAtPop();}
+});
 </script>
 </body>
 </html>

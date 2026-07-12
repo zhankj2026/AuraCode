@@ -369,11 +369,11 @@ class BridgeSession:
         )
         self._thread.start()
 
-    def send_message(self, content: str):
-        """发送用户消息（线程安全）"""
+    def send_message(self, content: str, attachments: list = None):
+        """发送用户消息（线程安全，支持附件）"""
         if self._stop_flag.is_set():
             raise RuntimeError("Session is stopped")
-        self._message_queue.put(content)
+        self._message_queue.put({"content": content, "attachments": attachments or []})
 
     def respond_permission(self, request_id: str, behavior: str, message: str = "") -> bool:
         """回复权限请求"""
@@ -735,7 +735,15 @@ class BridgeSession:
                 if message is None:
                     break  # 哨兵值
 
-                self._process_message(message, writer)
+                # 消息格式：dict {content, attachments} 或 str（兼容旧调用）
+                if isinstance(message, dict):
+                    content = message.get("content", "")
+                    attachments = message.get("attachments", [])
+                else:
+                    content = str(message)
+                    attachments = []
+
+                self._process_message(content, writer, attachments=attachments)
 
         except Exception as e:
             logger.error(f"Bridge session {self.session_id} error: {e}", exc_info=True)
@@ -814,8 +822,8 @@ class BridgeSession:
         except Exception as e:
             logger.warning(f"Bridge session save failed: {e}")
 
-    def _process_message(self, content: str, writer: ThreadLocalWriter):
-        """处理一条用户消息"""
+    def _process_message(self, content: str, writer: ThreadLocalWriter, attachments: list = None):
+        """处理一条用户消息（支持附件）"""
         self.state = SessionState.RUNNING
 
         # 发射用户消息事件
@@ -828,6 +836,12 @@ class BridgeSession:
         # 设置标题（取第一条消息的前 50 字符）
         if not self.title:
             self.title = content[:50].strip()
+
+        # 处理附件：读取文件内容并拼接到消息中
+        if attachments:
+            attachment_text = self._build_attachment_context(attachments)
+            if attachment_text:
+                content = content + "\n\n" + attachment_text
 
         # 启用 stdout 捕获
         writer.enable_capture()
@@ -986,6 +1000,38 @@ class BridgeSession:
         """清除当前活动"""
         with self._activities_lock:
             self.current_activity = None
+
+    def _build_attachment_context(self, attachments: list) -> str:
+        """构建附件上下文：读取文件内容并拼接为结构化文本"""
+        if not attachments:
+            return ""
+        work_dir = self.config.work_dir or "."
+        parts = ["---\n📎 用户附加的文件内容："]
+        for att in attachments:
+            name = att.get("name", "unknown")
+            path = att.get("path", "")
+            att_type = att.get("type", "file")
+            # 如果前端已提供 content（如粘贴的图片），直接使用
+            if att.get("content"):
+                parts.append(f"\n### 文件: {name}\n{att['content']}")
+                continue
+            # 否则从工作目录读取
+            if path:
+                target = os.path.normpath(os.path.join(work_dir, path))
+                # 安全检查
+                if not os.path.abspath(target).startswith(os.path.abspath(work_dir)):
+                    parts.append(f"\n### 文件: {name}\n[安全限制: 无法读取工作目录外的文件]")
+                    continue
+                if os.path.isfile(target):
+                    try:
+                        with open(target, 'r', encoding='utf-8', errors='replace') as f:
+                            content = f.read(50000)  # 限制 50KB
+                        parts.append(f"\n### 文件: {name} ({path})\n```\n{content}\n```")
+                    except Exception as e:
+                        parts.append(f"\n### 文件: {name}\n[读取失败: {e}]")
+                else:
+                    parts.append(f"\n### 文件: {name}\n[文件不存在]")
+        return "\n".join(parts) if len(parts) > 1 else ""
 
     def _extract_events(self, messages: List[Dict[str, Any]]):
         """从 AgentLoop 新增的消息中提取事件（后置补充，与实时回调互补）"""
