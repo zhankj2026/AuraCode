@@ -15,12 +15,12 @@ import os
 from tools.registry import register_tool
 
 
-def list_directory_handler(path: str = ".") -> str:
+def list_directory_handler(path: str = ".", **kwargs) -> str:
     """列出目录内容，返回精简格式"""
     if not os.path.exists(path):
-        raise FileNotFoundError(f"Directory not found: {path}")
+        return f"Error: Directory not found: {path}"
     if not os.path.isdir(path):
-        raise NotADirectoryError(f"Path is not a directory: {path}")
+        return f"Error: Path is not a directory: {path}"
 
     items = os.listdir(path)
     dirs = sorted([i + "/" for i in items if os.path.isdir(os.path.join(path, i))])
