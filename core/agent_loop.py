@@ -1251,10 +1251,25 @@ class AgentLoop:
                     sections.append(f"Git用户：{git_info['user']}")
         
         # 3. 平台信息
-        sections.append(f"平台：{platform.system().lower()}")
-        shell = os.environ.get('SHELL', 'powershell' if platform.system() == 'Windows' else 'bash')
+        plat = platform.system().lower()
+        sections.append(f"平台：{plat}")
+        shell = os.environ.get('SHELL', 'powershell' if plat == 'windows' else 'bash')
         sections.append(f"Shell：{shell}")
         sections.append(f"操作系统版本：{platform.platform()}")
+        
+        # 3.1 Windows 命令提示（LLM 常犯错误：用 Unix 命令）
+        if plat == 'windows':
+            sections.append(
+                "\n## Windows 命令注意事项\n"
+                "**重要**：你在 Windows 环境中运行命令，必须使用 Windows 兼容命令：\n"
+                "- 创建目录：`mkdir dir`（不需要 -p，Windows 默认创建父目录）\n"
+                "- 删除文件：`del file` 或 `Remove-Item file`\n"
+                "- 删除目录：`rmdir /s /q dir` 或 `Remove-Item -Recurse dir`\n"
+                "- 复制文件：`copy src dst` 或 `Copy-Item src dst`\n"
+                "- 移动文件：`move src dst` 或 `Move-Item src dst`\n"
+                "- 查看文件：`type file` 或 `Get-Content file`\n"
+                "- **禁止使用**：`mkdir -p`、`rm -rf`、`cp`、`mv`、`cat` 等 Unix 命令"
+            )
         
         # 4. 模型信息
         model_name = getattr(self, 'model_name', 'unknown')
