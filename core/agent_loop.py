@@ -210,6 +210,10 @@ class AgentLoop:
             self._session_env = init_session_env(session_id=session_id)
             self._project_store = get_project_store(cwd=cwd)
             logger.info(f"Session persistence initialized: transcript + memory + env + project ({session_id})")
+
+            # ProjectStore: 加载项目级配置并应用
+            self._apply_project_config()
+
         except Exception as e:
             logger.warning(f"Session persistence init failed: {e}")
 
@@ -467,6 +471,9 @@ class AgentLoop:
                 active_m = self.state.get_active_model(self.model)
                 self.state.record_usage(stream_result.usage, model=active_m)
 
+                # SessionTranscript: 记录费用
+                self._transcript_record_cost(active_m, stream_result.usage)
+
                 # LLM 调用成功 → 重置连续服务器错误计数
                 _consecutive_server_errors = 0
 
@@ -489,6 +496,9 @@ class AgentLoop:
                     ]
                 self.state.messages.append(assistant_msg)
                 last_assistant_text = assistant_content or last_assistant_text
+
+                # SessionTranscript: 记录助手消息
+                self._transcript_record_assistant(assistant_msg, active_m, stream_result.usage)
 
                 self._emit_event("turn_complete", {
                     "turn": self.state.turn_count,
@@ -656,6 +666,8 @@ class AgentLoop:
                             print(f"{status_icon} [{tool_call.function.name}] {str(result_content)[:200]}")
 
                 # Step 6: 继续循环
+                # SessionMemory: 每轮结束后尝试更新记忆
+                self._update_session_memory_turn()
 
             except Exception as e:
                 error_str = str(e).lower()
@@ -840,6 +852,9 @@ class AgentLoop:
             # 更新 system prompt（反映最新的记忆/上下文变化）
             self.messages[0] = {"role": "system", "content": self._build_system_prompt()}
             logger.debug(f"User message appended, total messages: {len(self.messages)}")
+
+        # SessionTranscript: 记录用户消息
+        self._transcript_record_user(user_input)
     
     def _build_system_prompt(self) -> str:
         """构建系统提示词(增强版 7 层)"""
@@ -850,6 +865,11 @@ class AgentLoop:
 
         # 第 2 层: 环境信息（参考 Claude 设计）
         parts.append(self._build_environment_context())
+
+        # 第 2.5 层: SessionMemory 会话记忆注入
+        session_memory_context = self._get_session_memory_context()
+        if session_memory_context:
+            parts.append(session_memory_context)
 
         # 第 3 层: 记忆系统(用户信息、反馈、项目上下文)
         if self.memory_manager and self.memory_enabled:
@@ -2079,6 +2099,8 @@ class AgentLoop:
                 if tool_name in ("run_command", "run_powershell"):
                     if "working_directory" not in arguments:
                         arguments["working_directory"] = self.project_root
+                    # SessionEnv: 注入会话环境脚本（venv/conda 等）
+                    self._inject_session_env(arguments, tool_name)
                 
                 # 为搜索类工具传递 project_root（用于解析相对路径）
                 if tool_name in ("glob", "grep"):
@@ -2087,6 +2109,9 @@ class AgentLoop:
                 
                 result = handler(**arguments)
                 logger.info(f"Handler returned: {str(result)[:200]}")
+
+                # SessionTranscript: 记录工具调用及结果
+                self._transcript_record_tool(tool_name, arguments, result)
 
                 # 5. 输出截断（基础保护）
                 if isinstance(result, str) and len(result.splitlines()) > 500:
@@ -2988,6 +3013,154 @@ class AgentLoop:
         except Exception as e:
             # 记忆提取是 best-effort，不影响主流程
             logger.warning(f"Auto-memory extraction request failed: {e}")
+
+    # ========== 会话持久化服务集成 ==========
+
+    def _apply_project_config(self):
+        """ProjectStore: 加载项目级配置并应用到当前会话"""
+        if not self._project_store:
+            return
+        try:
+            cfg = self._project_store.load()
+            # 应用 preferred_model
+            if cfg.preferred_model and not self.model:
+                self.model = cfg.preferred_model
+                logger.info(f"ProjectStore: applied preferred_model={cfg.preferred_model}")
+            # 应用 auto_compact 设置
+            if hasattr(cfg, 'auto_compact_enabled'):
+                self.state.auto_compact_enabled = cfg.auto_compact_enabled
+            # 记录加载的配置
+            logger.info(
+                f"ProjectStore config loaded: "
+                f"allowed_tools={len(cfg.allowed_tools)}, "
+                f"mcp_servers={len(cfg.mcp_servers)}, "
+                f"permission_rules={len(cfg.permission_rules)}"
+            )
+        except Exception as e:
+            logger.warning(f"ProjectStore apply config failed: {e}")
+
+    def _get_session_memory_context(self) -> str:
+        """SessionMemory: 读取会话记忆并生成上下文注入片段"""
+        if not self._session_memory:
+            return ""
+        try:
+            content = self._session_memory.read()
+            if not content or self._session_memory.is_empty():
+                return ""
+            # 截取前 2000 字符作为上下文（防止过长）
+            truncated = content[:2000]
+            if len(content) > 2000:
+                truncated += "\n... [truncated]"
+            return f"## Session Memory (Current Progress)\n\n{truncated}"
+        except Exception as e:
+            logger.debug(f"SessionMemory read failed: {e}")
+            return ""
+
+    def _inject_session_env(self, arguments: dict, tool_name: str):
+        """SessionEnv: 为 shell 命令注入会话环境脚本"""
+        if not self._session_env:
+            return
+        try:
+            env_script = self._session_env.get_combined_script()
+            if not env_script:
+                return
+            # 将环境脚本前置到命令中
+            command = arguments.get("command", "")
+            if command:
+                if tool_name == "run_powershell":
+                    # PowerShell: 用分号连接
+                    arguments["command"] = f"{env_script}; {command}"
+                else:
+                    # Shell: 用 && 连接
+                    arguments["command"] = f"source <(echo '{env_script}') && {command}"
+                logger.debug(f"SessionEnv injected into {tool_name}")
+        except Exception as e:
+            logger.debug(f"SessionEnv injection failed: {e}")
+
+    def _transcript_record_user(self, user_input: str):
+        """SessionTranscript: 记录用户消息"""
+        if not self._session_transcript:
+            return
+        try:
+            import uuid
+            self._session_transcript.append_message(
+                message={"role": "user", "content": user_input},
+                uuid=str(uuid.uuid4()),
+            )
+        except Exception as e:
+            logger.debug(f"Transcript record user failed: {e}")
+
+    def _transcript_record_assistant(self, msg: dict, model: str = "", usage=None):
+        """SessionTranscript: 记录助手消息"""
+        if not self._session_transcript:
+            return
+        try:
+            import uuid
+            usage_dict = {}
+            if usage:
+                usage_dict = {
+                    "prompt_tokens": getattr(usage, 'prompt_tokens', 0) or 0,
+                    "completion_tokens": getattr(usage, 'completion_tokens', 0) or 0,
+                    "total_tokens": getattr(usage, 'total_tokens', 0) or 0,
+                }
+            self._session_transcript.append_message(
+                message=msg,
+                uuid=str(uuid.uuid4()),
+                model=model or self.model,
+                usage=usage_dict,
+            )
+        except Exception as e:
+            logger.debug(f"Transcript record assistant failed: {e}")
+
+    def _transcript_record_tool(self, tool_name: str, arguments: dict, result):
+        """SessionTranscript: 记录工具调用及结果"""
+        if not self._session_transcript:
+            return
+        try:
+            self._session_transcript.append_metadata("tool_use", {
+                "tool_name": tool_name,
+                "arguments": {k: str(v)[:500] for k, v in arguments.items()},
+                "result_preview": str(result)[:500],
+                "success": not isinstance(result, str) or not result.startswith("Error:"),
+            })
+        except Exception as e:
+            logger.debug(f"Transcript record tool failed: {e}")
+
+    def _transcript_record_cost(self, model: str, usage):
+        """SessionTranscript: 记录费用"""
+        if not self._session_transcript or not usage:
+            return
+        try:
+            prompt_tokens = getattr(usage, 'prompt_tokens', 0) or 0
+            completion_tokens = getattr(usage, 'completion_tokens', 0) or 0
+            # 简单费用估算（实际定价由 SessionState 计算）
+            cost_usd = 0.0  # 由 state 追踪，此处仅记录 token
+            self._session_transcript.append_cost_record(
+                model=model or self.model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                cost_usd=cost_usd,
+            )
+        except Exception as e:
+            logger.debug(f"Transcript record cost failed: {e}")
+
+    def _update_session_memory_turn(self):
+        """SessionMemory: 每轮结束后尝试更新记忆（轻量级，不强制 LLM）"""
+        if not self._session_memory or not self.state.messages:
+            return
+        try:
+            since = self._session_memory.last_summarized_index + 1
+            new_msgs = self.state.messages[since:]
+            # 只有新增 4 条以上消息时才更新（避免频繁写入）
+            if len(new_msgs) >= 4:
+                self._session_memory.update_with_summary(
+                    messages=list(self.state.messages),
+                    since_index=since,
+                    llm_client=None,  # 使用简单摘要，不消耗 LLM
+                    llm_model="",
+                )
+        except Exception as e:
+            logger.debug(f"SessionMemory turn update failed: {e}")
 
     def _close_session_persistence(self):
         """关闭会话持久化存储（flush + cleanup）"""

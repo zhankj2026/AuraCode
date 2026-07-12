@@ -849,13 +849,13 @@ class BridgeSession:
             self._extract_events(new_messages)
 
             # 捕获的 stdout 输出
-            output = writer.get_captured()
-            if output.strip():
-                self._emit(BridgeEvent(
-                    type=BridgeEventType.OUTPUT.value,
-                    session_id=self.session_id,
-                    data={"text": output.strip()},
-                ))
+            # output = writer.get_captured()
+            # if output.strip():
+            #     self._emit(BridgeEvent(
+            #         type=BridgeEventType.OUTPUT.value,
+            #         session_id=self.session_id,
+            #         data={"text": output.strip()},
+            #     ))
 
             # stderr 捕获
             if self._err_writer:
