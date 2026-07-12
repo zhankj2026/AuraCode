@@ -877,10 +877,10 @@ class AgentLoop:
             if memory_context:
                 parts.append(memory_context)
 
-        # 第 3 层: 项目上下文(AURACODE.md)
-        # project_context = load_project_context()
-        # if project_context:
-        #     parts.append(project_context)
+        # 第 3 层: 项目上下文(AURACODE.md + 技术栈检测)
+        project_context = load_project_context(getattr(self, 'work_dir', '.'))
+        if project_context:
+            parts.append(project_context)
 
         # 第 4 层: 技能系统（改进版：元数据 + when_to_use + 激活内容）
         if self.skill_manager and self.skills_enabled:
