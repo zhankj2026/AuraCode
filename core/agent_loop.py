@@ -877,7 +877,7 @@ class AgentLoop:
             if memory_context:
                 parts.append(memory_context)
 
-        # 第 3 层: 项目上下文(AURACODE.md + 技术栈检测)
+        # 第 3.5 层: 项目上下文(AURACODE.md + 技术栈检测)
         project_context = load_project_context(getattr(self, 'work_dir', '.'))
         if project_context:
             parts.append(project_context)
