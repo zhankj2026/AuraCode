@@ -1002,16 +1002,30 @@ class BridgeSession:
             self.current_activity = None
 
     def _build_attachment_context(self, attachments: list) -> str:
-        """构建附件上下文：读取文件内容并拼接为结构化文本"""
+        """构建附件上下文：读取文件内容并拼接为结构化文本
+
+        图片/二进制附件不读入文本（避免乱码污染上下文），仅记录占位说明；
+        即便前端附带 content（data URL）也不喂给 LLM。
+        """
         if not attachments:
             return ""
+        binary_exts = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.ico', '.svg',
+                       '.pdf', '.zip', '.gz', '.tar', '.rar', '.7z',
+                       '.exe', '.dll', '.so', '.dylib', '.class', '.jar', '.bin', '.dat',
+                       '.db', '.sqlite', '.mp3', '.mp4', '.mov', '.avi', '.woff', '.woff2'}
         work_dir = self.config.work_dir or "."
         parts = ["---\n📎 用户附加的文件内容："]
         for att in attachments:
             name = att.get("name", "unknown")
             path = att.get("path", "")
             att_type = att.get("type", "file")
-            # 如果前端已提供 content（如粘贴的图片），直接使用
+            ext = os.path.splitext(name)[1].lower()
+            is_binary = att_type in ("image", "binary") or ext in binary_exts
+            # 图片/二进制附件：仅占位，不读入文本
+            if is_binary:
+                parts.append(f"\n### 文件: {name} ({path})\n[📎 二进制/图片附件，已保存至工作目录，未读入上下文]")
+                continue
+            # 文本附件：优先用前端提供的 content
             if att.get("content"):
                 parts.append(f"\n### 文件: {name}\n{att['content']}")
                 continue

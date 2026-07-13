@@ -632,17 +632,20 @@ async function uploadFile(){
   input.onchange=async()=>{
     for(const file of input.files){
       try{
+        const isText=file.type.startsWith('text/')||/\.(md|txt|json|js|ts|tsx|jsx|py|go|rs|java|c|cc|cpp|h|hpp|css|html|xml|yml|yaml|toml|ini|sh|sql|csv|log|bat|ps1)$/i.test(file.name);
         const reader=new FileReader();
+        // 启动读取必须在 await 之前（放入 executor 内），否则 onload 永不触发 → 死锁
         const content=await new Promise((resolve,reject)=>{
           reader.onload=()=>resolve(reader.result);
           reader.onerror=reject;
+          if(isText)reader.readAsText(file);else reader.readAsDataURL(file);
         });
-        reader.readAsText(file);
         const path=filePath?(filePath+'/'+file.name):file.name;
+        const type=isText?'file':'image';
         await api('POST',`/api/sessions/${asid}/files`,{
           path:path,
           content:content,
-          type:'file'
+          type:type
         });
         tln('sys',`📤 已上传: ${file.name}`);
       }catch(e){alert('上传失败: '+file.name+' - '+e.message)}
@@ -846,12 +849,18 @@ function renderChips(){
     const files=e.dataTransfer.files;
     for(const f of files){
       try{
+        const isText=f.type.startsWith('text/')||/\.(md|txt|json|js|ts|tsx|jsx|py|go|rs|java|c|cc|cpp|h|hpp|css|html|xml|yml|yaml|toml|ini|sh|sql|csv|log|bat|ps1)$/i.test(f.name);
         const reader=new FileReader();
-        const content=await new Promise((res,rej)=>{reader.onload=()=>res(reader.result);reader.onerror=rej});
-        reader.readAsText(f);
+        // 启动读取必须在 await 之前（放入 executor 内），否则 onload 永不触发 → 死锁
+        const content=await new Promise((res,rej)=>{
+          reader.onload=()=>res(reader.result);
+          reader.onerror=rej;
+          if(isText)reader.readAsText(f);else reader.readAsDataURL(f);
+        });
+        const type=isText?'file':'image';
         // 上传到服务器
-        await api('POST',`/api/sessions/${asid}/files`,{path:f.name,content:content,type:'file'});
-        addAttachment({name:f.name,path:f.name,type:'file',size:f.size});
+        await api('POST',`/api/sessions/${asid}/files`,{path:f.name,content:content,type:type});
+        addAttachment({name:f.name,path:f.name,type:type,size:f.size});
         tln('sys',`📎 拖拽上传: ${f.name}`);
       }catch(err){alert('上传失败: '+f.name+' - '+err.message)}
     }
@@ -871,12 +880,12 @@ function onPaste(e){
       reader.onload=async()=>{
         const name=`paste_${Date.now()}.png`;
         try{
-          await api('POST',`/api/sessions/${asid}/files`,{path:name,content:reader.result,type:'file'});
+          await api('POST',`/api/sessions/${asid}/files`,{path:name,content:reader.result,type:'image'});
           addAttachment({name:name,path:name,type:'image',size:file.size});
           tln('sys',`📎 粘贴图片: ${name}`);
         }catch(err){alert('粘贴上传失败: '+err.message)}
       };
-      reader.readAsText(file);
+      reader.readAsDataURL(file);
       return;
     }
   }

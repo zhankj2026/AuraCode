@@ -18,9 +18,12 @@ REST API 用于会话管理和消息发送，WebSocket 用于实时事件推送�
 """
 
 import asyncio
+import base64
+import binascii
 import json
 import logging
 import os
+import shutil
 import time
 from contextlib import asynccontextmanager
 from dataclasses import asdict
@@ -59,6 +62,17 @@ class CreateSessionResponse(BaseModel):
 class MessageRequest(BaseModel):
     content: str
     attachments: list = []  # [{path, name, type, content?}]
+
+
+class FileWriteRequest(BaseModel):
+    path: str
+    type: str = "file"  # "file" | "directory" | "image" | "binary"
+    content: Optional[str] = None  # directory 时可空；image/binary 为 data URL(base64)
+
+
+class FileRenameRequest(BaseModel):
+    old_path: str
+    new_path: str
 
 
 class PermissionRequest(BaseModel):
@@ -233,6 +247,28 @@ async def _periodic_cleanup():
             cleaned = _manager.cleanup_stale_sessions()
             if cleaned > 0:
                 logger.info(f"Periodic cleanup: {cleaned} sessions removed")
+
+
+def _safe_file_target(work_dir: str, path: str) -> str:
+    """将相对 path 解析到 work_dir 下，做路径遍历防护，返回绝对路径。
+
+    基于 os.path.commonpath 的分量比较，避免 startswith 的前缀碰撞弱点
+    （如 work_dir=.../proj 允许写入 .../proj-evil）。失败抛 HTTPException。
+    """
+    if not path or path in (".", "./"):
+        raise HTTPException(status_code=400, detail="Invalid path")
+    work_dir = work_dir or "."
+    wd_abs = os.path.abspath(work_dir)
+    target = os.path.normpath(os.path.join(wd_abs, path))
+    tgt_abs = os.path.abspath(target)
+    # 分量级包含检查：target 必须等于或位于 work_dir 内
+    try:
+        common = os.path.commonpath([wd_abs, tgt_abs])
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Path traversal denied")
+    if common != wd_abs:
+        raise HTTPException(status_code=403, detail="Path traversal denied")
+    return tgt_abs
 
 
 def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
@@ -545,6 +581,115 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
             raise HTTPException(status_code=403, detail="Permission denied")
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
+
+    @app.post("/api/sessions/{session_id}/files")
+    async def write_file(
+        session_id: str,
+        req: FileWriteRequest,
+        auth: bool = Depends(_auth.verify),
+    ):
+        """写入/上传文件，或创建目录（type='directory'）。
+
+        - 目录：仅需 path
+        - 文件：content 为文本（UTF-8 写入）或 data URL（data:...;base64,.. 二进制解码）
+        """
+        session = _manager.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        work_dir = session.config.work_dir or "."
+        target = _safe_file_target(work_dir, req.path)
+        rel = os.path.relpath(target, os.path.abspath(work_dir)).replace("\\", "/")
+
+        # 创建目录
+        if req.type == "directory":
+            try:
+                os.makedirs(target, exist_ok=True)
+                return {"success": True, "path": rel, "type": "directory"}
+            except OSError as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        # 写文件：必须有 content
+        if req.content is None:
+            raise HTTPException(status_code=400, detail="content is required for file write")
+        if len(req.content) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="File too large (max 10MB)")
+
+        overwritten = os.path.exists(target)
+        # 建父目录（裸文件名时 dirname 为空，跳过避免 makedirs('') 崩溃）
+        parent = os.path.dirname(target)
+        if parent:
+            try:
+                os.makedirs(parent, exist_ok=True)
+            except OSError as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        # data URL 图片/二进制 → base64 解码后写二进制；否则当文本写
+        content = req.content
+        if content.startswith("data:") and ";base64," in content and "," in content:
+            _, _, payload = content.partition(",")
+            try:
+                data = base64.b64decode(payload)
+            except (binascii.Error, ValueError):
+                raise HTTPException(status_code=400, detail="Invalid base64 payload")
+            try:
+                with open(target, "wb") as f:
+                    f.write(data)
+            except IsADirectoryError:
+                raise HTTPException(status_code=400, detail="Target is a directory")
+            except OSError as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        else:
+            try:
+                with open(target, "w", encoding="utf-8") as f:
+                    f.write(content)
+            except IsADirectoryError:
+                raise HTTPException(status_code=400, detail="Target is a directory")
+            except OSError as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        try:
+            size = os.path.getsize(target)
+        except OSError:
+            size = len(content)
+        return {
+            "success": True,
+            "path": rel,
+            "size": size,
+            "overwritten": overwritten,
+        }
+
+    @app.post("/api/sessions/{session_id}/files/rename")
+    async def rename_file(
+        session_id: str,
+        req: FileRenameRequest,
+        auth: bool = Depends(_auth.verify),
+    ):
+        """重命名/移动文件或目录（限制在 work_dir 内）"""
+        session = _manager.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        work_dir = session.config.work_dir or "."
+        old_target = _safe_file_target(work_dir, req.old_path)
+        new_target = _safe_file_target(work_dir, req.new_path)
+        if not os.path.exists(old_target):
+            raise HTTPException(status_code=404, detail=f"Not found: {req.old_path}")
+        try:
+            if os.path.exists(new_target):
+                raise HTTPException(status_code=409, detail=f"Target exists: {req.new_path}")
+            try:
+                os.replace(old_target, new_target)
+            except OSError:
+                # 跨卷时 os.replace 失败，回退到 shutil.move
+                shutil.move(old_target, new_target)
+        except HTTPException:
+            raise
+        except OSError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "success": True,
+            "old_path": os.path.relpath(old_target, os.path.abspath(work_dir)).replace("\\", "/"),
+            "new_path": os.path.relpath(new_target, os.path.abspath(work_dir)).replace("\\", "/"),
+        }
 
     @app.get("/api/sessions/{session_id}/files/search")
     async def search_files(
