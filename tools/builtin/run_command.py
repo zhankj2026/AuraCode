@@ -151,6 +151,40 @@ def _is_dangerous(command: str) -> Optional[str]:
     return None
 
 
+# ── Windows 命令兼容（防御性修正） ────────────────────────────────────────────
+
+# 匹配 mkdir / md 后紧跟的 Unix 专用标志：-p / --parents / -pv / -fp 等
+_MKDIR_FLAG_RE = re.compile(r"\b(?P<tool>mkdir|md)\s+(?P<flag>-{1,2}[A-Za-z][\w-]*)")
+
+
+def _fix_mkdir_for_windows(command: str) -> str:
+    """Windows 兼容：剥离 mkdir/md 的 Unix 专用 -p / --parents 标志。
+
+    Windows 的 mkdir 默认就会创建父目录（等价于 Unix 的 -p），而：
+    - cmd.exe 会把 `-p` 当成真实的目录名，建出一个名为 `-p` 的目录（结果错误）；
+    - PowerShell 的 mkdir（New-Item 别名）不接受 -p，直接报错。
+
+    因此把 LLM 误写的 `mkdir -p a/b/c` 归一化为 `mkdir a/b/c`，使命令在
+    Windows 上正确执行。短标志簇（如 -pv）只去掉其中的 p，保留其余标志；
+    --parents 长标志整体删除。仅在 Windows 生效，其它平台原样返回。
+    """
+    if platform.system() != "Windows":
+        return command
+
+    def _strip(m):
+        tool, flag = m.group("tool"), m.group("flag")
+        body = flag.lstrip("-")
+        if body.lower() == "parents":              # --parents → 整体删除
+            return tool
+        kept = re.sub(r"[pP]", "", body)            # 短标志簇：去掉 p，保留 v/m 等
+        return f"{tool} -{kept}" if kept else tool
+
+    fixed = _MKDIR_FLAG_RE.sub(_strip, command)
+    if fixed != command:
+        logger.info(f"[Windows] mkdir 自动修正: {command!r} -> {fixed!r}")
+    return fixed
+
+
 # ── 主处理函数 ──────────────────────────────────────────────────────────────────
 
 def run_command_handler(
@@ -206,6 +240,9 @@ def run_command_handler(
 
     if not command or not command.strip():
         return "错误: command 不能为空"
+
+    # Windows 兼容：自动剥离 mkdir -p（Windows mkdir 默认建父目录，-p 会出错）
+    command = _fix_mkdir_for_windows(command)
 
     # 超时限制
     timeout = min(max(timeout, 1), 600)
