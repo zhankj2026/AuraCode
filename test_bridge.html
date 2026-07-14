@@ -67,6 +67,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .flist{flex:1;overflow-y:auto;padding:4px 0;min-height:0}
 .fi{display:flex;align-items:center;gap:8px;padding:5px 10px;cursor:pointer;font-size:12px;transition:.1s}
 .fi:hover{background:rgba(88,166,255,.06)}
+.fi[draggable="true"]{cursor:grab}.fi[draggable="true"]:active{cursor:grabbing}
 .fi .ic{width:16px;text-align:center;font-size:13px;flex-shrink:0}
 .fi .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fi .sz{color:var(--tx2);font-size:10px;flex-shrink:0}
@@ -554,7 +555,9 @@ async function browseTo(path){
     el.innerHTML=r.entries.map(e=>{
       const isDir=e.type==='dir',ic=isDir?'📁':fileIcon(e.name),sz=isDir?'':fmtSize(e.size);
       const np=path?(path+'/'+e.name):e.name;
-      return`<div class="fi" onclick="${isDir?`browseTo('${esc(np)}')`:`viewFile('${esc(np)}','${esc(e.name)}')`}">
+      // 文件可拖拽到对话输入框/终端区（目录不可拖）
+      const drag=isDir?'':` draggable="true" ondragstart="fiDragStart(event,'${esc(np)}','${esc(e.name)}',${e.size||0})"`;
+      return`<div class="fi"${drag} onclick="${isDir?`browseTo('${esc(np)}')`:`viewFile('${esc(np)}','${esc(e.name)}')`}">
         <span class="ic">${ic}</span>
         <span class="nm">${esc(e.name)}</span>
         <span class="sz">${sz}</span>
@@ -846,6 +849,17 @@ function renderChips(){
   pane.addEventListener('drop',async e=>{
     e.preventDefault();dragCtr=0;$('dragOv').classList.remove('show');
     if(!asid){alert('请先选择会话');return;}
+    // 内部拖拽：从右侧文件浏览器拖入的已有文件（引用，不重新上传）
+    const internal=e.dataTransfer.getData('text/x-bridge-file');
+    if(internal){
+      try{
+        const info=JSON.parse(internal);
+        addAttachment({name:info.name,path:info.path,type:'file',size:info.size||0});
+        tln('sys',`📎 引用文件: ${info.name}（${info.path}）`);
+      }catch(err){console.error('内部拖拽解析失败',err)}
+      return;
+    }
+    // 外部拖拽：操作系统文件（需上传）
     const files=e.dataTransfer.files;
     for(const f of files){
       try{
@@ -864,6 +878,49 @@ function renderChips(){
         tln('sys',`📎 拖拽上传: ${f.name}`);
       }catch(err){alert('上传失败: '+f.name+' - '+err.message)}
     }
+  });
+})();
+
+// ── P1: 文件浏览器 → 对话区 拖拽引用 ──
+// 拖拽源：右侧文件浏览器的文件项（draggable）
+function fiDragStart(ev,path,name,size){
+  const payload=JSON.stringify({path,name,size:size||0});
+  ev.dataTransfer.setData('text/x-bridge-file',payload);
+  ev.dataTransfer.setData('text/plain','@'+path);  // 兜底：可粘贴到任意文本框
+  ev.dataTransfer.effectAllowed='copy';
+}
+
+// 在输入框光标处插入文本
+function insertAtCursor(text){
+  const inp=$('inp');
+  const start=inp.selectionStart??inp.value.length;
+  const end=inp.selectionEnd??inp.value.length;
+  inp.value=inp.value.substring(0,start)+text+inp.value.substring(end);
+  const pos=start+text.length;
+  inp.selectionStart=inp.selectionEnd=pos;
+  inp.focus();
+  // 触发高度自适应
+  inp.style.height='auto';inp.style.height=Math.min(inp.scrollHeight,100)+'px';
+}
+
+// 输入框作为放置目标：拖入文件 → 插入 @path 并加入附件
+(function initInputDrop(){
+  const inp=$('inp');
+  // dragover 必须 preventDefault，drop 才会触发；同时给出 copy 视觉提示
+  inp.addEventListener('dragover',e=>{
+    if(e.dataTransfer.types.includes('text/x-bridge-file')){
+      e.preventDefault();e.dataTransfer.dropEffect='copy';
+    }
+  });
+  inp.addEventListener('drop',e=>{
+    const payload=e.dataTransfer.getData('text/x-bridge-file');
+    if(!payload)return;  // 非文件浏览器拖入，交给浏览器默认行为
+    e.preventDefault();
+    let info;try{info=JSON.parse(payload)}catch{return}
+    if(!asid){alert('请先选择会话');return}
+    // 与 @ 引用弹窗 pickAtFile 行为一致：插入 @path + 加入附件
+    insertAtCursor('@'+info.path+' ');
+    addAttachment({name:info.name,path:info.path,type:'file',size:info.size||0});
   });
 })();
 
