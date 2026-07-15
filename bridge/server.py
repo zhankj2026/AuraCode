@@ -37,7 +37,7 @@ from pydantic import BaseModel, Field
 from bridge.auth import SimpleTokenAuth
 from bridge.config import BridgeServerConfig
 from bridge.manager import BridgeSessionManager
-from bridge.types import BridgeEvent, BridgeEventType, SessionConfig
+from bridge.types import BridgeEvent, BridgeEventType, SessionConfig, is_path_within
 
 logger = logging.getLogger(__name__)
 
@@ -252,21 +252,17 @@ async def _periodic_cleanup():
 def _safe_file_target(work_dir: str, path: str) -> str:
     """将相对 path 解析到 work_dir 下，做路径遍历防护，返回绝对路径。
 
-    基于 os.path.commonpath 的分量比较，避免 startswith 的前缀碰撞弱点
+    复用 is_path_within（os.path.commonpath 分量比较），避免 startswith 的前缀碰撞弱点
     （如 work_dir=.../proj 允许写入 .../proj-evil）。失败抛 HTTPException。
+
+    注意：本函数对 write/rename 保持严格语义——拒绝 "." / "./"（不允许直接
+    操作工作目录根）。只读/列举类端点请直接用 is_path_within，"." 会被判为合法。
     """
     if not path or path in (".", "./"):
         raise HTTPException(status_code=400, detail="Invalid path")
-    work_dir = work_dir or "."
-    wd_abs = os.path.abspath(work_dir)
-    target = os.path.normpath(os.path.join(wd_abs, path))
-    tgt_abs = os.path.abspath(target)
-    # 分量级包含检查：target 必须等于或位于 work_dir 内
-    try:
-        common = os.path.commonpath([wd_abs, tgt_abs])
-    except ValueError:
-        raise HTTPException(status_code=403, detail="Path traversal denied")
-    if common != wd_abs:
+    wd_abs = os.path.abspath(work_dir or ".")
+    tgt_abs = os.path.abspath(os.path.normpath(os.path.join(wd_abs, path)))
+    if not is_path_within(wd_abs, tgt_abs):
         raise HTTPException(status_code=403, detail="Path traversal denied")
     return tgt_abs
 
@@ -493,7 +489,7 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
         if not os.path.isdir(target):
             raise HTTPException(status_code=404, detail=f"Not a directory: {path}")
         # 安全检查：防止路径遍历
-        if not os.path.abspath(target).startswith(os.path.abspath(work_dir)):
+        if not is_path_within(work_dir, target):
             raise HTTPException(status_code=403, detail="Path traversal denied")
         try:
             entries = []
@@ -531,7 +527,7 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
         target = os.path.normpath(os.path.join(work_dir, path))
         if not os.path.isfile(target):
             raise HTTPException(status_code=404, detail=f"Not a file: {path}")
-        if not os.path.abspath(target).startswith(os.path.abspath(work_dir)):
+        if not is_path_within(work_dir, target):
             raise HTTPException(status_code=403, detail="Path traversal denied")
         try:
             with open(target, "r", encoding="utf-8", errors="replace") as f:
@@ -568,7 +564,7 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Session not found")
         work_dir = session.config.work_dir or "."
         target = os.path.normpath(os.path.join(work_dir, path))
-        if not os.path.abspath(target).startswith(os.path.abspath(work_dir)):
+        if not is_path_within(work_dir, target):
             raise HTTPException(status_code=403, detail="Path traversal denied")
         if not os.path.exists(target):
             raise HTTPException(status_code=404, detail=f"File not found: {path}")

@@ -16,11 +16,35 @@ Bridge Remote Control 类型定义
 定义多会话远程控制系统所需的所有数据类型。
 """
 
+import os
 import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
+
+
+def is_path_within(work_dir: str, target: str) -> bool:
+    """判断 target 是否等于或位于 work_dir 之内（分量级比较）。
+
+    用 os.path.commonpath 而非 ``startswith``，避免前缀碰撞弱点：
+    当 work_dir=/a/proj 时，/a/proj-evil 不应被误判为"在 work_dir 内"，
+    而 ``"/a/proj-evil".startswith("/a/proj")`` 恰为 True —— 这是历史漏洞的根因。
+
+    Args:
+        work_dir: 工作目录（相对或绝对均可，内部会做 abspath）。
+        target: 待校验的目标路径（相对或绝对均可）。
+
+    Returns:
+        True 表示 target 等于或位于 work_dir 内；跨盘符等无法比较时返回 False。
+    """
+    wd_abs = os.path.abspath(work_dir or ".")
+    tgt_abs = os.path.abspath(target)
+    try:
+        return os.path.commonpath([wd_abs, tgt_abs]) == wd_abs
+    except ValueError:
+        # Windows 跨盘符等无共同根的情况
+        return False
 
 
 class SessionState(str, Enum):
@@ -123,6 +147,14 @@ class SessionConfig:
     base_url: Optional[str] = None
     api_key: Optional[str] = None
     session_timeout: int = 3600  # 秒（0=不超时）
+
+    def __post_init__(self):
+        # 将 work_dir 规范化为绝对路径。
+        # 根因：_init_agent_loop 中的 os.chdir 是进程全局的，多会话并发时
+        # 若 work_dir 为相对路径，各端点的 os.path.join(work_dir, path) 会
+        # 解析到被其他会话 chdir 改动的 CWD 上。一次性 abspath 后，所有路径
+        # 解析都与 CWD 解耦，正确处理前端传入的相对地址。
+        self.work_dir = os.path.abspath(self.work_dir or ".")
 
 
 @dataclass

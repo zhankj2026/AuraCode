@@ -31,6 +31,7 @@ from typing import Any, Callable, Dict, List, Optional
 from bridge.types import (
     BridgeEvent, BridgeEventType, SessionConfig, SessionInfo,
     SessionState, PermissionRequest, PermissionResponse, SessionActivity,
+    is_path_within,
 )
 from core.session_store import SessionStore, auto_save_session
 
@@ -1032,8 +1033,8 @@ class BridgeSession:
             # 否则从工作目录读取
             if path:
                 target = os.path.normpath(os.path.join(work_dir, path))
-                # 安全检查
-                if not os.path.abspath(target).startswith(os.path.abspath(work_dir)):
+                # 安全检查（分量级比较，防 startswith 前缀碰撞）
+                if not is_path_within(work_dir, target):
                     parts.append(f"\n### 文件: {name}\n[安全限制: 无法读取工作目录外的文件]")
                     continue
                 if os.path.isfile(target):
