@@ -129,8 +129,13 @@ class AgentLoop:
         self.max_budget_usd = config.get("max_budget_usd")  # 费用预算（美元）
         # 工作目录：工具文件操作的基准路径（Bridge 模式下为用户指定的 work_dir）
         self.project_root = os.path.abspath(config.get("project_root", "."))
+        # work_dir 别名：系统提示词的"主工作目录"、git 检测、project_context 等多处
+        # 用 getattr(self, 'work_dir', os.getcwd()) 兜底。若不赋值，这些会落到进程
+        # CWD（Bridge 服务器启动目录，如 opencode/），与用户配置的 work_dir 不一致，
+        # 导致模型被告知错误的工作目录。这里与 project_root 对齐即可。
+        self.work_dir = self.project_root
         # 详细日志：显示 project_root 解析结果
-        logger.info(f"AgentLoop init: project_root={self.project_root}, cwd={os.getcwd()}, config.project_root={config.get('project_root', '.')}")
+        logger.info(f"AgentLoop init: project_root={self.project_root}, work_dir={self.work_dir}, cwd={os.getcwd()}, config.project_root={config.get('project_root', '.')}")
         # 注入 project_root 到 plan_mode 模块（替代 os.getcwd()）
         try:
             from tools.builtin.plan_mode import set_project_root
