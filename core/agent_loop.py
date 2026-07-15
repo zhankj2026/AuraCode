@@ -2109,6 +2109,14 @@ class AgentLoop:
 
                 handler = tool["handler"]
                 logger.info(f"Executing handler for {tool_name} with args: {list(arguments.keys())}")
+
+                # 注入当前会话模型到线程局部，供 Subagent/Workflow 默认继承
+                # （否则 spawn 链路会用硬编码 glm-4-plus，与目标 API 不兼容）
+                try:
+                    from core.subagent import set_current_model
+                    set_current_model(self.model)
+                except Exception:
+                    pass
                 
                 # 为文件写入类工具传递 project_root
                 if tool_name in ("write_file", "edit_file", "search_replace"):

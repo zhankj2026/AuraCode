@@ -104,8 +104,8 @@ def dynamic_workflow_handler(
         if "❌" in load_result:
             return load_result
         
-        # 执行工作流
-        execute_result = coordinator.execute_workflow(model="glm-4-plus")
+        # 执行工作流（model=None → 继承当前会话模型）
+        execute_result = coordinator.execute_workflow(model=None)
         
         # 如果需要保存脚本
         if save_script:
@@ -215,7 +215,7 @@ def save_workflow_handler(
 
 def execute_saved_workflow_handler(
     name: str,
-    model: str = "glm-4-plus"
+    model: str = None
 ) -> str:
     """
     执行已保存的工作流脚本
@@ -365,8 +365,7 @@ register_tool("execute_saved_workflow", {
             },
             "model": {
                 "type": "string",
-                "description": "LLM model to use",
-                "default": "glm-4-plus",
+                "description": "LLM model to use (留空继承当前会话模型)",
             },
         },
         "required": ["name"],

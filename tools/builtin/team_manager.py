@@ -267,7 +267,7 @@ def team_spawn_handler(
     name: str,
     agent_type: str = "general",
     role: str = "",
-    model: str = "glm-4-plus",
+    model: str = None,
     initial_prompt: str = ""
 ) -> str:
     """
@@ -284,6 +284,11 @@ def team_spawn_handler(
     Returns:
         启动结果
     """
+    # 继承父会话模型（未显式指定时）
+    if not model:
+        from core.subagent import get_current_model
+        model = get_current_model()
+
     # 验证团队存在
     if team_name not in _TEAMS:
         return f"❌ Error: Team '{team_name}' not found. Use `team_create` first."
@@ -574,8 +579,7 @@ register_tool("team_spawn", {
             },
             "model": {
                 "type": "string",
-                "description": "Model to use",
-                "default": "glm-4-plus",
+                "description": "Model to use (留空继承当前会话模型)",
             },
             "initial_prompt": {
                 "type": "string",

@@ -31,6 +31,24 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
+# ── 父会话模型继承（线程局部）─────────────────────────────────────────────
+# Subagent 默认继承父 AgentLoop 的当前模型。此前 spawn 链路硬编码 "glm-4-plus"，
+# 当目标 API（如 LongCat）不支持该模型时，子代理会以 400 失败。
+# AgentLoop 在执行工具前调用 set_current_model(self.model) 注入当前会话模型，
+# spawn_subagent 在未显式指定 model 时通过 get_current_model() 继承。
+_current_model_local = threading.local()
+
+
+def set_current_model(model: str) -> None:
+    """设置当前线程的"父会话模型"，供 Subagent 默认继承。"""
+    _current_model_local.model = model
+
+
+def get_current_model(default: str = "glm-4-plus") -> str:
+    """获取当前线程的父会话模型；未设置时回退到 default。"""
+    return getattr(_current_model_local, "model", None) or default
+
+
 @dataclass
 class SubagentHandle:
     """
@@ -525,7 +543,7 @@ Do NOT return raw search results or verbose logs."""
     def spawn_subagent(
         self,
         task: str,
-        model: str = "glm-4-plus",
+        model: str = None,
         agent_type: str = "general",
         run_in_background: bool = True,
         fork_mode: bool = False,
@@ -547,6 +565,9 @@ Do NOT return raw search results or verbose logs."""
         Returns:
             SubagentHandle 句柄
         """
+        # 继承父会话模型：未显式指定时使用当前线程模型（由 AgentLoop 注入）
+        model = model or get_current_model()
+
         # 生成唯一 ID
         agent_id = str(uuid.uuid4())[:8]
 
@@ -859,7 +880,7 @@ class SubagentOrchestrator:
         return self._shared_context.get(key, default)
 
     def run_sequential(self, tasks: List[Dict[str, Any]],
-                       model: str = "glm-4-plus") -> List[Dict]:
+                       model: str = None) -> List[Dict]:
         """
         串行执行任务链 (前一个结果自动注入下一个上下文)
 
@@ -908,7 +929,7 @@ class SubagentOrchestrator:
         return results
 
     def run_parallel(self, tasks: List[Dict[str, Any]],
-                     model: str = "glm-4-plus",
+                     model: str = None,
                      timeout: float = 120.0) -> List[Dict]:
         """
         并行执行多个任务并等待全部完成
@@ -1030,7 +1051,7 @@ class SubagentOrchestrator:
 
     # ── Dynamic Workflows 增强 ──
 
-    def run_workflow(self, workflow_script, model: str = "glm-4-plus") -> Dict[str, Any]:
+    def run_workflow(self, workflow_script, model: str = None) -> Dict[str, Any]:
         """
         执行阶段化工作流（Dynamic Workflows 核心方法）
 
@@ -1220,7 +1241,7 @@ class SubagentOrchestrator:
         # 启动综合 Agent
         synthesis_handle = self.manager.spawn_subagent(
             task=f"{synthesize_prompt}\n\n---\n\n所有发现:\n{all_findings}",
-            model="glm-4-plus",
+            model=None,
             agent_type="general",
             run_in_background=False  # 同步等待
         )

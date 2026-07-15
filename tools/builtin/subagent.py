@@ -26,7 +26,7 @@ from tools.registry import register_tool
 
 def spawn_subagent_handler(
     task: str,
-    model: str = "glm-4-plus",
+    model: str = None,
     agent_type: str = "general",
     run_in_background: bool = True,
     fork_mode: bool = False
@@ -75,7 +75,7 @@ def spawn_subagent_handler(
                 f"**Agent ID**: {handle.agent_id}\n"
                 f"**类型**: {handle.agent_type}\n"
                 f"**任务**: {task[:100]}{'...' if len(task) > 100 else ''}\n"
-                f"**模型**: {model}\n"
+                f"**模型**: {handle.model}\n"
                 f"**模式**: {mode_desc}\n"
                 f"**状态**: 运行中\n\n"
                 f"**输出文件**: {output_file}\n\n"
@@ -295,8 +295,7 @@ register_tool("spawn_subagent", {
             },
             "model": {
                 "type": "string",
-                "description": "使用的模型名称",
-                "default": "glm-4-plus"
+                "description": "使用的模型名称（留空则继承当前会话模型）"
             },
             "agent_type": {
                 "type": "string",
