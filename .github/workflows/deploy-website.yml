@@ -1,0 +1,51 @@
+name: Deploy Website to GitHub Pages
+
+on:
+  # 推送到 master 时自动部署（仅当 website 目录或本工作流有改动）
+  push:
+    branches: [master]
+    paths:
+      - 'website/**'
+      - '.github/workflows/deploy-website.yml'
+  # 允许在 Actions 页面手动触发
+  workflow_dispatch:
+
+# Pages 部署所需权限
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时间只跑一个部署任务，新推送会取消旧的、进行中的部署
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build static site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      # 把 website/ 目录打包为 Pages 制品（会自动添加 .nojekyll，跳过 Jekyll 处理）
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: website
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
