@@ -6,6 +6,8 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-50%2B%20passing-brightgreen.svg)](tests/)
 
+🌐 **官方网站 / 在线文档：[http://auracode.top/](http://auracode.top/)**
+
 ---
 
 ## ✨ 核心特性
