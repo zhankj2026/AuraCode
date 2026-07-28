@@ -104,7 +104,7 @@ def test_skill_tools():
     skill_tools.activate_skill_handler("git-workflow")
 
     # 构建系统提示词
-    system_prompt = loop._build_system_prompt()
+    system_prompt = loop.prompt_builder.build_system_prompt()
 
     # 验证
     assert "## 可用技能" in system_prompt
@@ -126,13 +126,13 @@ def test_skill_tools():
     skill_tools.deactivate_skill_handler("python-standards")
     skill_tools.deactivate_skill_handler("git-workflow")
 
-    prompt_no_active = loop._build_system_prompt()
+    prompt_no_active = loop.prompt_builder.build_system_prompt()
 
     # 全部激活
     skill_tools.activate_skill_handler("python-standards")
     skill_tools.activate_skill_handler("git-workflow")
 
-    prompt_with_active = loop._build_system_prompt()
+    prompt_with_active = loop.prompt_builder.build_system_prompt()
 
     print(f"  无激活技能: {len(prompt_no_active)} 字符")
     print(f"  两个激活技能: {len(prompt_with_active)} 字符")

@@ -1,0 +1,26 @@
+{
+  "name": "save-test-workflow",
+  "description": "测试保存工具",
+  "stages": [
+    {
+      "name": "stage1",
+      "agents": [
+        {
+          "prompt": "任务",
+          "agent_type": "explore",
+          "timeout": 300,
+          "retry_on_failure": false,
+          "max_retries": 2
+        }
+      ],
+      "depends": [],
+      "synthesize": true,
+      "synthesize_prompt": "",
+      "description": ""
+    }
+  ],
+  "validation": {},
+  "convergence_check": "",
+  "max_iterations": 3,
+  "metadata": {}
+}

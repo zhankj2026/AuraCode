@@ -1,0 +1,30 @@
+{
+  "name": "workflow-集成测试工作流",
+  "description": "集成测试工作流",
+  "stages": [
+    {
+      "name": "verification",
+      "agents": [
+        {
+          "prompt": "验证任务：集成测试工作流\n\n你的任务：\n1. 检查实施结果是否符合要求\n2. 验证代码的正确性和完整性\n3. 检查是否遗漏了重要方面\n4. 评估整体质量\n\n验证清单：\n- [ ] 所有要求的修改都已完成\n- [ ] 代码质量符合标准\n- [ ] 没有引入新的问题\n- [ ] 文档和注释完整\n\n输出格式：\n## 验证结果\n\n### 通过项\n- 验证项: 状态\n\n### 问题项\n- 问题描述: 建议修复方式\n\n### 总体评价\n- 质量评分：1-10\n- 建议：后续改进方向\n",
+          "agent_type": "review",
+          "timeout": 300,
+          "retry_on_failure": false,
+          "max_retries": 2
+        }
+      ],
+      "depends": [],
+      "synthesize": false,
+      "synthesize_prompt": "",
+      "description": ""
+    }
+  ],
+  "validation": {},
+  "convergence_check": "",
+  "max_iterations": 3,
+  "metadata": {
+    "generated_by": "WorkflowScriptGenerator",
+    "task_complexity": "auto-detected",
+    "version": "1.0"
+  }
+}

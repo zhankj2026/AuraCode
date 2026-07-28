@@ -46,7 +46,7 @@ def test_skill_metadata_injection():
     loop = AgentLoop(config)
 
     # 构建系统提示词
-    system_prompt = loop._build_system_prompt()
+    system_prompt = loop.prompt_builder.build_system_prompt()
 
     # 验证 1: 包含可用技能列表
     print("\n[验证 1] 检查可用技能列表")
@@ -68,7 +68,7 @@ def test_skill_metadata_injection():
     print("\n[测试 2] 激活 python-standards 技能")
     loop.activate_skill("python-standards")
 
-    system_prompt = loop._build_system_prompt()
+    system_prompt = loop.prompt_builder.build_system_prompt()
 
     # 验证 3: 状态更新
     print("\n[验证 3] 检查技能状态更新")
@@ -101,7 +101,7 @@ def test_skill_metadata_injection():
     print("\n[测试 3] 激活多个技能")
     loop.activate_skill("git-workflow")
 
-    system_prompt = loop._build_system_prompt()
+    system_prompt = loop.prompt_builder.build_system_prompt()
 
     print("\n[验证 6] 检查多个技能激活")
     active_skills = loop.list_active_skills()
@@ -119,7 +119,7 @@ def test_skill_metadata_injection():
 
     # 无激活技能
     loop2 = AgentLoop(config)
-    prompt_no_active = loop2._build_system_prompt()
+    prompt_no_active = loop2.prompt_builder.build_system_prompt()
 
     # 两个激活技能
     config_with_active = {
@@ -131,7 +131,7 @@ def test_skill_metadata_injection():
         "active_skills": ["python-standards", "git-workflow"]
     }
     loop3 = AgentLoop(config_with_active)
-    prompt_with_active = loop3._build_system_prompt()
+    prompt_with_active = loop3.prompt_builder.build_system_prompt()
 
     print(f"无激活技能的系统提示词长度: {len(prompt_no_active)} 字符")
     print(f"两个激活技能的系统提示词长度: {len(prompt_with_active)} 字符")

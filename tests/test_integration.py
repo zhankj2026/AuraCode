@@ -114,7 +114,7 @@ def test_integration():
 
     # 7. Test system prompt includes skills
     print("\n[Test 7] Test system prompt")
-    system_prompt = loop._build_system_prompt()
+    system_prompt = loop.prompt_builder.build_system_prompt()
     assert "激活的技能" in system_prompt or "Python 编码规范" in system_prompt, \
         "System prompt should include activated skills"
     print("[OK] System prompt correctly includes skill prompts")

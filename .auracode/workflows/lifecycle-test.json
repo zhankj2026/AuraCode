@@ -1,0 +1,62 @@
+{
+  "name": "lifecycle-test",
+  "description": "完整生命周期测试",
+  "stages": [
+    {
+      "name": "scan",
+      "agents": [
+        {
+          "prompt": "扫描代码",
+          "agent_type": "explore",
+          "timeout": 300,
+          "retry_on_failure": false,
+          "max_retries": 2
+        }
+      ],
+      "depends": [],
+      "synthesize": true,
+      "synthesize_prompt": "",
+      "description": ""
+    },
+    {
+      "name": "analyze",
+      "agents": [
+        {
+          "prompt": "分析结果",
+          "agent_type": "review",
+          "timeout": 300,
+          "retry_on_failure": false,
+          "max_retries": 2
+        }
+      ],
+      "depends": [
+        "scan"
+      ],
+      "synthesize": true,
+      "synthesize_prompt": "",
+      "description": ""
+    },
+    {
+      "name": "report",
+      "agents": [
+        {
+          "prompt": "生成报告",
+          "agent_type": "general",
+          "timeout": 300,
+          "retry_on_failure": false,
+          "max_retries": 2
+        }
+      ],
+      "depends": [
+        "analyze"
+      ],
+      "synthesize": false,
+      "synthesize_prompt": "",
+      "description": ""
+    }
+  ],
+  "validation": {},
+  "convergence_check": "",
+  "max_iterations": 3,
+  "metadata": {}
+}

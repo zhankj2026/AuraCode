@@ -85,7 +85,7 @@ def test_hooks_in_tool_execution():
     print("\n  [Test 2.1] Successful tool execution")
     tool_call = MockToolCall("list_directory", {"path": "."})
 
-    result = loop._execute_tool(tool_call)
+    result = loop.tool_executor.execute(tool_call)
     assert result["success"] == True, "Tool should succeed"
 
     # Check hooks were called
@@ -112,7 +112,7 @@ def test_hooks_in_tool_execution():
         "content": "test"
     })
 
-    result = loop._execute_tool(tool_call)
+    result = loop.tool_executor.execute(tool_call)
     assert result["success"] == False, "Tool should be blocked"
     assert "blocked" in result["error"].lower() or "hook" in result["error"].lower(), \
         "Error should mention hook blocking"
@@ -150,7 +150,7 @@ def test_hooks_in_tool_execution():
     # Try to execute a tool that will fail (invalid path)
     tool_call = MockToolCall("read_file", {"path": "/nonexistent/file.txt"})
 
-    result = loop._execute_tool(tool_call)
+    result = loop.tool_executor.execute(tool_call)
     # The tool might succeed or fail depending on implementation
     print(f"[OK] Failure hook test completed: success={result.get('success')}")
 
