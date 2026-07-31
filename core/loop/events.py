@@ -10,6 +10,8 @@ core.loop.events — 事件回调 / 生命周期钩子 / LLM 日志 / 结果元�
 
 import asyncio
 import logging
+import os
+import threading
 import time
 from typing import Any, Dict
 
@@ -97,7 +99,7 @@ class EventEmitter:
 
     def write_llm_log(self, direction: str, model: str, attempt: int, data: Dict[str, Any] = None):
         """
-        将 LLM 请求/响应写入调试日志文件。
+        将 LLM 请求/响应写入调试日志文件（后台线程异步写入，避免阻塞流式主循环）。
         日志写入工作目录下的 .auraCode/llm_calls.log
 
         Args:
@@ -106,64 +108,83 @@ class EventEmitter:
             attempt: 重试次数
             data: 附加数据（响应时包含 finish_reason, content_preview 等）
         """
-        import os
         loop = self.loop
         try:
-            # 使用工作目录下的 .auraCode 目录
-            log_dir = os.path.join(loop.project_root or os.getcwd(), ".auraCode")
-            os.makedirs(log_dir, exist_ok=True)
-            # 日志文件名: llm_{session_id}_{date}.log (同一会话同一天写入同一文件)
-            session_id = getattr(loop, '_session_id', '') or str(id(loop))[:8]
-            date_str = time.strftime("%Y-%m-%d")
-            log_file = os.path.join(log_dir, f"llm_{session_id}_{date_str}.log")
-
-            timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-            turn = loop.state.turn_count
-
-            with open(log_file, "a", encoding="utf-8") as f:
-                f.write(f"\n{'='*80}\n")
-                f.write(f"[{timestamp}] {direction} | turn={turn} | attempt={attempt} | model={model}\n")
-                f.write(f"{'='*80}\n")
-
-                if direction == "REQUEST":
-                    # 写入请求信息
-                    f.write(f"\n--- MESSAGES ({len(loop.messages)} total) ---\n")
-                    for i, msg in enumerate(loop.messages):
-                        role = msg.get("role", "?")
-                        content = msg.get("content", "")
-                        if isinstance(content, str):
-                            content_preview = content[:500] + ("..." if len(content) > 500 else "")
-                        else:
-                            content_preview = str(content)[:500]
-                        f.write(f"\n[{i}] role={role}\n{content_preview}\n")
-
-                        # 工具调用
-                        tool_calls = msg.get("tool_calls", [])
-                        if tool_calls:
-                            f.write(f"  tool_calls: {len(tool_calls)}\n")
-                            for tc in tool_calls:
-                                func = tc.get("function", {}) if isinstance(tc, dict) else {}
-                                f.write(f"    - {func.get('name', '?')}\n")
-
-                    # 工具定义数量
-                    if loop.tools:
-                        f.write(f"\n--- TOOLS ({len(loop.tools)} defined) ---\n")
-                        tool_names = [t.get("function", {}).get("name", "?") for t in loop.tools]
-                        f.write(f"  {', '.join(tool_names)}\n")
-
-                elif direction == "RESPONSE" and data:
-                    f.write(f"\n--- RESPONSE ---\n")
-                    f.write(f"finish_reason: {data.get('finish_reason', '?')}\n")
-                    f.write(f"duration: {data.get('duration_ms', 0)}ms\n")
-                    f.write(f"tokens: prompt={data.get('prompt_tokens', 0)}, completion={data.get('completion_tokens', 0)}\n")
-                    f.write(f"tool_calls: {data.get('tool_calls', 0)} ({', '.join(data.get('tool_names', []))})\n")
-                    f.write(f"\n--- CONTENT PREVIEW ---\n")
-                    f.write(data.get('content_preview', '')[:2000])
-                    f.write("\n")
-
-            logger.debug(f"LLM log written to {log_file}")
+            # 在调用线程快照可变状态，避免后台线程读到被主线程改写的列表
+            snapshot = {
+                "project_root": loop.project_root or os.getcwd(),
+                "session_id": getattr(loop, '_session_id', '') or str(id(loop))[:8],
+                "turn": loop.state.turn_count,
+                "messages": list(loop.messages),      # 浅拷贝引用，迭代安全
+                "tools": list(loop.tools) if loop.tools else [],
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "date_str": time.strftime("%Y-%m-%d"),
+            }
         except Exception as e:
-            logger.warning(f"Failed to write LLM log: {e}")
+            logger.warning(f"Failed to snapshot for LLM log: {e}")
+            return
+
+        def _write():
+            try:
+                log_dir = os.path.join(snapshot["project_root"], ".auraCode")
+                os.makedirs(log_dir, exist_ok=True)
+                # 日志文件名: llm_{session_id}_{date}.log (同一会话同一天写入同一文件)
+                log_file = os.path.join(
+                    log_dir, f'llm_{snapshot["session_id"]}_{snapshot["date_str"]}.log'
+                )
+
+                with open(log_file, "a", encoding="utf-8") as f:
+                    f.write(f"\n{'='*80}\n")
+                    f.write(
+                        f'[{snapshot["timestamp"]}] {direction} | '
+                        f'turn={snapshot["turn"]} | attempt={attempt} | model={model}\n'
+                    )
+                    f.write(f"{'='*80}\n")
+
+                    if direction == "REQUEST":
+                        # 写入请求信息
+                        msgs = snapshot["messages"]
+                        f.write(f"\n--- MESSAGES ({len(msgs)} total) ---\n")
+                        for i, msg in enumerate(msgs):
+                            role = msg.get("role", "?")
+                            content = msg.get("content", "")
+                            if isinstance(content, str):
+                                content_preview = content[:500] + ("..." if len(content) > 500 else "")
+                            else:
+                                content_preview = str(content)[:500]
+                            f.write(f"\n[{i}] role={role}\n{content_preview}\n")
+
+                            # 工具调用
+                            tool_calls = msg.get("tool_calls", [])
+                            if tool_calls:
+                                f.write(f"  tool_calls: {len(tool_calls)}\n")
+                                for tc in tool_calls:
+                                    func = tc.get("function", {}) if isinstance(tc, dict) else {}
+                                    f.write(f"    - {func.get('name', '?')}\n")
+
+                        # 工具定义数量
+                        tools = snapshot["tools"]
+                        if tools:
+                            f.write(f"\n--- TOOLS ({len(tools)} defined) ---\n")
+                            tool_names = [t.get("function", {}).get("name", "?") for t in tools]
+                            f.write(f"  {', '.join(tool_names)}\n")
+
+                    elif direction == "RESPONSE" and data:
+                        f.write(f"\n--- RESPONSE ---\n")
+                        f.write(f"finish_reason: {data.get('finish_reason', '?')}\n")
+                        f.write(f"duration: {data.get('duration_ms', 0)}ms\n")
+                        f.write(f"tokens: prompt={data.get('prompt_tokens', 0)}, completion={data.get('completion_tokens', 0)}\n")
+                        f.write(f"tool_calls: {data.get('tool_calls', 0)} ({', '.join(data.get('tool_names', []))})\n")
+                        f.write(f"\n--- CONTENT PREVIEW ---\n")
+                        f.write(data.get('content_preview', '')[:2000])
+                        f.write("\n")
+
+                logger.debug(f"LLM log written to {log_file}")
+            except Exception as e:
+                logger.warning(f"Failed to write LLM log: {e}")
+
+        # 后台线程写入，不阻塞流式主循环（best-effort，daemon 线程进程退出时自动结束）
+        threading.Thread(target=_write, daemon=True).start()
 
     # ========== 结果元数据 ==========
 
