@@ -18,6 +18,8 @@ import os
 import threading
 from typing import Any, Dict
 
+from core.tool_categories import FILE_WRITE_TOOLS
+
 logger = logging.getLogger(__name__)
 
 
@@ -26,11 +28,11 @@ class FileChangeTracker:
 
     # 读类工具
     _CC_READ_TOOLS = {"read_file", "grep", "find", "glob", "analyze_file"}
-    # 写类工具
-    _CC_WRITE_TOOLS = {"write_file", "replace_in_file"}
+    # 写类工具（统一引用 core.tool_categories.FILE_WRITE_TOOLS）
+    _CC_WRITE_TOOLS = FILE_WRITE_TOOLS
 
     # 写入类工具集合（用于 file-history 自动备份）
-    _FILE_WRITE_TOOLS = {"write_file", "replace_in_file"}
+    _FILE_WRITE_TOOLS = FILE_WRITE_TOOLS
 
     def __init__(self, loop):
         self.loop = loop

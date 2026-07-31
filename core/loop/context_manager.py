@@ -16,6 +16,8 @@ import logging
 import os
 from typing import Dict, List
 
+from core.tool_categories import FILE_WRITE_TOOLS
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,9 +37,7 @@ class ContextManager:
     }
 
     # 可清除输入的工具（写类型 — 保留结果，清除旧输入）
-    MICROCOMPACT_CLEARABLE_INPUTS = {
-        "write_file", "replace_in_file",
-    }
+    MICROCOMPACT_CLEARABLE_INPUTS = FILE_WRITE_TOOLS
 
     MICROCOMPACT_CLEARED_MSG = "[result cleared to save context]"
     MICROCOMPACT_TRIGGER_MSGS = 12   # 消息数超过此值时触发

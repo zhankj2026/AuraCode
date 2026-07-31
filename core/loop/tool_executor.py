@@ -18,6 +18,12 @@ from tools.registry import TOOL_REGISTRY
 from core.loop.llm_client import LLMClient
 from core.tool_tracker import get_tool_tracker, get_tool_cache
 from core.subagent import set_current_model
+from core.tool_categories import (
+    FILE_WRITE_TOOLS,
+    PROJECT_ROOT_INJECT_TOOLS,
+    COMMAND_EXEC_TOOLS,
+    SEARCH_TOOLS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -189,20 +195,21 @@ class ToolExecutor:
                 except Exception:
                     pass
 
-                # 为文件写入类工具传递 project_root
-                if tool_name in ("write_file", "edit_file", "search_replace"):
+                # 为接受 project_root 的写入工具传递基准路径
+                # (仅 write_file;replace_in_file_handler 不接受该参数)
+                if tool_name in PROJECT_ROOT_INJECT_TOOLS:
                     if "project_root" not in arguments:
                         arguments["project_root"] = loop.project_root
 
                 # 为命令执行类工具传递 working_directory（基于 project_root）
-                if tool_name in ("run_command", "run_powershell"):
+                if tool_name in COMMAND_EXEC_TOOLS:
                     if "working_directory" not in arguments:
                         arguments["working_directory"] = loop.project_root
                     # SessionEnv: 注入会话环境脚本（venv/conda 等）
                     loop.persistence.inject_session_env(arguments, tool_name)
 
                 # 为搜索类工具传递 project_root（用于解析相对路径）
-                if tool_name in ("glob", "grep"):
+                if tool_name in SEARCH_TOOLS:
                     if "project_root" not in arguments:
                         arguments["project_root"] = loop.project_root
 
@@ -247,7 +254,7 @@ class ToolExecutor:
                         logger.info(f"PostToolUse 钩子: {post_result.additional_context}")
 
                 # 7. 自动验证（代码修改后）
-                if tool_name in ("write_file", "edit_file", "search_replace"):
+                if tool_name in FILE_WRITE_TOOLS:
                     loop.file_tracker.auto_validate_after_change(tool_name, arguments)
 
                 return {"success": True, "result": result}
