@@ -97,6 +97,7 @@ if TYPE_CHECKING:  # 仅类型检查时启用，避免运行时循环导入
     from core.loop.persistence import SessionPersistence
     from core.loop.extension_facade import ExtensionFacade
     from core.loop.summary import SummaryBuilder
+    from core.loop.tool_dispatcher import ToolDispatcher
 
 
 class LoopContext:
@@ -154,3 +155,4 @@ class LoopContext:
     persistence: "SessionPersistence"
     extensions: "ExtensionFacade"
     summary_builder: "SummaryBuilder"
+    tool_dispatcher: "ToolDispatcher"

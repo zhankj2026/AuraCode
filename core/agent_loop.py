@@ -27,7 +27,6 @@ import logging
 import asyncio
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
 
@@ -55,6 +54,7 @@ from core.loop.file_tracker import FileChangeTracker
 from core.loop.persistence import SessionPersistence
 from core.loop.extension_facade import ExtensionFacade
 from core.loop.summary import SummaryBuilder
+from core.loop.tool_dispatcher import ToolDispatcher
 
 logger = logging.getLogger(__name__)
 
@@ -228,6 +228,7 @@ class AgentLoop:
         self.persistence = SessionPersistence(self)
         self.extensions = ExtensionFacade(self)
         self.summary_builder = SummaryBuilder(self)
+        self.tool_dispatcher = ToolDispatcher(self)
 
         # ProjectStore: 加载项目级配置并应用（原 _apply_project_config）
         self.persistence.apply_project_config()
@@ -568,113 +569,8 @@ class AgentLoop:
                 # 重置截断计数器（有工具调用说明输出正常结束）
                 self.state.output_truncation_count = 0
 
-                # Step 4: 执行所有工具调用（并行优化）
-                tool_calls_list = stream_result.tool_calls
-                parallel_safe = {
-                    "read_file", "list_directory", "grep", "find",
-                    "glob_tool", "search_code", "web_fetch", "web_search",
-                    "tool_search", "sleep", "get_relevant_memories",
-                    "list_memories", "lsp_tool", "brief_tool",
-                    "task_get", "task_list",
-                }
-
-                # 将工具调用分组: 连续的只读工具批量化并行，其他顺序执行
-                batches = []
-                current_batch = []
-                for tc in tool_calls_list:
-                    if tc.function.name in parallel_safe:
-                        current_batch.append(tc)
-                    else:
-                        if current_batch:
-                            batches.append(("parallel", current_batch))
-                            current_batch = []
-                        batches.append(("sequential", [tc]))
-                if current_batch:
-                    batches.append(("parallel", current_batch))
-
-                for batch_type, batch_calls in batches:
-                    if self.state.is_aborted():
-                        break
-
-                    if batch_type == "parallel" and len(batch_calls) > 1:
-                        # ── 并行执行多个只读工具 ──
-                        print(f"⚡ 并行执行 {len(batch_calls)} 个工具...")
-                        results_map = {}
-                        with ThreadPoolExecutor(max_workers=min(len(batch_calls), 8)) as executor:
-                            futures = {
-                                executor.submit(self.tool_executor.execute, tc): tc
-                                for tc in batch_calls
-                            }
-                            for future in as_completed(futures):
-                                tc = futures[future]
-                                try:
-                                    result = future.result()
-                                except Exception as ex:
-                                    result = {"success": False, "error": str(ex)}
-                                results_map[tc.id] = (tc, result)
-
-                        # 按原始顺序写入消息（保证 OpenAI 规范）
-                        for tc in batch_calls:
-                            if tc.id in results_map:
-                                tc_obj, tool_result = results_map[tc.id]
-                            else:
-                                tc_obj, tool_result = tc, {"success": False, "error": "并行执行超时"}
-
-                            # 构建结果元数据（供前端显示上下文信息）
-                            result_meta = self.events.build_result_metadata(tool_result)
-                            self.events.emit("tool_complete", {
-                                "tool_name": tc_obj.function.name,
-                                "success": tool_result.get("success", False),
-                                "result": result_meta,
-                            })
-                            if tool_result.get("success"):
-                                result_content = tool_result.get("result")
-                            else:
-                                result_content = f"Error: {tool_result.get('error')}"
-                            self.state.messages.append({
-                                "role": "tool",
-                                "tool_call_id": tc_obj.id,
-                                "content": str(result_content),
-                            })
-                            status_icon = "✅" if tool_result.get("success") else "❌"
-                            print(f"{status_icon} [{tc_obj.function.name}] {str(result_content)[:200]}")
-
-                    else:
-                        # ── 顺序执行（写入/执行类工具或单个工具）──
-                        for tool_call in batch_calls:
-                            if self.state.is_aborted():
-                                break
-
-                            self.events.emit("tool_execute", {
-                                "tool_name": tool_call.function.name,
-                            })
-                            tool_result = self.tool_executor.execute(tool_call)
-                            # 构建结果元数据（供前端显示上下文信息）
-                            result_meta = self.events.build_result_metadata(tool_result)
-                            self.events.emit("tool_complete", {
-                                "tool_name": tool_call.function.name,
-                                "success": tool_result.get("success", False),
-                                "result": result_meta,
-                            })
-
-                            # Step 5: 工具结果以 role=tool 返回（OpenAI 规范）
-                            if tool_result.get("success"):
-                                result_content = tool_result.get("result")
-                            else:
-                                result_content = f"Error: {tool_result.get('error')}"
-                                # StopHook 恢复: 附加恢复提示让 LLM 尝试替代方案
-                                recovery = tool_result.get("recovery_hint")
-                                if recovery:
-                                    result_content += f"\n\nHint: {recovery}"
-                            self.state.messages.append({
-                                "role": "tool",
-                                "tool_call_id": tool_call.id,
-                                "content": str(result_content),
-                            })
-
-                            # 打印工具执行结果
-                            status_icon = "✅" if tool_result.get("success") else "❌"
-                            print(f"{status_icon} [{tool_call.function.name}] {str(result_content)[:200]}")
+                # Step 4: 执行所有工具调用（并行/顺序批量调度 → ToolDispatcher）
+                self.tool_dispatcher.dispatch(stream_result.tool_calls)
 
                 # Step 6: 继续循环
                 # SessionMemory: 每轮结束后尝试更新记忆
