@@ -98,6 +98,7 @@ if TYPE_CHECKING:  # 仅类型检查时启用，避免运行时循环导入
     from core.loop.extension_facade import ExtensionFacade
     from core.loop.summary import SummaryBuilder
     from core.loop.tool_dispatcher import ToolDispatcher
+    from core.loop.orchestrator import LoopOrchestrator
 
 
 class LoopContext:
@@ -156,3 +157,4 @@ class LoopContext:
     extensions: "ExtensionFacade"
     summary_builder: "SummaryBuilder"
     tool_dispatcher: "ToolDispatcher"
+    orchestrator: "LoopOrchestrator"

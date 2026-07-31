@@ -39,6 +39,7 @@ from core.loop.persistence import SessionPersistence
 from core.loop.extension_facade import ExtensionFacade
 from core.loop.summary import SummaryBuilder
 from core.loop.tool_dispatcher import ToolDispatcher
+from core.loop.orchestrator import LoopOrchestrator
 
 __all__ = [
     "classify_error",
@@ -60,4 +61,5 @@ __all__ = [
     "ExtensionFacade",
     "SummaryBuilder",
     "ToolDispatcher",
+    "LoopOrchestrator",
 ]
