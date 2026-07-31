@@ -76,6 +76,9 @@ class AgentLoop:
                 - base_url: API 基础 URL(可选,从环境变量读取)
                 - model: 模型名称(默认 glm-4-plus)
                 - max_iterations: 最大迭代次数(默认 20)
+                - default_max_tokens: 每次 LLM 请求的输出 token 上限(默认 32000)
+                - max_tokens: 整个 query 的 输入+输出 token 总预算(历史命名,实际是预算)
+                - max_budget_usd: 费用预算上限(美元)
                 - permission_mode: 权限模式(normal/auto/plan/bypass)
                 - enable_plugins: 是否启用插件(默认 True)
                 - enable_hooks: 是否启用钩子(默认 True)
@@ -109,11 +112,17 @@ class AgentLoop:
         # 2. 配置参数
         self.model = config.get("model", "glm-4.7")
         self.max_iterations = config.get("max_iterations")  # None 表示无限制
-        # 默认输出 token 限制
+
+        # ⚠️ max_tokens 命名陷阱（配置键名与属性名语义相反，极易混淆）:
+        #   - self.max_tokens        : 每次 LLM 请求的输出 token 上限
+        #                              （透传给 API 的 max_tokens 参数）
+        #                              配置键: config["default_max_tokens"]（默认 32000）
+        #   - self.max_budget_tokens : 整个 query 的 输入+输出 token 总预算
+        #                              配置键: config["max_tokens"]（历史命名，实际是预算）
         self.max_tokens = config.get("default_max_tokens", 32000)
-        # 预算限制
         self.max_budget_tokens = config.get("max_tokens")  # token 预算（输入+输出）
-        self.max_budget_usd = config.get("max_budget_usd")  # 费用预算（美元）
+        # 费用预算（美元）
+        self.max_budget_usd = config.get("max_budget_usd")
         # 工作目录：工具文件操作的基准路径（Bridge 模式下为用户指定的 work_dir）
         self.project_root = os.path.abspath(config.get("project_root", "."))
         # work_dir 别名：系统提示词的"主工作目录"、git 检测、project_context 等多处
