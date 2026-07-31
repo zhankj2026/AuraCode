@@ -77,6 +77,27 @@ class EventEmitter:
             # text_chunk 失败不影响主流程
             logger.debug(f"Text chunk emit failed: {e}")
 
+    def run_hooks(self, event: str, **kwargs):
+        """
+        在新事件循环中同步执行钩子，返回 ``execute_hooks`` 的结果（失败返回 None）。
+
+        抽取自原 fire_lifecycle_hook / ToolExecutor 四处重复的
+        new_event_loop → set_event_loop → run_until_complete → close 样板（#12）。
+        调用方需自行判断 ``hooks_enabled`` / ``hook_manager``（与原逻辑一致）。
+        """
+        try:
+            evloop = asyncio.new_event_loop()
+            asyncio.set_event_loop(evloop)
+            try:
+                return evloop.run_until_complete(
+                    self.loop.hook_manager.execute_hooks(event, **kwargs)
+                )
+            finally:
+                evloop.close()
+        except Exception as e:
+            logger.warning(f"Hook {event} execution failed: {e}")
+            return None
+
     def fire_lifecycle_hook(self, event: str, kwargs: Dict[str, Any] = None):
         """
         触发生命周期钩子（同步封装）。
@@ -85,15 +106,7 @@ class EventEmitter:
         """
         if not self.loop.hooks_enabled or not self.loop.hook_manager:
             return
-        try:
-            evloop = asyncio.new_event_loop()
-            asyncio.set_event_loop(evloop)
-            evloop.run_until_complete(
-                self.loop.hook_manager.execute_hooks(event, **(kwargs or {}))
-            )
-            evloop.close()
-        except Exception as e:
-            logger.warning(f"Lifecycle hook {event} failed: {e}")
+        self.run_hooks(event, **(kwargs or {}))
 
     # ========== LLM 调试日志 ==========
 

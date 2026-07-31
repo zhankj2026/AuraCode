@@ -8,7 +8,6 @@ JSON 解析 → PreToolUse 钩子 → 权限检查 → 计划模式检查 → �
 路径解析 → 执行（含幂等重试）→ 截断/裁剪 → PostToolUse 钩子 → 自动验证。
 """
 
-import asyncio
 import json
 import logging
 import os
@@ -58,21 +57,10 @@ class ToolExecutor:
 
         # 2. PreToolUse 钩子
         if loop.hooks_enabled and loop.hook_manager:
-            try:
-                # 在新事件循环中执行异步钩子
-                evloop = asyncio.new_event_loop()
-                asyncio.set_event_loop(evloop)
-
-                pre_result = evloop.run_until_complete(
-                    loop.hook_manager.execute_hooks(
-                        "PreToolUse",
-                        tool_name=tool_name,
-                        input=arguments
-                    )
-                )
-
-                evloop.close()
-
+            pre_result = loop.events.run_hooks(
+                "PreToolUse", tool_name=tool_name, input=arguments
+            )
+            if pre_result is not None:
                 # 检查钩子是否阻止执行
                 if not pre_result.allow:
                     error_msg = f"Hook denied: {pre_result.block_reason or 'blocked by hook'}"
@@ -98,9 +86,6 @@ class ToolExecutor:
                 # 记录附加上下文
                 if pre_result.additional_context:
                     logger.debug(f"钩子附加上下文: {pre_result.additional_context}")
-
-            except Exception as e:
-                logger.warning(f"PreToolUse 钩子执行失败: {e}")
 
         # 3. 权限检查
         if not loop.permission_manager.check_permission(tool_name, arguments):
@@ -252,26 +237,14 @@ class ToolExecutor:
 
                 # 6. PostToolUse 钩子
                 if loop.hooks_enabled and loop.hook_manager:
-                    try:
-                        evloop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(evloop)
-
-                        post_result = evloop.run_until_complete(
-                            loop.hook_manager.execute_hooks(
-                                "PostToolUse",
-                                tool_name=tool_name,
-                                input=arguments,
-                                output={"success": True, "result": result}
-                            )
-                        )
-
-                        evloop.close()
-
-                        if post_result.additional_context:
-                            logger.info(f"PostToolUse 钩子: {post_result.additional_context}")
-
-                    except Exception as e:
-                        logger.warning(f"PostToolUse 钩子执行失败: {e}")
+                    post_result = loop.events.run_hooks(
+                        "PostToolUse",
+                        tool_name=tool_name,
+                        input=arguments,
+                        output={"success": True, "result": result},
+                    )
+                    if post_result is not None and post_result.additional_context:
+                        logger.info(f"PostToolUse 钩子: {post_result.additional_context}")
 
                 # 7. 自动验证（代码修改后）
                 if tool_name in ("write_file", "edit_file", "search_replace"):
@@ -308,39 +281,23 @@ class ToolExecutor:
 
     def _trigger_failure_hook(self, tool_name: str, arguments: Dict[str, Any], error: str):
         """触发工具失败钩子（权限拒绝/钩子阻止）"""
-        try:
-            evloop = asyncio.new_event_loop()
-            asyncio.set_event_loop(evloop)
-
-            evloop.run_until_complete(
-                self.loop.hook_manager.execute_hooks(
-                    "PostToolUseFailure",
-                    tool_name=tool_name,
-                    input=arguments,
-                    error=error
-                )
-            )
-
-            evloop.close()
-        except Exception as e:
-            logger.warning(f"PostToolUseFailure 钩子执行失败: {e}")
+        if not (self.loop.hooks_enabled and self.loop.hook_manager):
+            return
+        self.loop.events.run_hooks(
+            "PostToolUseFailure",
+            tool_name=tool_name,
+            input=arguments,
+            error=error,
+        )
 
     def _trigger_tool_error_hook(self, tool_name: str, arguments: Dict[str, Any], exception: Exception):
         """触发 ToolError 钩子（工具抛出异常时，区别于权限拒绝）"""
-        try:
-            evloop = asyncio.new_event_loop()
-            asyncio.set_event_loop(evloop)
-
-            evloop.run_until_complete(
-                self.loop.hook_manager.execute_hooks(
-                    "ToolError",
-                    tool_name=tool_name,
-                    input=arguments,
-                    exception=exception,
-                    error_type=type(exception).__name__,
-                )
-            )
-
-            evloop.close()
-        except Exception as e:
-            logger.warning(f"ToolError 钩子执行失败: {e}")
+        if not (self.loop.hooks_enabled and self.loop.hook_manager):
+            return
+        self.loop.events.run_hooks(
+            "ToolError",
+            tool_name=tool_name,
+            input=arguments,
+            exception=exception,
+            error_type=type(exception).__name__,
+        )
