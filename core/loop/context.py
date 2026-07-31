@@ -96,6 +96,7 @@ if TYPE_CHECKING:  # 仅类型检查时启用，避免运行时循环导入
     from core.loop.file_tracker import FileChangeTracker
     from core.loop.persistence import SessionPersistence
     from core.loop.extension_facade import ExtensionFacade
+    from core.loop.summary import SummaryBuilder
 
 
 class LoopContext:
@@ -152,3 +153,4 @@ class LoopContext:
     file_tracker: "FileChangeTracker"
     persistence: "SessionPersistence"
     extensions: "ExtensionFacade"
+    summary_builder: "SummaryBuilder"

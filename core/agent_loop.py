@@ -54,6 +54,7 @@ from core.loop.context_manager import ContextManager
 from core.loop.file_tracker import FileChangeTracker
 from core.loop.persistence import SessionPersistence
 from core.loop.extension_facade import ExtensionFacade
+from core.loop.summary import SummaryBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -226,6 +227,7 @@ class AgentLoop:
         self.file_tracker = FileChangeTracker(self)
         self.persistence = SessionPersistence(self)
         self.extensions = ExtensionFacade(self)
+        self.summary_builder = SummaryBuilder(self)
 
         # ProjectStore: 加载项目级配置并应用（原 _apply_project_config）
         self.persistence.apply_project_config()
@@ -554,7 +556,7 @@ class AgentLoop:
                     # 生成会话总结（仅多轮对话时生成，单轮无需总结）
                     summary = None
                     if last_assistant_text and self.state.turn_count > 1:
-                        summary = self._build_programmatic_summary(last_assistant_text)
+                        summary = self.summary_builder.build(last_assistant_text)
 
                     return self.state.to_result(
                         status="success",
@@ -783,62 +785,6 @@ class AgentLoop:
         )
         self.events.fire_lifecycle_hook("Stop", {"status": result.status})
         return result
-
-    def _build_programmatic_summary(self, final_text: str) -> str:
-        """
-        程序化生成会话总结（不依赖额外 LLM 调用）
-
-        从已有的会话数据中提取关键信息，构建结构化总结。
-        零失败率，无需额外 API 调用。
-
-        Args:
-            final_text: 最后的助手响应文本
-
-        Returns:
-            会话总结文本
-        """
-        try:
-            # 1. 提取用户首条消息（需求）
-            user_request = ""
-            for msg in self.messages:
-                if msg.get("role") == "user":
-                    content = msg.get("content", "")
-                    if isinstance(content, str) and content.strip():
-                        user_request = content[:120].strip()
-                        break
-
-            # 2. 统计工具调用
-            tool_names = []
-            for msg in self.messages:
-                if msg.get("role") == "assistant":
-                    for tc in msg.get("tool_calls", []):
-                        func_name = tc.get("function", {}).get("name", "")
-                        if func_name and func_name not in tool_names:
-                            tool_names.append(func_name)
-
-            # 3. 构建总结
-            lines = []
-            if user_request:
-                lines.append(f"📋 需求：{user_request}")
-
-            # 最终回复摘要（取前 200 字符）
-            clean_text = final_text.strip()
-            if clean_text:
-                preview = clean_text[:200].replace('\n', ' ').strip()
-                if len(clean_text) > 200:
-                    preview += "..."
-                lines.append(f"✅ 完成：{preview}")
-
-            if tool_names:
-                lines.append(f"🔧 工具：{', '.join(tool_names[:8])}")
-
-            lines.append(f"📊 迭代：{self.state.turn_count} 轮 | 耗时：{self.state.elapsed_ms() / 1000:.1f}s")
-
-            return "\n".join(lines)
-
-        except Exception as e:
-            logger.warning(f"Programmatic summary failed: {e}")
-            return ""
 
     # ========== 中断控制 ==========
 
