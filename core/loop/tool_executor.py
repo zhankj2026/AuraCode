@@ -16,6 +16,8 @@ from typing import Any, Dict
 
 from tools.registry import TOOL_REGISTRY
 from core.loop.llm_client import LLMClient
+from core.tool_tracker import get_tool_tracker, get_tool_cache
+from core.subagent import set_current_model
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +138,6 @@ class ToolExecutor:
             pass  # plan_mode 模块未加载，跳过检查
 
         # 3.8 工具追踪 + 缓存检查
-        from core.tool_tracker import get_tool_tracker, get_tool_cache
         tracker = get_tool_tracker()
         cache = get_tool_cache()
         current_turn = loop.state.turn_count
@@ -184,7 +185,6 @@ class ToolExecutor:
                 # 注入当前会话模型到线程局部，供 Subagent/Workflow 默认继承
                 # （否则 spawn 链路会用硬编码 glm-4-plus，与目标 API 不兼容）
                 try:
-                    from core.subagent import set_current_model
                     set_current_model(loop.model)
                 except Exception:
                     pass
