@@ -17,6 +17,9 @@ from core.context import load_project_context
 
 logger = logging.getLogger(__name__)
 
+# 缓存未命中哨兵（False / "" / {} 都是合法的缓存值，不能用 None 判定）
+_GIT_CACHE_MISSING = object()
+
 
 class SystemPromptBuilder:
     """装配增强版 7 层系统提示词。"""
@@ -484,10 +487,14 @@ class SystemPromptBuilder:
         return "\n".join(sections)
 
     def _is_git_repository(self) -> bool:
-        """检查是否是 git 仓库"""
+        """检查是否是 git 仓库（结果缓存：git 状态作为会话快照，期间不变）"""
+        cached = getattr(self, '_git_repo_cache', _GIT_CACHE_MISSING)
+        if cached is not _GIT_CACHE_MISSING:
+            return cached
         import subprocess
         import os
 
+        is_repo = False
         try:
             result = subprocess.run(
                 ['git', 'rev-parse', '--git-dir'],
@@ -496,12 +503,17 @@ class SystemPromptBuilder:
                 text=True,
                 timeout=5
             )
-            return result.returncode == 0
+            is_repo = result.returncode == 0
         except Exception:
-            return False
+            is_repo = False
+        self._git_repo_cache = is_repo
+        return is_repo
 
     def _get_git_status_snapshot(self) -> dict:
-        """获取 git 状态快照"""
+        """获取 git 状态快照（结果缓存）"""
+        cached = getattr(self, '_git_snapshot_cache', _GIT_CACHE_MISSING)
+        if cached is not _GIT_CACHE_MISSING:
+            return cached
         import subprocess
         import os
 
@@ -545,13 +557,18 @@ class SystemPromptBuilder:
         except Exception as e:
             logger.debug(f"Failed to get git status: {e}")
 
+        self._git_snapshot_cache = info
         return info
 
     def _get_git_status_detailed(self) -> str:
-        """获取详细的 git 状态"""
+        """获取详细的 git 状态（结果缓存）"""
+        cached = getattr(self, '_git_detailed_cache', _GIT_CACHE_MISSING)
+        if cached is not _GIT_CACHE_MISSING:
+            return cached
         import subprocess
         import os
 
+        status = ""
         try:
             result = subprocess.run(
                 ['git', 'status', '--short'],
@@ -565,11 +582,10 @@ class SystemPromptBuilder:
                 status = result.stdout.strip()
                 if len(status) > 2000:
                     status = status[:2000] + "\n... (截断，如需更多信息，请使用Bash运行\"git status\")"
-                return status
         except Exception:
-            pass
-
-        return ""
+            status = ""
+        self._git_detailed_cache = status
+        return status
 
     def build_context_management_guidance(self) -> str:
         """构建上下文管理指导（参考 Claude 设计）"""
