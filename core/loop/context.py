@@ -57,7 +57,7 @@ core.loop.context — 协作者共享上下文契约
     ContextManager (core/loop/context_manager.py)
         _compact_messages         -> compact
         _image_strip / _snip_old_tool_results / _compact_messages_llm /
-        _microcompact / _microcompact_old_tool_inputs / _find_tool_name_for_result /
+        _microcompact / _microcompact_old_tool_inputs / _build_tool_name_index /
         _context_collapse
 
     FileChangeTracker (core/loop/file_tracker.py)

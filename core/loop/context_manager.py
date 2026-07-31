@@ -294,14 +294,17 @@ class ContextManager:
         if len(msgs) < self.MICROCOMPACT_TRIGGER_MSGS:
             return 0
 
+        # 一次性构建 tool_call_id -> tool_name 索引，避免对每个 tool 消息
+        # 都遍历全表(原 _find_tool_name_for_result → O(n²))
+        tool_name_by_id = self._build_tool_name_index()
+
         # 收集所有可清除的 tool 消息索引（按出现顺序）
         clearable_indices = []
         for i, msg in enumerate(msgs):
             if msg.get("role") != "tool":
                 continue
             tool_call_id = msg.get("tool_call_id", "")
-            # 查找对应的 assistant 消息以获取工具名
-            tool_name = self._find_tool_name_for_result(tool_call_id)
+            tool_name = tool_name_by_id.get(tool_call_id, "")
             if tool_name in self.MICROCOMPACT_CLEARABLE_TOOLS:
                 clearable_indices.append(i)
 
@@ -381,15 +384,22 @@ class ContextManager:
                             pass
         return cleared
 
-    def _find_tool_name_for_result(self, tool_call_id: str) -> str:
-        """根据 tool_call_id 查找对应 assistant 消息中的工具名"""
+    def _build_tool_name_index(self) -> Dict[str, str]:
+        """
+        构建 tool_call_id -> tool_name 的映射（单次遍历）。
+
+        供 microcompact 批量查表使用，替代原先对每个 tool 消息都遍历全表的
+        _find_tool_name_for_result（O(n²) → O(n)）。
+        """
+        index: Dict[str, str] = {}
         for msg in self.loop.state.messages:
             if msg.get("role") != "assistant":
                 continue
             for tc in msg.get("tool_calls", []):
-                if tc.get("id") == tool_call_id:
-                    return tc.get("function", {}).get("name", "")
-        return ""
+                tc_id = tc.get("id")
+                if tc_id:
+                    index[tc_id] = tc.get("function", {}).get("name", "")
+        return index
 
     def context_collapse(self) -> int:
         """
