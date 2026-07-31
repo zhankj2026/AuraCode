@@ -734,11 +734,13 @@ class AgentLoop:
                     ):
                         activated = self.state.activate_fallback()
                         if activated:
+                            # 先保存计数用于显示，再归零（否则日志/事件永远显示 0 次）
+                            error_count = _consecutive_server_errors
                             _consecutive_server_errors = 0
-                            print(f"\n⚠️ 主模型连续 {_consecutive_server_errors} 次服务器错误，已切换到备用模型: {activated}")
+                            print(f"\n⚠️ 主模型连续 {error_count} 次服务器错误，已切换到备用模型: {activated}")
                             self.events.emit("fallback_activated", {
                                 "model": activated,
-                                "reason": f"连续 {_consecutive_server_errors} 次服务器错误",
+                                "reason": f"连续 {error_count} 次服务器错误",
                             })
                             continue
                 else:
