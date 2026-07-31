@@ -154,7 +154,7 @@ class ToolExecutor:
         from core.tool_tracker import get_tool_tracker, get_tool_cache
         tracker = get_tool_tracker()
         cache = get_tool_cache()
-        current_turn = getattr(loop, '_current_turn', 0)
+        current_turn = loop.state.turn_count
         tracker.start_call(tool_name, arguments, turn=current_turn)
 
         # 缓存命中 → 直接返回
