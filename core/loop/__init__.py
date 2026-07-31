@@ -36,6 +36,7 @@ from core.loop.tool_executor import ToolExecutor
 from core.loop.context_manager import ContextManager
 from core.loop.file_tracker import FileChangeTracker
 from core.loop.persistence import SessionPersistence
+from core.loop.extension_facade import ExtensionFacade
 
 __all__ = [
     "classify_error",
@@ -54,4 +55,5 @@ __all__ = [
     "ContextManager",
     "FileChangeTracker",
     "SessionPersistence",
+    "ExtensionFacade",
 ]

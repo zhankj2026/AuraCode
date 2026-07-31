@@ -31,7 +31,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
 
-from tools.registry import TOOL_REGISTRY, get_tool_schemas, register_tool
+from tools.registry import get_tool_schemas, register_tool
 from permissions.manager import PermissionManager
 from core.memory import get_memory_manager
 from core.session_state import SessionState, QueryResult, TokenUsage
@@ -53,6 +53,7 @@ from core.loop.tool_executor import ToolExecutor
 from core.loop.context_manager import ContextManager
 from core.loop.file_tracker import FileChangeTracker
 from core.loop.persistence import SessionPersistence
+from core.loop.extension_facade import ExtensionFacade
 
 logger = logging.getLogger(__name__)
 
@@ -224,6 +225,7 @@ class AgentLoop:
         self.context_manager = ContextManager(self)
         self.file_tracker = FileChangeTracker(self)
         self.persistence = SessionPersistence(self)
+        self.extensions = ExtensionFacade(self)
 
         # ProjectStore: 加载项目级配置并应用（原 _apply_project_config）
         self.persistence.apply_project_config()
@@ -850,186 +852,47 @@ class AgentLoop:
         return self.state.is_aborted()
 
     # ========== 扩展系统控制方法 ==========
+    # 实现已迁至 core.loop.extension_facade.ExtensionFacade，
+    # 此处保留同名方法作为转发桩，保证 commands / tests 等既有调用方零破坏。
 
     def activate_skill(self, name: str) -> bool:
-        """
-        激活指定的技能
-
-        Args:
-            name: 技能名称
-
-        Returns:
-            True 如果成功,False 否则
-        """
-        if not self.skill_manager or not self.skills_enabled:
-            logger.warning("技能系统未启用")
-            return False
-
-        try:
-            self.skill_manager.activate_skill(name)
-            logger.info(f"激活技能: {name}")
-            return True
-        except ValueError as e:
-            logger.warning(f"激活技能失败: {e}")
-            return False
+        """激活指定的技能（转发到 ExtensionFacade）"""
+        return self.extensions.activate_skill(name)
 
     def deactivate_skill(self, name: str) -> bool:
-        """
-        停用指定的技能
-
-        Args:
-            name: 技能名称
-
-        Returns:
-            True 如果成功,False 否则
-        """
-        if not self.skill_manager or not self.skills_enabled:
-            logger.warning("技能系统未启用")
-            return False
-
-        return self.skill_manager.deactivate_skill(name)
+        """停用指定的技能（转发到 ExtensionFacade）"""
+        return self.extensions.deactivate_skill(name)
 
     def list_skills(self) -> str:
-        """
-        列出所有可用技能
-
-        Returns:
-            技能列表字符串
-        """
-        if not self.skill_manager or not self.skills_enabled:
-            return "技能系统未启用"
-
-        return self.skill_manager.list_skills(detailed=True)
+        """列出所有可用技能（转发到 ExtensionFacade）"""
+        return self.extensions.list_skills()
 
     def list_active_skills(self) -> List[str]:
-        """
-        获取已激活的技能列表
-
-        Returns:
-            已激活的技能名称列表
-        """
-        if not self.skill_manager or not self.skills_enabled:
-            return []
-
-        return self.skill_manager.get_active_skills()
+        """获取已激活的技能列表（转发到 ExtensionFacade）"""
+        return self.extensions.list_active_skills()
 
     def register_hook(
         self,
         event: str,
         handler,
         matcher: str = None,
-        priority: int = 0
+        priority: int = 0,
     ) -> int:
-        """
-        手动注册钩子
-
-        Args:
-            event: 钩子事件类型
-            handler: 钩子处理函数
-            matcher: 可选,只匹配特定工具名称
-            priority: 优先级,数字越大越先执行
-
-        Returns:
-            钩子 ID,如果失败返回 -1
-        """
-        if not self.hook_manager or not self.hooks_enabled:
-            logger.warning("钩子系统未启用")
-            return -1
-
-        try:
-            hook_id = self.hook_manager.register_hook(event, handler, matcher, priority)
-            logger.info(f"注册钩子: {event} [ID: {hook_id}]")
-            return hook_id
-        except ValueError as e:
-            logger.warning(f"注册钩子失败: {e}")
-            return -1
+        """手动注册钩子（转发到 ExtensionFacade）"""
+        return self.extensions.register_hook(event, handler, matcher, priority)
 
     def unregister_hook(self, hook_id: int) -> bool:
-        """
-        删除钩子
-
-        Args:
-            hook_id: 钩子 ID
-
-        Returns:
-            True 如果成功,False 否则
-        """
-        if not self.hook_manager or not self.hooks_enabled:
-            return False
-
-        return self.hook_manager.unregister_hook(hook_id)
+        """删除钩子（转发到 ExtensionFacade）"""
+        return self.extensions.unregister_hook(hook_id)
 
     def list_hooks(self) -> str:
-        """
-        列出所有已注册的钩子
-
-        Returns:
-            钩子列表字符串
-        """
-        if not self.hook_manager or not self.hooks_enabled:
-            return "钩子系统未启用"
-
-        hooks = self.hook_manager.list_hooks()
-        if not hooks:
-            return "没有注册的钩子"
-
-        lines = ["已注册的钩子:", ""]
-        for h in hooks:
-            lines.append(f"  [ID: {h['id']}] {h['event']}")
-            if h['matcher']:
-                lines.append(f"    匹配: {h['matcher']}")
-            lines.append(f"    优先级: {h['priority']}")
-            lines.append("")
-
-        return "\n".join(lines)
+        """列出所有已注册的钩子（转发到 ExtensionFacade）"""
+        return self.extensions.list_hooks()
 
     def list_plugins(self) -> str:
-        """
-        列出所有已加载的插件
-
-        Returns:
-            插件列表字符串
-        """
-        if not self.plugin_loader or not self.plugins_enabled:
-            return "插件系统未启用"
-
-        plugins = self.plugin_loader.list_plugins()
-        if not plugins:
-            return "没有加载的插件"
-
-        lines = [f"已加载的插件 (共 {len(plugins)} 个):", ""]
-        for p in plugins:
-            status = "✅" if p['available'] else "❌"
-            lines.append(f"  {status} {p['name']} v{p['version']}")
-            lines.append(f"     {p['description']}")
-            lines.append("")
-
-        return "\n".join(lines)
+        """列出所有已加载的插件（转发到 ExtensionFacade）"""
+        return self.extensions.list_plugins()
 
     def get_system_status(self) -> Dict[str, Any]:
-        """
-        获取扩展系统状态
-
-        Returns:
-            状态信息字典
-        """
-        status = {
-            "plugins": {
-                "enabled": self.plugins_enabled,
-                "loaded": len(self.plugin_loader.plugins) if self.plugin_loader else 0
-            },
-            "hooks": {
-                "enabled": self.hooks_enabled,
-                "registered": sum(self.hook_manager.get_hook_stats().values()) if self.hook_manager else 0
-            },
-            "skills": {
-                "enabled": self.skills_enabled,
-                "total": len(self.skill_manager.skills) if self.skill_manager else 0,
-                "active": len(self.skill_manager.get_active_skills()) if self.skill_manager else 0
-            },
-            "tools": {
-                "total": len(TOOL_REGISTRY)
-            }
-        }
-
-        return status
+        """获取扩展系统状态（转发到 ExtensionFacade）"""
+        return self.extensions.get_system_status()
