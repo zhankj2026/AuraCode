@@ -15,6 +15,8 @@ core.loop.persistence — 会话持久化服务集成
 
 import logging
 
+from core.loop.llm_client import usage_token
+
 logger = logging.getLogger(__name__)
 
 
@@ -112,9 +114,9 @@ class SessionPersistence:
             usage_dict = {}
             if usage:
                 usage_dict = {
-                    "prompt_tokens": getattr(usage, 'prompt_tokens', 0) or 0,
-                    "completion_tokens": getattr(usage, 'completion_tokens', 0) or 0,
-                    "total_tokens": getattr(usage, 'total_tokens', 0) or 0,
+                    "prompt_tokens": usage_token(usage, 'prompt_tokens'),
+                    "completion_tokens": usage_token(usage, 'completion_tokens'),
+                    "total_tokens": usage_token(usage, 'total_tokens'),
                 }
             loop._session_transcript.append_message(
                 message=msg,
@@ -146,8 +148,8 @@ class SessionPersistence:
         if not loop._session_transcript or not usage:
             return
         try:
-            prompt_tokens = getattr(usage, 'prompt_tokens', 0) or 0
-            completion_tokens = getattr(usage, 'completion_tokens', 0) or 0
+            prompt_tokens = usage_token(usage, 'prompt_tokens')
+            completion_tokens = usage_token(usage, 'completion_tokens')
             # 简单费用估算（实际定价由 SessionState 计算）
             cost_usd = 0.0  # 由 state 追踪，此处仅记录 token
             loop._session_transcript.append_cost_record(

@@ -26,6 +26,18 @@ logger = logging.getLogger(__name__)
 MAX_API_RETRIES = 10
 
 
+def usage_token(usage, attr: str) -> int:
+    """
+    安全提取 LLM usage 对象的 token 字段。
+
+    usage 为 None / 属性缺失 / 属性值为 0 或 None 时统一返回 0。
+    替代散落的 ``getattr(usage, attr, 0) or 0 if usage else 0`` 表达式。
+    """
+    if usage is None:
+        return 0
+    return getattr(usage, attr, 0) or 0
+
+
 @dataclass
 class StreamResult:
     """流式响应的归一化结果（兼容同步 API 接口）"""
@@ -226,9 +238,9 @@ class LLMClient:
                         "content_preview": full_content[:500] if full_content else "",
                         "tool_calls": len(tool_calls_list),
                         "tool_names": [tc.function.name for tc in tool_calls_list],
-                        "prompt_tokens": getattr(usage, 'prompt_tokens', 0) or 0 if usage else 0,
-                        "completion_tokens": getattr(usage, 'completion_tokens', 0) or 0 if usage else 0,
-                        "total_tokens": getattr(usage, 'total_tokens', 0) or 0 if usage else 0,
+                        "prompt_tokens": usage_token(usage, 'prompt_tokens'),
+                        "completion_tokens": usage_token(usage, 'completion_tokens'),
+                        "total_tokens": usage_token(usage, 'total_tokens'),
                         "has_reasoning": bool(reasoning_content),
                         "reasoning_length": len(reasoning_content),
                     },
@@ -241,8 +253,8 @@ class LLMClient:
                     "content_preview": full_content[:1000] if full_content else "",
                     "tool_calls": len(tool_calls_list),
                     "tool_names": [tc.function.name for tc in tool_calls_list],
-                    "prompt_tokens": getattr(usage, 'prompt_tokens', 0) or 0 if usage else 0,
-                    "completion_tokens": getattr(usage, 'completion_tokens', 0) or 0 if usage else 0,
+                    "prompt_tokens": usage_token(usage, 'prompt_tokens'),
+                    "completion_tokens": usage_token(usage, 'completion_tokens'),
                     "duration_ms": _llm_duration,
                 })
 
