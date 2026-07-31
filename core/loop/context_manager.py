@@ -114,6 +114,11 @@ class ContextManager:
 
         old_count = len(msgs)
         loop.state.messages = new_msgs
+        # compact 重建了消息列表,旧 _cc_file_ops 的 (msg_idx, ...) 全部失效
+        # (FileChangeTracker 写、ContextCollapse 读)。清空避免后续 context_collapse
+        # 用过期索引折叠到完全无关的消息上。
+        if hasattr(loop, '_cc_file_ops'):
+            loop._cc_file_ops.clear()
         logger.info(f"Context compacted: {old_count} -> {len(new_msgs)} messages")
         print(f"📦 上下文压缩: {old_count} -> {len(new_msgs)} 条消息")
         loop.events.emit("context_compacted", {
