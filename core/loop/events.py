@@ -77,6 +77,24 @@ class EventEmitter:
             # text_chunk 失败不影响主流程
             logger.debug(f"Text chunk emit failed: {e}")
 
+    def status(self, message: str, *, kind: str = "info"):
+        """
+        用户可见状态消息：CLI 打印 + Bridge 事件（统一输出通道，#11）。
+
+        替代散落在各协作者里的 print()。CLI 模式照常打印；Bridge 模式
+        （event_callback 已设置）额外收到 ``type="status"`` 事件，使外部
+        订阅方也能看到「思考中 / 工具结果 / 警告 / 压缩」等状态。
+
+        流式 token 级输出（每字符 print + flush）不走这里，仍由 emit_text_chunk
+        覆盖 Bridge、由裸 print 覆盖 CLI（性能敏感）。
+
+        Args:
+            message: 状态文本（通常带 emoji 图标）
+            kind: 状态类别 info / warning / success / error（供前端着色/过滤）
+        """
+        print(message)
+        self.emit("status", {"message": message, "kind": kind})
+
     def run_hooks(self, event: str, **kwargs):
         """
         在新事件循环中同步执行钩子，返回 ``execute_hooks`` 的结果（失败返回 None）。

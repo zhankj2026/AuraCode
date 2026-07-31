@@ -120,7 +120,7 @@ class ContextManager:
         if hasattr(loop, '_cc_file_ops'):
             loop._cc_file_ops.clear()
         logger.info(f"Context compacted: {old_count} -> {len(new_msgs)} messages")
-        print(f"📦 上下文压缩: {old_count} -> {len(new_msgs)} 条消息")
+        loop.events.status(f"📦 上下文压缩: {old_count} -> {len(new_msgs)} 条消息")
         loop.events.emit("context_compacted", {
             "messages_before": old_count,
             "messages_after": len(new_msgs),

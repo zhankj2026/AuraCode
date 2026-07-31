@@ -81,7 +81,7 @@ class ToolDispatcher:
     def _run_parallel(self, batch_calls: List[Any]) -> None:
         """并行执行多个只读工具,完成后按原始顺序写入消息。"""
         loop = self.loop
-        print(f"⚡ 并行执行 {len(batch_calls)} 个工具...")
+        loop.events.status(f"⚡ 并行执行 {len(batch_calls)} 个工具...")
 
         results_map: Dict[str, tuple] = {}
         with ThreadPoolExecutor(max_workers=min(len(batch_calls), self.MAX_PARALLEL_WORKERS)) as executor:
@@ -153,4 +153,7 @@ class ToolDispatcher:
 
         # 打印工具执行结果
         status_icon = "✅" if tool_result.get("success") else "❌"
-        print(f"{status_icon} [{tool_call.function.name}] {str(result_content)[:200]}")
+        loop.events.status(
+            f"{status_icon} [{tool_call.function.name}] {str(result_content)[:200]}",
+            kind="success" if tool_result.get("success") else "error",
+        )

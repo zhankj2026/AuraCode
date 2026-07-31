@@ -315,7 +315,7 @@ class LoopOrchestrator:
         if error_category == 'prompt_too_long' or "context_length" in error_str or "too long" in error_str:
             if not self._prompt_retried:
                 self._prompt_retried = True
-                print("\n⚠️ 上下文过长，正在压缩后重试...")
+                loop.events.status("\n⚠️ 上下文过长，正在压缩后重试...", kind="warning")
                 loop.context_manager.snip_old_tool_results()
                 loop.context_manager.compact()
                 loop.events.emit("prompt_too_long_recovery", {
@@ -339,7 +339,10 @@ class LoopOrchestrator:
             wait = 10  # 服务器错误统一等 10s
             error_label = "网络故障"
             logger.info(f"Transient error, turn-level retry in {wait:.0f}s: {e}")
-            print(f"\n⚠️ API {error_label}，{wait:.0f}s 后重试当前轮次...")
+            loop.events.status(
+                f"\n⚠️ API {error_label}，{wait:.0f}s 后重试当前轮次...",
+                kind="warning",
+            )
             loop.events.emit("turn_retry", {
                 "turn": loop.state.turn_count,
                 "error": str(e),
@@ -367,9 +370,10 @@ class LoopOrchestrator:
                     # 先保存计数用于显示，再归零（否则日志/事件永远显示 0 次）
                     error_count = self._consecutive_server_errors
                     self._consecutive_server_errors = 0
-                    print(
+                    loop.events.status(
                         f"\n⚠️ 主模型连续 {error_count} 次服务器错误，"
-                        f"已切换到备用模型: {activated}"
+                        f"已切换到备用模型: {activated}",
+                        kind="warning",
                     )
                     loop.events.emit("fallback_activated", {
                         "model": activated,
@@ -384,7 +388,10 @@ class LoopOrchestrator:
         if loop.state.fallback_model and not loop.state._active_model_override:
             activated = loop.state.activate_fallback()
             if activated:
-                print(f"\n⚠️ 主模型不可用，已切换到备用模型: {activated}")
+                loop.events.status(
+                    f"\n⚠️ 主模型不可用，已切换到备用模型: {activated}",
+                    kind="warning",
+                )
                 loop.events.emit("fallback_activated", {"model": activated})
                 return ("continue", None)
 

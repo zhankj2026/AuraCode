@@ -80,7 +80,7 @@ class LLMClient:
         loop = self.loop
         active_model = loop.state.get_active_model(loop.model)
         logger.debug(f"Streaming LLM ({active_model}) with {len(loop.messages)} messages")
-        print(f"\n🤔 思考中... (模型={active_model}, {len(loop.messages)} 条消息)")
+        loop.events.status(f"\n🤔 思考中... (模型={active_model}, {len(loop.messages)} 条消息)")
 
         max_retries = MAX_API_RETRIES
 
@@ -211,9 +211,11 @@ class LLMClient:
                     logger.info(f"Token: prompt={getattr(usage, 'prompt_tokens', '?')}, "
                                f"completion={getattr(usage, 'completion_tokens', '?')}, "
                                f"total={getattr(usage, 'total_tokens', '?')}")
-                    print(f"💰 Token: 输入={getattr(usage, 'prompt_tokens', '?')}, "
-                          f"输出={getattr(usage, 'completion_tokens', '?')}, "
-                          f"总计={getattr(usage, 'total_tokens', '?')}")
+                    loop.events.status(
+                        f"💰 Token: 输入={getattr(usage, 'prompt_tokens', '?')}, "
+                        f"输出={getattr(usage, 'completion_tokens', '?')}, "
+                        f"总计={getattr(usage, 'total_tokens', '?')}"
+                    )
 
                 # 记录 reasoning_content 到日志（用于调试/审计）
                 if reasoning_content:
@@ -283,7 +285,10 @@ class LLMClient:
                         f"LLM streaming {error_label} (attempt {attempt}/{max_retries}): {e}, "
                         f"retrying in {wait:.1f}s..."
                     )
-                    print(f"\n⚠️ API {error_label} ({e}), {wait:.0f}s 后重试 ({attempt}/{max_retries})...")
+                    loop.events.status(
+                        f"\n⚠️ API {error_label} ({e}), {wait:.0f}s 后重试 ({attempt}/{max_retries})...",
+                        kind="warning",
+                    )
                     loop.events.emit("api_retry", {
                         "attempt": attempt,
                         "max_retries": max_retries,
@@ -304,7 +309,7 @@ class LLMClient:
         loop = self.loop
         active_model = loop.state.get_active_model(loop.model)
         logger.debug(f"Calling LLM ({active_model}) with {len(loop.messages)} messages")
-        print(f"\n🤔 思考中... (模型={active_model}, {len(loop.messages)} 条消息)")
+        loop.events.status(f"\n🤔 思考中... (模型={active_model}, {len(loop.messages)} 条消息)")
 
         try:
             response = loop.client.chat.completions.create(
@@ -317,7 +322,7 @@ class LLMClient:
             )
             usage = response.usage
             if usage:
-                print(f"💰 Token: 输入={usage.prompt_tokens}, 输出={usage.completion_tokens}, 总计={usage.total_tokens}")
+                loop.events.status(f"💰 Token: 输入={usage.prompt_tokens}, 输出={usage.completion_tokens}, 总计={usage.total_tokens}")
             return response
         except Exception as e:
             logger.error(f"LLM API 调用失败 ({active_model}): {e}")
