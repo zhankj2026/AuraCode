@@ -470,7 +470,7 @@ class SystemPromptBuilder:
             )
 
         # 4. 模型信息
-        model_name = getattr(loop, 'model_name', 'unknown')
+        model_name = getattr(loop, 'model', 'unknown')
         sections.append(f"您由模型{model_name}驱动。")
 
         # 5. Git 状态快照（如果有）
