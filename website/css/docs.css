@@ -489,3 +489,154 @@
 .docs-sidebar::-webkit-scrollbar-thumb:hover {
     background: var(--primary-color);
 }
+
+/* ===== Markdown 内容样式（build_docs.py 生成页面使用） ===== */
+
+/* 文档标题渐变字（对齐 index.html hero-title 风格） */
+.docs-header h1 {
+    background: var(--gradient-1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.md-content {
+    line-height: 1.8;
+    color: var(--text-primary);
+}
+
+.md-paragraph {
+    margin: 1.25rem 0;
+    line-height: 1.8;
+}
+
+.inline-code {
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.35rem;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.85em;
+    color: var(--primary-color);
+}
+
+/* 表格 */
+.md-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 1.5rem 0;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+.md-table thead {
+    background: var(--gradient-1);
+}
+
+.md-table th {
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: white;
+}
+
+.md-table td {
+    padding: 0.875rem 1rem;
+    border-top: 1px solid var(--border-color);
+    background: var(--card-bg);
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.md-table tbody tr:hover td {
+    background: rgba(99, 102, 241, 0.05);
+}
+
+/* 引用块 */
+.md-quote {
+    border-left: 4px solid var(--primary-color);
+    background: rgba(99, 102, 241, 0.05);
+    padding: 1rem 1.25rem;
+    margin: 1.5rem 0;
+    border-radius: 0 0.5rem 0.5rem 0;
+    font-style: italic;
+    color: var(--text-secondary);
+}
+
+/* 列表 */
+.md-list {
+    margin: 1.25rem 0;
+    padding-left: 2rem;
+}
+
+.md-list li {
+    margin: 0.75rem 0;
+    line-height: 1.7;
+    position: relative;
+    color: var(--text-secondary);
+}
+
+.md-list li::marker {
+    color: var(--primary-color);
+}
+
+/* 链接 */
+.md-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 500;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.md-link:hover {
+    color: var(--secondary-color);
+    border-bottom-color: var(--secondary-color);
+}
+
+/* 粗体 / 斜体 */
+.md-strong {
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.md-em {
+    font-style: italic;
+    color: var(--text-secondary);
+}
+
+/* 分隔线 */
+.md-hr {
+    border: none;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+    margin: 2.5rem 0;
+}
+
+/* 面包屑导航 */
+.breadcrumb {
+    margin-bottom: 1.5rem;
+    font-size: 0.875rem;
+}
+
+.breadcrumb-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.breadcrumb-link:hover {
+    text-decoration: underline;
+}
+
+.breadcrumb-sep {
+    color: var(--text-secondary);
+    margin: 0 0.5rem;
+}
+
+.breadcrumb-item {
+    color: var(--text-secondary);
+    text-transform: capitalize;
+}

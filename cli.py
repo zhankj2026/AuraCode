@@ -438,7 +438,7 @@ def main():
     )
     parser.add_argument(
         "--model",
-        default="glm-4.7",
+        default="GLM-5.3-Flash",
         help="LLM 模型 (默认: glm-4.5-flash, 可选: glm-4.7, glm-4.5-air)"
     )
     parser.add_argument(

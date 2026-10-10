@@ -461,7 +461,7 @@ def generate_workflow_script(
 
 - [Dynamic Workflows 完整指南](batch-workflow.md)
 - [Coordinator 模式](../development/architecture.md#coordinator-模式)
-- [子代理系统](subagent-usage.md)
+- [子代理系统](../development/agent-architecture-guide.md)
 
 ---
 

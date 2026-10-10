@@ -6,19 +6,24 @@ const navLinks = document.querySelectorAll('.docs-sidebar a');
 
 function updateActiveLink() {
     let currentSection = '';
-    
+
     sections.forEach(section => {
         const sectionTop = section.offsetTop;
         const sectionHeight = section.clientHeight;
-        
+
         if (window.pageYOffset >= sectionTop - 150) {
             currentSection = section.getAttribute('id');
         }
     });
-    
+
+    // 只处理本页锚点链接（#xxx），不影响指向其他文档的页面级 active 高亮
     navLinks.forEach(link => {
+        const href = link.getAttribute('href');
+        if (!href || !href.startsWith('#')) {
+            return;
+        }
         link.classList.remove('active');
-        if (link.getAttribute('href') === `#${currentSection}`) {
+        if (href === `#${currentSection}`) {
             link.classList.add('active');
         }
     });

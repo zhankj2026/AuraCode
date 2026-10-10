@@ -6,7 +6,7 @@
 <title>AuraCode Bridge 移动端</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-:root{--bg:#0d1117;--s1:#161b22;--s2:#1c2128;--bd:#30363d;--tx:#e6edf3;--tx2:#8b949e;--acc:#58a6ff;--gn:#3fb950;--rd:#f85149;--yl:#d29922;--pp:#bc8cff}
+:root{--bg:#0f172a;--s1:#1e293b;--s2:#283548;--bd:#334155;--tx:#f8fafc;--tx2:#94a3b8;--acc:#6366f1;--gn:#10b981;--rd:#ef4444;--yl:#f59e0b;--pp:#a78bfa}
 body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--tx);height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;font-size:14px}
 
 /* Header */
@@ -17,7 +17,7 @@ body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:var(--
 .conn-row input:focus{outline:none;border-color:var(--acc)}
 .btn{padding:8px 14px;border-radius:6px;border:1px solid var(--bd);background:var(--s1);color:var(--tx);cursor:pointer;font-size:13px;font-weight:500;transition:.15s;white-space:nowrap}
 .btn:active{transform:scale(0.95)}
-.btn.primary{background:#238636;border-color:#238636;color:#fff}
+.btn.primary{background:#4f46e5;border-color:#4f46e5;color:#fff}
 .btn.danger{border-color:var(--rd);color:var(--rd)}
 .btn:disabled{opacity:0.4;pointer-events:none}
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
@@ -28,7 +28,7 @@ body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:var(--
 .tabs{display:flex;background:var(--s1);border-bottom:1px solid var(--bd);flex-shrink:0}
 .tab{flex:1;padding:10px;text-align:center;font-size:13px;font-weight:500;color:var(--tx2);border-bottom:2px solid transparent;cursor:pointer;transition:.15s}
 .tab.active{color:var(--acc);border-bottom-color:var(--acc)}
-.tab:active{background:rgba(88,166,255,0.05)}
+.tab:active{background:rgba(99,102,241,0.05)}
 
 /* Content Area */
 .content{flex:1;overflow:hidden;position:relative}
@@ -38,31 +38,31 @@ body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:var(--
 /* Sessions Pane */
 .session-list{flex:1;overflow-y:auto;padding:12px}
 .session-card{background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:12px;margin-bottom:8px;cursor:pointer;transition:.15s}
-.session-card:active{border-color:var(--acc);background:rgba(88,166,255,0.05)}
-.session-card.active{border-color:var(--acc);background:rgba(88,166,255,0.08)}
+.session-card:active{border-color:var(--acc);background:rgba(99,102,241,0.05)}
+.session-card.active{border-color:var(--acc);background:rgba(99,102,241,0.08)}
 .s-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
 .s-id{font-size:11px;color:var(--tx2);font-family:monospace}
 .s-title{font-size:14px;font-weight:500;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .s-meta{display:flex;gap:8px;font-size:11px;color:var(--tx2)}
 .badge{padding:2px 6px;border-radius:10px;font-size:10px;font-weight:600}
-.badge.idle{background:rgba(139,148,158,0.2);color:var(--tx2)}
-.badge.running{background:rgba(63,185,80,0.2);color:var(--gn)}
-.badge.requires_action{background:rgba(210,153,34,0.2);color:var(--yl)}
-.badge.completed{background:rgba(88,166,255,0.2);color:var(--acc)}
-.badge.failed{background:rgba(248,81,73,0.2);color:var(--rd)}
+.badge.idle{background:rgba(148,163,184,0.2);color:var(--tx2)}
+.badge.running{background:rgba(16,185,129,0.2);color:var(--gn)}
+.badge.requires_action{background:rgba(245,158,11,0.2);color:var(--yl)}
+.badge.completed{background:rgba(99,102,241,0.2);color:var(--acc)}
+.badge.failed{background:rgba(239,68,68,0.2);color:var(--rd)}
 
 .new-session{background:var(--s1);border-top:1px solid var(--bd);padding:12px;flex-shrink:0}
 .new-session input,.new-session select{width:100%;background:var(--bg);border:1px solid var(--bd);color:var(--tx);padding:8px 10px;border-radius:6px;font-size:13px;margin-bottom:8px}
 .new-session input:focus,.new-session select:focus{outline:none;border-color:var(--acc)}
 
 /* Terminal Pane */
-.terminal{flex:1;overflow-y:auto;padding:12px;font-family:'Cascadia Code','Fira Code',monospace;font-size:12px;line-height:1.5;background:#0a0e14}
+.terminal{flex:1;overflow-y:auto;padding:12px;font-family:'Cascadia Code','Fira Code',monospace;font-size:12px;line-height:1.5;background:#020617}
 .msg{margin-bottom:4px;word-wrap:break-word;white-space:pre-wrap}
-.msg.user{color:#79c0ff}.msg.ai{color:var(--tx)}.msg.think{color:var(--tx2);font-style:italic}
+.msg.user{color:#a5b4fc}.msg.ai{color:var(--tx)}.msg.think{color:var(--tx2);font-style:italic}
 .msg.tool{color:var(--yl)}.msg.result{color:var(--gn)}.msg.error{color:var(--rd)}.msg.sys{color:var(--tx2)}
 .msg .tag{display:inline-block;padding:1px 5px;border-radius:3px;font-size:10px;font-weight:600;margin-right:4px}
-.tag.exec{background:rgba(210,153,34,0.2);color:var(--yl)}.tag.ok{background:rgba(63,185,80,0.2);color:var(--gn)}
-.tag.err{background:rgba(248,81,73,0.2);color:var(--rd)}
+.tag.exec{background:rgba(245,158,11,0.2);color:var(--yl)}.tag.ok{background:rgba(16,185,129,0.2);color:var(--gn)}
+.tag.err{background:rgba(239,68,68,0.2);color:var(--rd)}
 
 .input-bar{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--bd);background:var(--s1);flex-shrink:0}
 .input-bar textarea{flex:1;background:var(--bg);border:1px solid var(--bd);color:var(--tx);padding:8px 10px;border-radius:6px;font-size:13px;font-family:inherit;resize:none;min-height:40px;max-height:100px}
@@ -72,8 +72,8 @@ body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:var(--
 .files-header{padding:10px 12px;border-bottom:1px solid var(--bd);background:var(--s1);font-size:12px;color:var(--tx2);flex-shrink:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .files-header .back{color:var(--acc);cursor:pointer}
 .file-list{flex:1;overflow-y:auto}
-.file-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid rgba(48,54,61,0.3);cursor:pointer}
-.file-item:active{background:rgba(88,166,255,0.05)}
+.file-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid rgba(51,65,85,0.3);cursor:pointer}
+.file-item:active{background:rgba(99,102,241,0.05)}
 .file-icon{font-size:16px;width:24px;text-align:center;flex-shrink:0}
 .file-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
 .file-size{color:var(--tx2);font-size:11px;flex-shrink:0}
@@ -89,8 +89,8 @@ body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:var(--
 .net-summary{display:flex;gap:12px;padding:10px 12px;border-bottom:1px solid var(--bd);background:var(--s1);font-size:12px;color:var(--tx2);flex-shrink:0}
 .net-summary b{color:var(--tx);font-size:13px}
 .net-list{flex:1;overflow-y:auto}
-.net-item{padding:10px 12px;border-bottom:1px solid rgba(48,54,61,0.3);cursor:pointer}
-.net-item:active{background:rgba(88,166,255,0.05)}
+.net-item{padding:10px 12px;border-bottom:1px solid rgba(51,65,85,0.3);cursor:pointer}
+.net-item:active{background:rgba(99,102,241,0.05)}
 .net-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
 .net-model{font-weight:500;font-size:13px}
 .net-stats{display:flex;gap:12px;font-size:11px;color:var(--tx2)}
@@ -219,8 +219,8 @@ body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:var(--
   <span id="sb1">未连接</span>
   <span id="sb2">会话: 0</span>
   <span id="sb3">事件: 0</span>
-  <span id="planModeIndicator" style="display:none;margin-left:8px;padding:2px 8px;background:#d29922;border-radius:10px;color:#fff;font-size:11px;font-weight:600">📝 Plan</span>
-  <button id="btnExitPlan" onclick="exitPlanMode()" style="display:none;margin-left:4px;padding:2px 6px;background:#238636;border:1px solid #2ea043;border-radius:4px;color:#fff;cursor:pointer;font-size:10px">🚪</button>
+  <span id="planModeIndicator" style="display:none;margin-left:8px;padding:2px 8px;background:#f59e0b;border-radius:10px;color:#fff;font-size:11px;font-weight:600">📝 Plan</span>
+  <button id="btnExitPlan" onclick="exitPlanMode()" style="display:none;margin-left:4px;padding:2px 6px;background:#4f46e5;border:1px solid #6366f1;border-radius:4px;color:#fff;cursor:pointer;font-size:10px">🚪</button>
   <span style="margin-left:auto" id="sb4"></span>
 </div>
 

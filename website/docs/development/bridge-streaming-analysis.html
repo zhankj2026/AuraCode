@@ -4,188 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bridge 流式协议技术分析 - AuraCode</title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../../css/style.css">
+    <link rel="stylesheet" href="../../css/docs.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        /* Markdown 内容样式 */
-        .md-content { 
-            line-height: 1.8;
-            color: var(--text-primary);
-        }
-        
-        /* 标题样式 */
-        .md-content h1 { 
-            font-size: 2.25rem;
-            font-weight: 800;
-            margin: 2rem 0 1.5rem;
-            padding-bottom: 0.75rem;
-            border-bottom: 2px solid var(--border-color);
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .md-content h2 { 
-            font-size: 1.75rem;
-            font-weight: 700;
-            margin: 2.5rem 0 1rem;
-            padding-left: 1rem;
-            border-left: 4px solid var(--primary-color);
-        }
-        .md-content h3 { 
-            font-size: 1.35rem;
-            font-weight: 600;
-            margin: 2rem 0 0.75rem;
-            color: var(--primary-color);
-        }
-        
-        /* 段落样式 */
-        .md-paragraph {
-            margin: 1.25rem 0;
-            line-height: 1.8;
-        }
-        
-        /* 代码块样式 */
-        .code-block {
-            background: var(--darker-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 0.75rem;
-            padding: 1.25rem;
-            margin: 1.5rem 0;
-            overflow-x: auto;
-            position: relative;
-        }
-        .code-block::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
-            border-radius: 0.75rem 0.75rem 0 0;
-        }
-        .code-block code {
-            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
-            font-size: 0.9rem;
-            line-height: 1.6;
-            color: var(--text-primary);
-        }
-        .inline-code {
-            background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            padding: 0.2rem 0.5rem;
-            border-radius: 0.35rem;
-            font-family: 'Cascadia Code', 'Fira Code', monospace;
-            font-size: 0.85em;
-            color: var(--primary-color);
-        }
-        
-        /* 表格样式 */
-        .md-table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-            margin: 1.5rem 0;
-            border-radius: 0.75rem;
-            overflow: hidden;
-            border: 1px solid var(--border-color);
-        }
-        .md-table thead {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-        }
-        .md-table th {
-            padding: 1rem;
-            text-align: left;
-            font-weight: 600;
-            color: white;
-        }
-        .md-table td {
-            padding: 0.875rem 1rem;
-            border-top: 1px solid var(--border-color);
-            background: var(--card-bg);
-        }
-        .md-table tbody tr:hover td {
-            background: rgba(99, 102, 241, 0.05);
-        }
-        
-        /* 引用块样式 */
-        .md-quote {
-            border-left: 4px solid var(--primary-color);
-            background: rgba(99, 102, 241, 0.05);
-            padding: 1rem 1.25rem;
-            margin: 1.5rem 0;
-            border-radius: 0 0.5rem 0.5rem 0;
-            font-style: italic;
-            color: var(--text-secondary);
-        }
-        
-        /* 列表样式 */
-        .md-list {
-            margin: 1.25rem 0;
-            padding-left: 2rem;
-        }
-        .md-list li {
-            margin: 0.75rem 0;
-            line-height: 1.7;
-            position: relative;
-        }
-        .md-list li::marker {
-            color: var(--primary-color);
-        }
-        
-        /* 链接样式 */
-        .md-link {
-            color: var(--primary-color);
-            text-decoration: none;
-            font-weight: 500;
-            border-bottom: 2px solid transparent;
-            transition: all 0.2s;
-        }
-        .md-link:hover {
-            color: var(--secondary-color);
-            border-bottom-color: var(--secondary-color);
-        }
-        
-        /* 粗体和斜体 */
-        .md-strong {
-            font-weight: 700;
-            color: var(--text-primary);
-        }
-        .md-em {
-            font-style: italic;
-            color: var(--text-secondary);
-        }
-        
-        /* 分隔线 */
-        .md-hr {
-            border: none;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, var(--border-color), transparent);
-            margin: 2.5rem 0;
-        }
-        
-        /* 面包屑导航 */
-        .breadcrumb-link {
-            color: var(--primary-color);
-            text-decoration: none;
-            font-weight: 500;
-        }
-        .breadcrumb-link:hover {
-            text-decoration: underline;
-        }
-        .breadcrumb-sep {
-            color: var(--text-secondary);
-            margin: 0 0.5rem;
-        }
-        .breadcrumb-item {
-            color: var(--text-secondary);
-            text-transform: capitalize;
-        }
-    </style>
 </head>
 <body>
-    <!-- 导航栏 -->
+    <!-- 导航栏（与 index.html 一致） -->
     <nav class="navbar">
         <div class="container">
             <div class="nav-brand">
@@ -193,74 +17,48 @@
                 <span>AuraCode</span>
             </div>
             <ul class="nav-menu">
-                <li><a href="../index.html">首页</a></li>
-                <li><a href="../index.html#features">功能</a></li>
-                <li><a href="../index.html#docs">文档</a></li>
-                <li><a href="../index.html#quickstart">快速开始</a></li>
+                <li><a href="../../index.html">首页</a></li>
+                <li><a href="../../index.html#features">功能</a></li>
+                <li><a href="../../index.html#docs">文档</a></li>
+                <li><a href="../../index.html#quickstart">快速开始</a></li>
+                <li><a href="https://github.com/zhankj2026/AuraCode" target="_blank" class="nav-btn">
+                    <i class="fab fa-github"></i> GitHub
+                </a></li>
+                <li><a href="https://gitee.com/creating2018/auracode" target="_blank" class="nav-btn">
+                    <i class="fab fa-github"></i> gitee
+                </a></li>
             </ul>
+            <div class="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
         </div>
     </nav>
 
     <!-- 文档内容 -->
     <div class="docs-container">
-        
-        <aside class="docs-sidebar">
-            <div class="sidebar-section">
-                <h3>入门指南</h3>
-                <ul>
-                    <li><a href="../quick-start.html">快速开始</a></li>
-                </ul>
-            </div>
-            <div class="sidebar-section">
-                <h3>用户指南</h3>
-                <ul>
-                    <li><a href="../user-guide/chat.html">对话交互</a></li>
-                    <li><a href="../user-guide/commands.html">命令参考</a></li>
-                    <li><a href="../user-guide/tools.html">工具系统</a></li>
-                    <li><a href="../user-guide/skills.html">技能系统</a></li>
-                    <li><a href="../user-guide/memory.html">记忆系统</a></li>
-                    <li><a href="../user-guide/permissions.html">权限管理</a></li>
-                    <li><a href="../user-guide/mcp.html">MCP 协议</a></li>
-                </ul>
-            </div>
-            <div class="sidebar-section">
-                <h3>高级功能</h3>
-                <ul>
-                    <li><a href="../advanced/bridge.html">Bridge 远程控制</a></li>
-                    <li><a href="../advanced/hooks.html">钩子系统</a></li>
-                    <li><a href="../advanced/plugins.html">插件系统</a></li>
-                    <li><a href="../advanced/error-recovery.html">错误恢复</a></li>
-                </ul>
-            </div>
-            <div class="sidebar-section">
-                <h3>开发</h3>
-                <ul>
-                    <li><a href="architecture.html">架构总览</a></li>
-                </ul>
-            </div>
-        </aside>
-    
+        <aside class="docs-sidebar"><div class="sidebar-section"><h3>本页目录</h3><ul><li><a href="#一核心发现">一、核心发现</a></li><li><a href="#二关键瓶颈Bridge-缓冲了-stdout">二、关键瓶颈：Bridge 缓冲了 stdout</a></li><li><a href="#三真正的流式输出能做到什么程度">三、真正的"流式输出"能做到什么程度</a></li><li><a href="#四优化方案规划中">四、优化方案（规划中）</a></li><li><a href="#五前端适配">五、前端适配</a></li><li><a href="#六优先级评估">六、优先级评估</a></li><li><a href="#七总结">七、总结</a></li></ul></div><div class="sidebar-section"><h3>入门指南</h3><ul><li><a href="../quick-start.html">快速开始</a></li></ul></div><div class="sidebar-section"><h3>用户指南</h3><ul><li><a href="../user-guide/chat.html">对话交互</a></li><li><a href="../user-guide/commands.html">命令参考</a></li><li><a href="../user-guide/tools.html">工具系统</a></li><li><a href="../user-guide/skills.html">技能系统</a></li><li><a href="../user-guide/memory.html">记忆系统</a></li><li><a href="../user-guide/permissions.html">权限管理</a></li><li><a href="../user-guide/mcp.html">MCP 协议集成</a></li><li><a href="../user-guide/loop-scheduling.html">定时任务调度</a></li><li><a href="../user-guide/batch-workflow.html">动态工作流</a></li><li><a href="../user-guide/workflow-generator.html">WorkflowScriptGenerator</a></li></ul></div><div class="sidebar-section"><h3>高级功能</h3><ul><li><a href="../advanced/bridge.html">Bridge 远程控制</a></li><li><a href="../advanced/hooks.html">钩子系统</a></li><li><a href="../advanced/plugins.html">插件系统</a></li><li><a href="../advanced/error-recovery.html">错误恢复</a></li></ul></div><div class="sidebar-section"><h3>开发</h3><ul><li><a href="architecture.html">架构总览</a></li><li><a href="agent-architecture-guide.html">Agent 架构指南</a></li><li><a href="bridge-streaming-analysis.html" class="active">Bridge 流式分析</a></li></ul></div></aside>
 
         <main class="docs-content">
             <div class="docs-header">
+                <div class="breadcrumb"><a href="../../index.html" class="breadcrumb-link"><i class="fas fa-home"></i> 首页</a><span class="breadcrumb-sep">/</span><span class="breadcrumb-item">文档</span><span class="breadcrumb-sep">/</span><span class="breadcrumb-item">开发</span><span class="breadcrumb-sep">/</span><span class="breadcrumb-item">Bridge 流式协议技术分析</span></div>
                 <h1>Bridge 流式协议技术分析</h1>
+                <p>def _call_llm_streaming(self, messages, tools=None):</p>
             </div>
             <div class="md-content">
-                <h1>Bridge 流式协议技术分析</h1>
-
-<blockquote class="md-quote"><strong class="md-strong">分析日期</strong>: 2026-06-28  </blockquote>
-<blockquote class="md-quote"><strong class="md-strong">状态</strong>: 关键发现已确认  </blockquote>
-<blockquote class="md-quote"><strong class="md-strong">影响</strong>: 决定前端"流式输出"的能力边界</blockquote>
-
+                <div class="info-box"><i class="fas fa-info-circle"></i><div><p><strong class="md-strong">分析日期</strong>: 2026-06-28<br><strong class="md-strong">状态</strong>: 关键发现已确认<br><strong class="md-strong">影响</strong>: 决定前端"流式输出"的能力边界</p></div></div>
 <hr class="md-hr">
-
+<section id="一核心发现" class="doc-section">
 <h2>一、核心发现</h2>
-
 <h3>1.1 AgentLoop 确实实现了 Token 级流式</h3>
-
-<strong class="md-strong">代码位置</strong>: <code class="inline-code">core/agent_loop.py:1242</code>
-
-<pre class="code-block"><code class="language-python">def _call_llm_streaming(self, messages, tools=None):
+<p class="md-paragraph"><strong class="md-strong">代码位置</strong>: <code class="inline-code">core/agent_loop.py:1242</code></p>
+<div class="code-block">
+<div class="code-header">
+<span>python</span>
+<button class="copy-btn"><i class="fas fa-copy"></i></button>
+</div>
+<pre><code>def _call_llm_streaming(self, messages, tools=None):
     """流式调用 LLM"""
     response = self.client.chat.completions.create(
         model=self.model,
@@ -272,20 +70,21 @@
     for delta in response:
         if delta.content:
             print(delta.content, flush=True)  # ← 按 token 流式输出到 stdout
-            # ... 累积 tool_calls
-</code></pre>
-
-<strong class="md-strong">结论</strong>: ✅ AgentLoop 的 LLM 调用确实是按 token 流式输出的。
-
+            # ... 累积 tool_calls</code></pre>
+</div>
+<p class="md-paragraph"><strong class="md-strong">结论</strong>: ✅ AgentLoop 的 LLM 调用确实是按 token 流式输出的。</p>
 <hr class="md-hr">
-
+</section>
+<section id="二关键瓶颈Bridge-缓冲了-stdout" class="doc-section">
 <h2>二、关键瓶颈：Bridge 缓冲了 stdout</h2>
-
 <h3>2.1 Bridge Session 的 stdout 缓冲机制</h3>
-
-<strong class="md-strong">代码位置</strong>: <code class="inline-code">bridge/session.py</code>
-
-<pre class="code-block"><code class="language-python">class BridgeSession:
+<p class="md-paragraph"><strong class="md-strong">代码位置</strong>: <code class="inline-code">bridge/session.py</code></p>
+<div class="code-block">
+<div class="code-header">
+<span>python</span>
+<button class="copy-btn"><i class="fas fa-copy"></i></button>
+</div>
+<pre><code>class BridgeSession:
     def __init__(self):
         self._stdout_buffer = []  # ← 缓冲 stdout
     
@@ -305,27 +104,31 @@
             # ← 关键：回合结束后才发出 output 事件
             self.emit('output', {
                 'text': ''.join(self._stdout_buffer)  # 整个回合的文本一次性发出
-            })
-</code></pre>
-
-<strong class="md-strong">问题</strong>: 
+            })</code></pre>
+</div>
+<p class="md-paragraph"><strong class="md-strong">问题</strong>:</p>
 <ul class="md-list">
 <li>AgentLoop 的 <code class="inline-code">print(delta.content, flush=True)</code> 写入的是被 Bridge 重定向的 stdout</li>
 <li>Bridge 将这些输出缓冲到 <code class="inline-code">_stdout_buffer</code></li>
 <li>仅在 <strong class="md-strong">回合结束后</strong> (session.py:700) 才作为单个 <code class="inline-code">output</code> 事件发出</li>
 </ul>
-
 <h3>2.2 流式能力现状</h3>
-
 <table class="md-table">
-<thead><tr><th>层级</th><th>能力</th><th>实现方式</th><th>实时性</th></tr></thead>
+<thead><tr>
+<th>层级</th><th>能力</th><th>实现方式</th><th>实时性</th>
+</tr></thead>
 <tbody>
 <tr><td><strong class="md-strong">事件级流式</strong></td><td>✅ 已实现</td><td>WebSocket 实时推送</td><td>实时</td></tr>
 <tr><td><strong class="md-strong">Token 级流式</strong></td><td>❌ 未实现</td><td>stdout 缓冲，回合后发送</td><td>延迟</td></tr>
-</tbody></table>
-<strong class="md-strong">当前实时事件</strong>（TAOR 循环运行期间实时触发）：
-
-<pre class="code-block"><code class="language-javascript">// 这些事件是实时的 ✅
+</tbody>
+</table>
+<p class="md-paragraph"><strong class="md-strong">当前实时事件</strong>（TAOR 循环运行期间实时触发）：</p>
+<div class="code-block">
+<div class="code-header">
+<span>javascript</span>
+<button class="copy-btn"><i class="fas fa-copy"></i></button>
+</div>
+<pre><code>// 这些事件是实时的 ✅
 turn_start          → 轮次开始
 tool_execute        → 工具执行开始
 tool_complete       → 工具执行完成
@@ -336,62 +139,66 @@ fallback_activated  → 备用模型激活
 aborted             → 中断
 result              → 轮次结果
 
-<p class="md-paragraph">// 这个事件是延迟的 ⚠️
-output              → stdout 缓冲（回合结束后一次性发出）
-</code></pre></p>
-
+// 这个事件是延迟的 ⚠️
+output              → stdout 缓冲（回合结束后一次性发出）</code></pre>
+</div>
 <hr class="md-hr">
-
+</section>
+<section id="三真正的流式输出能做到什么程度" class="doc-section">
 <h2>三、真正的"流式输出"能做到什么程度</h2>
-
 <h3>3.1 当前能力：事件级流式</h3>
-
-<strong class="md-strong">前端表现</strong>：
-
-<pre class="code-block"><code class="language-">[14:32:01] 🤔 思考中... (轮次 1)          ← turn_start (实时)
+<p class="md-paragraph"><strong class="md-strong">前端表现</strong>：</p>
+<div class="code-block">
+<div class="code-header">
+<span>text</span>
+<button class="copy-btn"><i class="fas fa-copy"></i></button>
+</div>
+<pre><code>[14:32:01] 🤔 思考中... (轮次 1)          ← turn_start (实时)
 [14:32:03] ⚙️ 执行: read_file             ← tool_execute (实时)
 [14:32:03] ✅ read_file 完成              ← tool_complete (实时)
 [14:32:05] 🤔 思考中... (轮次 2)          ← turn_start (实时)
 [14:32:08] 💬 AI 回复内容...              ← assistant_message (实时)
 [14:32:10] ┌─ ✅ 结果: success ──         ← result (实时)
-[14:32:10] 📝 [stdout 缓冲内容]           ← output (延迟，回合结束后)
-</code></pre>
-
-<strong class="md-strong">用户体验</strong>：
+[14:32:10] 📝 [stdout 缓冲内容]           ← output (延迟，回合结束后)</code></pre>
+</div>
+<p class="md-paragraph"><strong class="md-strong">用户体验</strong>：</p>
 <ul class="md-list">
 <li>✅ 可以看到工具执行的实时进度</li>
 <li>✅ 可以看到轮次的开始和结束</li>
 <li>✅ 可以看到 AI 的完整回复</li>
 <li>❌ <strong class="md-strong">看不到</strong> token 逐个输出的打字机效果</li>
 </ul>
-
 <h3>3.2 目标能力：Token 级流式</h3>
-
-<strong class="md-strong">期望表现</strong>：
-
-<pre class="code-block"><code class="language-">[14:32:08] 💬 AI 开始回复:
+<p class="md-paragraph"><strong class="md-strong">期望表现</strong>：</p>
+<div class="code-block">
+<div class="code-header">
+<span>text</span>
+<button class="copy-btn"><i class="fas fa-copy"></i></button>
+</div>
+<pre><code>[14:32:08] 💬 AI 开始回复:
            这个项目的架构设计...           ← token 1-10 (实时)
            采用了 TAOR 循环...            ← token 11-20 (实时)
            核心引擎包括...                ← token 21-30 (实时)
-           四层扩展体系...                ← token 31-40 (实时)
-</code></pre>
-
-<strong class="md-strong">技术挑战</strong>：
+           四层扩展体系...                ← token 31-40 (实时)</code></pre>
+</div>
+<p class="md-paragraph"><strong class="md-strong">技术挑战</strong>：</p>
 <ul class="md-list">
 <li>需要修改 Bridge Session 的 stdout 处理逻辑</li>
 <li>需要在 AgentLoop 流式输出时实时 emit 事件</li>
 <li>需要定义新的事件类型（如 <code class="inline-code">text_chunk</code>）</li>
 </ul>
-
 <hr class="md-hr">
-
+</section>
+<section id="四优化方案规划中" class="doc-section">
 <h2>四、优化方案（规划中）</h2>
-
 <h3>4.1 方案 A：修改 Bridge 实时捕获 stdout</h3>
-
-<strong class="md-strong">思路</strong>：在 AgentLoop 输出时实时捕获并转发
-
-<pre class="code-block"><code class="language-python">class RealtimeStdoutCapture:
+<p class="md-paragraph"><strong class="md-strong">思路</strong>：在 AgentLoop 输出时实时捕获并转发</p>
+<div class="code-block">
+<div class="code-header">
+<span>python</span>
+<button class="copy-btn"><i class="fas fa-copy"></i></button>
+</div>
+<pre><code>class RealtimeStdoutCapture:
     """实时 stdout 捕获器"""
     
     def __init__(self, emit_callback):
@@ -406,28 +213,28 @@ output              → stdout 缓冲（回合结束后一次性发出）
     def flush(self):
         pass
 
-<h1>在 BridgeSession.run() 中使用</h1>
+# 在 BridgeSession.run() 中使用
 capture = RealtimeStdoutCapture(self.emit)
-sys.stdout = capture
-</code></pre>
-
-<strong class="md-strong">优点</strong>：
+sys.stdout = capture</code></pre>
+</div>
+<p class="md-paragraph"><strong class="md-strong">优点</strong>：</p>
 <ul class="md-list">
 <li>最小改动，只需修改 Bridge 层</li>
 <li>AgentLoop 代码无需改动</li>
 </ul>
-
-<strong class="md-strong">缺点</strong>：
+<p class="md-paragraph"><strong class="md-strong">缺点</strong>：</p>
 <ul class="md-list">
 <li>stdout 重定向可能影响其他输出</li>
 <li>需要处理并发问题</li>
 </ul>
-
 <h3>4.2 方案 B：AgentLoop 直接 emit 事件</h3>
-
-<strong class="md-strong">思路</strong>：AgentLoop 流式输出时直接调用 emit
-
-<pre class="code-block"><code class="language-python">class AgentLoop:
+<p class="md-paragraph"><strong class="md-strong">思路</strong>：AgentLoop 流式输出时直接调用 emit</p>
+<div class="code-block">
+<div class="code-header">
+<span>python</span>
+<button class="copy-btn"><i class="fas fa-copy"></i></button>
+</div>
+<pre><code>class AgentLoop:
     def __init__(self, config, emit_callback=None):
         self.emit = emit_callback  # ← 新增回调
     
@@ -441,26 +248,26 @@ sys.stdout = capture
                     self.emit('text_chunk', {
                         'content': delta.content,
                         'turn': self.turn_count
-                    })
-</code></pre>
-
-<strong class="md-strong">优点</strong>：
+                    })</code></pre>
+</div>
+<p class="md-paragraph"><strong class="md-strong">优点</strong>：</p>
 <ul class="md-list">
 <li>更清晰的事件流</li>
 <li>不依赖 stdout 重定向</li>
 </ul>
-
-<strong class="md-strong">缺点</strong>：
+<p class="md-paragraph"><strong class="md-strong">缺点</strong>：</p>
 <ul class="md-list">
 <li>需要修改 AgentLoop 接口</li>
 <li>需要处理 Bridge 和 CLI 模式的差异</li>
 </ul>
-
 <h3>4.3 方案 C：混合方案（推荐）</h3>
-
-<strong class="md-strong">思路</strong>：结合 A 和 B 的优点
-
-<pre class="code-block"><code class="language-python"># 1. AgentLoop 支持可选的 emit 回调
+<p class="md-paragraph"><strong class="md-strong">思路</strong>：结合 A 和 B 的优点</p>
+<div class="code-block">
+<div class="code-header">
+<span>python</span>
+<button class="copy-btn"><i class="fas fa-copy"></i></button>
+</div>
+<pre><code># 1. AgentLoop 支持可选的 emit 回调
 class AgentLoop:
     def __init__(self, config, event_bus=None):
         self.event_bus = event_bus
@@ -479,28 +286,30 @@ class AgentLoop:
                 print(delta.content, flush=True)
                 self._emit_text_chunk(delta.content)
 
-<h1>2. Bridge 传入 event_bus</h1>
+# 2. Bridge 传入 event_bus
 session = BridgeSession()
 agent_loop = AgentLoop(config, event_bus=session.event_bus)
 
-<h1>3. CLI 模式不传入 event_bus（保持原有行为）</h1>
-agent_loop = AgentLoop(config)  # 使用 stdout
-</code></pre>
-
-<strong class="md-strong">优点</strong>：
+# 3. CLI 模式不传入 event_bus（保持原有行为）
+agent_loop = AgentLoop(config)  # 使用 stdout</code></pre>
+</div>
+<p class="md-paragraph"><strong class="md-strong">优点</strong>：</p>
 <ul class="md-list">
 <li>向后兼容（CLI 模式不受影响）</li>
 <li>Bridge 模式获得实时流式能力</li>
 <li>清晰的职责分离</li>
 </ul>
-
 <hr class="md-hr">
-
+</section>
+<section id="五前端适配" class="doc-section">
 <h2>五、前端适配</h2>
-
 <h3>5.1 当前前端实现</h3>
-
-<pre class="code-block"><code class="language-javascript">// test_bridge.html / test_bridge_mobile.html
+<div class="code-block">
+<div class="code-header">
+<span>javascript</span>
+<button class="copy-btn"><i class="fas fa-copy"></i></button>
+</div>
+<pre><code>// test_bridge.html / test_bridge_mobile.html
 function handle(event) {
     switch(event.type) {
         case 'output':
@@ -513,14 +322,17 @@ function handle(event) {
             tln('ai', event.data.content);
             break;
     }
-}
-</code></pre>
-
+}</code></pre>
+</div>
 <h3>5.2 未来前端实现（Token 级流式）</h3>
+<div class="code-block">
+<div class="code-header">
+<span>javascript</span>
+<button class="copy-btn"><i class="fas fa-copy"></i></button>
+</div>
+<pre><code>let currentMessage = null;
 
-<pre class="code-block"><code class="language-javascript">let currentMessage = null;
-
-<p class="md-paragraph">function handle(event) {
+function handle(event) {
     switch(event.type) {
         case 'text_chunk':
             // ✅ 实时追加 token
@@ -539,59 +351,63 @@ function handle(event) {
             currentMessage = null;
             break;
     }
-}
-</code></pre></p>
-
+}</code></pre>
+</div>
 <hr class="md-hr">
-
+</section>
+<section id="六优先级评估" class="doc-section">
 <h2>六、优先级评估</h2>
-
 <table class="md-table">
-<thead><tr><th>优化项</th><th>优先级</th><th>工作量</th><th>影响范围</th></tr></thead>
+<thead><tr>
+<th>优化项</th><th>优先级</th><th>工作量</th><th>影响范围</th>
+</tr></thead>
 <tbody>
 <tr><td>事件级流式完善</td><td>✅ 高</td><td>小</td><td>Bridge 前端</td></tr>
 <tr><td>Token 级流式（方案 C）</td><td>🟡 中</td><td>中</td><td>AgentLoop + Bridge + 前端</td></tr>
 <tr><td>打字机效果优化</td><td>🟡 中</td><td>小</td><td>前端</td></tr>
 <tr><td>流式中断支持</td><td>🟢 低</td><td>中</td><td>AgentLoop + Bridge</td></tr>
-</tbody></table>
+</tbody>
+</table>
 <hr class="md-hr">
-
+</section>
+<section id="七总结" class="doc-section">
 <h2>七、总结</h2>
-
 <h3>7.1 当前状态</h3>
-
-<p class="md-paragraph">✅ <strong class="md-strong">已实现</strong>：
+<p class="md-paragraph">✅ <strong class="md-strong">已实现</strong>：</p>
 <ul class="md-list">
 <li>AgentLoop 的 LLM 调用确实是 token 级流式</li>
 <li>Bridge 的事件级流式传输（tool/turn/result 实时推送）</li>
 <li>前端实时渲染事件 + 运行中指示器</li>
 <li>✅ <strong class="md-strong">Token 级流式输出</strong>（方案 C 已实施）</li>
+<li>AgentLoop._emit_text_chunk() 实时发出 text_chunk 事件</li>
+<li>BridgeSession 映射 text_chunk 到 BridgeEventType.TEXT_CHUNK</li>
+<li>PC 端前端支持打字机效果渲染</li>
+<li>移动端前端支持打字机效果渲染</li>
+<li>CLI 模式不受影响（向后兼容）</li>
 </ul>
-  - AgentLoop._emit_text_chunk() 实时发出 text_chunk 事件
-  - BridgeSession 映射 text_chunk 到 BridgeEventType.TEXT_CHUNK
-  - PC 端前端支持打字机效果渲染
-  - 移动端前端支持打字机效果渲染
-  - CLI 模式不受影响（向后兼容）</p>
-
 <h3>7.2 实施记录</h3>
-
-<strong class="md-strong">Commit</strong>: <code class="inline-code">67991cf</code> - feat(bridge): 实现Token级流式输出（打字机效果）
-
-<strong class="md-strong">修改文件</strong>：
-1. <code class="inline-code">bridge/types.py</code> - 添加 TEXT_CHUNK 事件类型
-2. <code class="inline-code">core/agent_loop.py</code> - 添加 _emit_text_chunk() 方法 + 流式循环调用
-3. <code class="inline-code">bridge/session.py</code> - type_map 添加 text_chunk 映射
-4. <code class="inline-code">website/docs/test_bridge.html</code> - text_chunk 事件处理（打字机效果）
-5. <code class="inline-code">website/docs/test_bridge_mobile.html</code> - text_chunk 事件处理（打字机效果）
-
-<strong class="md-strong">技术实现</strong>：
-<pre class="code-block"><code class="language-python"># AgentLoop._call_llm_streaming()
+<p class="md-paragraph"><strong class="md-strong">Commit</strong>: <code class="inline-code">67991cf</code> - feat(bridge): 实现Token级流式输出（打字机效果）</p>
+<p class="md-paragraph"><strong class="md-strong">修改文件</strong>：</p>
+<ol class="md-list">
+<li><code class="inline-code">bridge/types.py</code> - 添加 TEXT_CHUNK 事件类型</li>
+<li><code class="inline-code">core/agent_loop.py</code> - 添加 _emit_text_chunk() 方法 + 流式循环调用</li>
+<li><code class="inline-code">bridge/session.py</code> - type_map 添加 text_chunk 映射</li>
+<li><code class="inline-code">website/docs/test_bridge.html</code> - text_chunk 事件处理（打字机效果）</li>
+<li><code class="inline-code">website/docs/test_bridge_mobile.html</code> - text_chunk 事件处理（打字机效果）</li>
+</ol>
+<p class="md-paragraph"><strong class="md-strong">技术实现</strong>：</p>
+<div class="code-block">
+<div class="code-header">
+<span>python</span>
+<button class="copy-btn"><i class="fas fa-copy"></i></button>
+</div>
+<pre><code># AgentLoop._call_llm_streaming()
 for delta in response:
     if delta.content:
         print(delta.content, end="", flush=True)
         self._emit_text_chunk(delta.content)  # ← 新增
 
-<h1>AgentLoop._emit_text_chunk()</h1>
+# AgentLoop._emit_text_chunk()
 def _emit_text_chunk(self, content: str):
     if self.event_callback is None:
         return  # CLI 模式跳过
@@ -599,60 +415,89 @@ def _emit_text_chunk(self, content: str):
         "type": "text_chunk",
         "data": {"content": content, "turn": self.state.turn_count},
         "timestamp": time.time(),
-    })
-</code></pre>
-
+    })</code></pre>
+</div>
 <h3>7.3 下一步</h3>
-
-<p class="md-paragraph">📋 <strong class="md-strong">规划</strong>：
-1. ✅ ~~实现方案 C（混合方案）~~
-2. ✅ ~~定义 <code class="inline-code">text_chunk</code> 事件协议~~
-3. ✅ ~~修改 AgentLoop 支持 event_bus~~
-4. ✅ ~~修改 Bridge 实时转发 token~~
-5. ✅ ~~更新前端支持打字机效果~~
-6. 性能测试（高频事件推送）
-7. 文档更新</p>
-
+<p class="md-paragraph">📋 <strong class="md-strong">规划</strong>：</p>
+<ol class="md-list">
+<li>✅ ~~实现方案 C（混合方案）~~</li>
+<li>✅ ~~定义 <code class="inline-code">text_chunk</code> 事件协议~~</li>
+<li>✅ ~~修改 AgentLoop 支持 event_bus~~</li>
+<li>✅ ~~修改 Bridge 实时转发 token~~</li>
+<li>✅ ~~更新前端支持打字机效果~~</li>
+<li>性能测试（高频事件推送）</li>
+<li>文档更新</li>
+</ol>
 <h3>7.4 技术债务</h3>
-
-<pre class="code-block"><code class="language-">TODO:
-<ul class="md-list">
-<li>[x] AgentLoop 添加 event_bus 参数</li>
-<li>[x] 定义 text_chunk 事件格式</li>
-<li>[x] BridgeSession 实现实时 stdout 捕获</li>
-<li>[x] 前端适配 text_chunk 事件</li>
-<li>[ ] 性能测试（高频事件推送）</li>
-<li>[ ] 文档更新</li>
-</ul>
-</code></pre>
-
+<div class="code-block">
+<div class="code-header">
+<span>text</span>
+<button class="copy-btn"><i class="fas fa-copy"></i></button>
+</div>
+<pre><code>TODO:
+- [x] AgentLoop 添加 event_bus 参数
+- [x] 定义 text_chunk 事件格式
+- [x] BridgeSession 实现实时 stdout 捕获
+- [x] 前端适配 text_chunk 事件
+- [ ] 性能测试（高频事件推送）
+- [ ] 文档更新</code></pre>
+</div>
 <hr class="md-hr">
-
-<strong class="md-strong">文档版本</strong>: 1.0  
-<strong class="md-strong">最后更新</strong>: 2026-06-28  
-<strong class="md-strong">维护者</strong>: AuraCode 核心开发团队
-
+<p class="md-paragraph"><strong class="md-strong">文档版本</strong>: 1.0 <strong class="md-strong">最后更新</strong>: 2026-06-28 <strong class="md-strong">维护者</strong>: AuraCode 核心开发团队</p>
+</section>
             </div>
 
             <div class="docs-navigation">
-                <a href="../index.html" class="nav-btn prev">
-                    <i class="fas fa-arrow-left"></i>
-                    返回首页
-                </a>
+                <a href="agent-architecture-guide.html" class="nav-btn prev"><i class="fas fa-arrow-left"></i> Agent 架构指南</a>
+                
             </div>
         </main>
     </div>
 
-    <!-- 页脚 -->
+    <!-- 页脚（与 index.html 一致） -->
     <footer class="footer">
         <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <div class="nav-brand">
+                        <i class="fas fa-code"></i>
+                        <span>AuraCode</span>
+                    </div>
+                    <p>生产级 AI 编程助手，赋能开发者高效编程</p>
+                </div>
+                <div class="footer-links">
+                    <div class="footer-column">
+                        <h4>产品</h4>
+                        <ul>
+                            <li><a href="../../index.html#features">功能</a></li>
+                            <li><a href="../../index.html#docs">文档</a></li>
+                            <li><a href="../../index.html#quickstart">快速开始</a></li>
+                        </ul>
+                    </div>
+                    <div class="footer-column">
+                        <h4>资源</h4>
+                        <ul>
+                            <li><a href="../quick-start.html">快速开始</a></li>
+                            <li><a href="../user-guide/commands.html">命令参考</a></li>
+                            <li><a href="../advanced/bridge.html">Bridge 远程控制</a></li>
+                        </ul>
+                    </div>
+                    <div class="footer-column">
+                        <h4>社区</h4>
+                        <ul>
+                            <li><a href="https://github.com/zhankj2026/AuraCode" target="_blank">GitHub</a></li>
+                            <li><a href="https://gitee.com/creating2018/auracode" target="_blank">gitee</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
             <div class="footer-bottom">
                 <p>&copy; 2026 AuraCode. MIT License.</p>
             </div>
         </div>
     </footer>
 
-    <script src="../js/main.js"></script>
-    <script src="../js/docs.js"></script>
+    <script src="../../js/main.js"></script>
+    <script src="../../js/docs.js"></script>
 </body>
 </html>

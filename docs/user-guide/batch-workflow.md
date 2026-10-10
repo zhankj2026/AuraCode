@@ -340,6 +340,6 @@ A: 支持，使用 `/batch rollback` 回滚到操作前的状态。
 
 ## 参见
 
-- [命令参考](../commands.md) — 查看所有可用命令
-- [子代理系统](../advanced/subagents.md) — 了解子代理工作原理
+- [命令参考](commands.md) — 查看所有可用命令
+- [子代理系统](../development/agent-architecture-guide.md) — 了解子代理工作原理
 - [定时任务](loop-scheduling.md) — 周期性任务编排

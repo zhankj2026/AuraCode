@@ -73,6 +73,7 @@ AVAILABLE_MODELS = [
     "glm-4",
     "glm-4.5",
     "glm-4.7",
+    "glm-4.7-flash",
     # GPT 系列
     "gpt-4o",
     "gpt-4o-mini",

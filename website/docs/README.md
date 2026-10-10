@@ -47,10 +47,13 @@ python build_docs.py
 ```
 
 这会将所有 `docs/*.md` 转换为 `website/docs/*.html`，并自动添加：
-- 导航栏
-- 侧边栏
+- 导航栏（与 `index.html` 完全一致，含 GitHub/gitee 按钮）
+- 侧边栏（本页目录 + 全量文档导航，当前页高亮）
 - 面包屑
-- 页脚
+- 页脚（与 `index.html` 同款）
+- 上一篇/下一篇导航
+
+样式统一引用 `css/style.css` + `css/docs.css`（与首页设计语言一致），页面不再内嵌 `<style>`。`quickstart.html` 为 `quick-start.html` 的自动生成兼容副本（首页卡片链接指向它）。
 
 ### 3. 首页链接自动生效
 
@@ -62,30 +65,28 @@ python build_docs.py
 website/
 ├── index.html                      # 官网首页
 ├── css/                            # 样式文件
-│   ├── style.css
-│   └── docs.css
+│   ├── style.css                   # 全站基础样式（颜色变量定义于此）
+│   └── docs.css                    # 文档页样式（含 Markdown 内容样式）
 ├── js/                             # 脚本文件
 │   ├── main.js
 │   └── docs.js
 └── docs/                           # 生成的 HTML 文档
     ├── quick-start.html
-    ├── quickstart.html             # 旧版（保留兼容）
-    ├── test_bridge.html            # Bridge 测试页面
+    ├── quickstart.html             # quick-start.html 的自动生成兼容副本
+    ├── test_bridge.html            # Bridge 测试页面（独立配色统一为全站主题）
+    ├── test_bridge_mobile.html     # Bridge 移动端测试页面
     ├── user-guide/                 # 用户指南
-    │   ├── chat.html
-    │   ├── commands.html
-    │   ├── tools.html
-    │   ├── skills.html
-    │   ├── memory.html
-    │   ├── permissions.html
-    │   └── mcp.html
+    │   ├── chat.html / commands.html / tools.html / skills.html
+    │   ├── memory.html / permissions.html / mcp.html
+    │   ├── loop-scheduling.html / batch-workflow.html
+    │   └── workflow-generator.html
     ├── advanced/                   # 高级功能
-    │   ├── bridge.html
-    │   ├── hooks.html
-    │   ├── plugins.html
-    │   └── error-recovery.html
+    │   ├── bridge.html / hooks.html
+    │   └── plugins.html / error-recovery.html
     └── development/                # 开发文档
-        └── architecture.html
+        ├── architecture.html
+        ├── agent-architecture-guide.html
+        └── bridge-streaming-analysis.html
 ```
 
 ## 🎯 文档关联图
@@ -241,8 +242,8 @@ python -m http.server 8000
 
 ## 📊 统计
 
-- **Markdown 源文件**: 13 个
-- **生成 HTML 文件**: 15 个（含 quickstart.html 兼容版）
+- **Markdown 源文件**: 18 个
+- **生成 HTML 文件**: 19 个（含 quickstart.html 兼容副本）
 - **文档分类**: 3 大类（用户指南/高级功能/开发）
 - **转换脚本**: 1 个 (`build_docs.py`)
 
