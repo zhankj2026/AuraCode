@@ -176,6 +176,29 @@ class PermissionManager:
             logger.error(f"获取用户输入失败: {e}")
             return None
 
+    @staticmethod
+    def _is_plan_file_write(arguments: Dict[str, Any]) -> bool:
+        """判断是否为对当前 plan 文件的写入（计划模式内部机制）
+
+        enter_plan_mode 指定的 plan 文件路径由框架管理，属于内部状态
+        写入；写入它不代表修改用户项目代码。
+        """
+        try:
+            from tools.builtin.plan_mode import (
+                is_plan_mode_active, get_plan_file_path,
+            )
+            if not is_plan_mode_active():
+                return False
+            target = arguments.get("file_path") or arguments.get("path") or ""
+            if not target:
+                return False
+            plan_path = get_plan_file_path()
+            if not plan_path:
+                return False
+            return os.path.abspath(target) == os.path.abspath(plan_path)
+        except Exception:
+            return False
+
     def check_permission(self, tool_name: str, arguments: Dict[str, Any]) -> bool:
         """
         检查工具调用权限（五道防线）
@@ -218,6 +241,19 @@ class PermissionManager:
         if self.mode == "bypass":
             self._stats["allowed"] += 1
             return True
+
+        # 防线 3.5: 计划模式的 plan 文件写入自动放行
+        # plan 文件是框架自身机制（enter_plan_mode）指定的产物，属于内部
+        # 状态写入，不应作为"修改操作"要求用户确认，否则计划流程在无头/
+        # Bridge 场景会被自己的权限守卫卡死
+        if tool_name in ("write_file", "replace_in_file"):
+            if self._is_plan_file_write(arguments):
+                logger.debug(
+                    f"Plan file write auto-allowed: "
+                    f"{arguments.get('file_path') or arguments.get('path')}"
+                )
+                self._stats["allowed"] += 1
+                return True
 
         # 防线 4: Plan 模式拒绝所有修改操作
         if self.mode == "plan":

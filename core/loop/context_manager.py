@@ -189,14 +189,7 @@ class ContextManager:
         "读过哪个文件、哪一段"的指针，模型需要时可精确重读。
         """
         # tool_call_id -> (tool_name, arguments)
-        tc_index: Dict[str, tuple] = {}
-        for msg in self.loop.state.messages:
-            for tc in (msg.get("tool_calls") or []):
-                tc_id = tc.get("id")
-                if tc_id:
-                    func = tc.get("function", {})
-                    tc_index[tc_id] = (func.get("name", ""),
-                                       func.get("arguments", ""))
+        tc_index = self._build_tool_meta_index()
 
         PLACEHOLDER_MIN_CHARS = 600  # 小读取不值得占位
         result = []
@@ -397,9 +390,9 @@ class ContextManager:
         if len(msgs) < self.MICROCOMPACT_TRIGGER_MSGS:
             return 0
 
-        # 一次性构建 tool_call_id -> tool_name 索引，避免对每个 tool 消息
-        # 都遍历全表(原 _find_tool_name_for_result → O(n²))
-        tool_name_by_id = self._build_tool_name_index()
+        # 一次性构建 tool_call_id -> (tool_name, arguments) 索引，避免对每个
+        # tool 消息都遍历全表(原 _find_tool_name_for_result → O(n²))
+        tool_meta_by_id = self._build_tool_meta_index()
 
         # 收集所有可清除的 tool 消息索引（按出现顺序）
         clearable_indices = []
@@ -407,7 +400,7 @@ class ContextManager:
             if msg.get("role") != "tool":
                 continue
             tool_call_id = msg.get("tool_call_id", "")
-            tool_name = tool_name_by_id.get(tool_call_id, "")
+            tool_name = tool_meta_by_id.get(tool_call_id, ("", ""))[0]
             if tool_name in self.MICROCOMPACT_CLEARABLE_TOOLS:
                 clearable_indices.append(i)
 
@@ -428,11 +421,26 @@ class ContextManager:
             content = msg.get("content", "")
             if content == self.MICROCOMPACT_CLEARED_MSG:
                 continue  # 已清除
+            if content.startswith("[已读取 "):
+                continue  # 已替换为读取指针占位
             total_chars_saved += len(content)
+
+            # read_file 的结果替换为指针占位而非空清除消息：
+            # 保留"读过哪个文件、哪一段"的感知，模型需要时可精确重读，
+            # 而不是发现内容凭空消失后盲目重读整个文件
+            new_content = self.MICROCOMPACT_CLEARED_MSG
+            name, args = tool_meta_by_id.get(msg.get("tool_call_id", ""), ("", ""))
+            if name == "read_file" and len(content) > 200:
+                path = self._extract_read_path(args)
+                lines_info = self._extract_lines_info(content)
+                new_content = (
+                    f"[已读取 {path} {lines_info}，内容已清理以节省上下文；"
+                    f"需要时可用 read_file 重新读取]"
+                )
             msgs[idx] = {
                 "role": "tool",
                 "tool_call_id": msg.get("tool_call_id", ""),
-                "content": self.MICROCOMPACT_CLEARED_MSG,
+                "content": new_content,
             }
             cleared += 1
 
@@ -487,21 +495,23 @@ class ContextManager:
                             pass
         return cleared
 
-    def _build_tool_name_index(self) -> Dict[str, str]:
+    def _build_tool_meta_index(self) -> Dict[str, tuple]:
         """
-        构建 tool_call_id -> tool_name 的映射（单次遍历）。
+        构建 tool_call_id -> (tool_name, arguments) 的映射（单次遍历）。
 
-        供 microcompact 批量查表使用，替代原先对每个 tool 消息都遍历全表的
-        _find_tool_name_for_result（O(n²) → O(n)）。
+        供 microcompact / _shadow_old_reads 批量查表使用，替代对每个
+        tool 消息都遍历全表的 O(n²) 查找。
         """
-        index: Dict[str, str] = {}
+        index: Dict[str, tuple] = {}
         for msg in self.loop.state.messages:
             if msg.get("role") != "assistant":
                 continue
             for tc in msg.get("tool_calls", []):
                 tc_id = tc.get("id")
                 if tc_id:
-                    index[tc_id] = tc.get("function", {}).get("name", "")
+                    func = tc.get("function", {})
+                    index[tc_id] = (func.get("name", ""),
+                                   func.get("arguments", ""))
         return index
 
     def context_collapse(self) -> int:

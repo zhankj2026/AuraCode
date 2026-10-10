@@ -31,10 +31,13 @@ def usage_token(usage, attr: str) -> int:
     安全提取 LLM usage 对象的 token 字段。
 
     usage 为 None / 属性缺失 / 属性值为 0 或 None 时统一返回 0。
+    兼容对象形态（新版 SDK）与 dict 形态（旧版 SDK 的流式 chunk usage）。
     替代散落的 ``getattr(usage, attr, 0) or 0 if usage else 0`` 表达式。
     """
     if usage is None:
         return 0
+    if isinstance(usage, dict):
+        return usage.get(attr, 0) or 0
     return getattr(usage, attr, 0) or 0
 
 
@@ -138,6 +141,14 @@ class LLMClient:
 
                 try:
                     for chunk in response:
+                        # usage 捕获：不同端点位置不同 —— 标准模式
+                        # (stream_options.include_usage) 在末尾的空 choices
+                        # chunk 上；GLM 兼容端点附在最后一个带 choices 的
+                        # chunk（finish_reason 所在）上。逐 chunk 检查，
+                        # 两种形态都能捕获。
+                        if getattr(chunk, 'usage', None):
+                            usage = chunk.usage
+
                         # 中断检查（每个 chunk 都检查）
                         if loop.state.is_aborted():
                             logger.info("Stream aborted by user")
@@ -145,9 +156,6 @@ class LLMClient:
                             break
 
                         if not chunk.choices:
-                            # 最后一个 chunk 可能携带 usage（无 choices）
-                            if hasattr(chunk, 'usage') and chunk.usage:
-                                usage = chunk.usage
                             continue
 
                         choice = chunk.choices[0]
@@ -232,15 +240,16 @@ class LLMClient:
                     tc_data = tool_calls_map[idx]
                     tool_calls_list.append(_StreamToolCall(tc_data))
 
-                # Token 统计
+                # Token 统计（usage_token 兼容对象/dict 两种 usage 形态）
                 if usage:
-                    logger.info(f"Token: prompt={getattr(usage, 'prompt_tokens', '?')}, "
-                               f"completion={getattr(usage, 'completion_tokens', '?')}, "
-                               f"total={getattr(usage, 'total_tokens', '?')}")
+                    _pt = usage_token(usage, 'prompt_tokens')
+                    _ct = usage_token(usage, 'completion_tokens')
+                    _tt = usage_token(usage, 'total_tokens')
+                    logger.info(f"Token: prompt={_pt}, completion={_ct}, total={_tt}")
                     loop.events.status(
-                        f"💰 Token: 输入={getattr(usage, 'prompt_tokens', '?')}, "
-                        f"输出={getattr(usage, 'completion_tokens', '?')}, "
-                        f"总计={getattr(usage, 'total_tokens', '?')}"
+                        f"💰 Token: 输入={_pt or '?'}, "
+                        f"输出={_ct or '?'}, "
+                        f"总计={_tt or '?'}"
                     )
 
                 # 记录 reasoning_content 到日志（用于调试/审计）
