@@ -50,6 +50,60 @@ def _set_cwd(path: str):
         _cwd = path
 
 
+# ── 进程树安全执行 ─────────────────────────────────────────────────────────────
+
+def _kill_process_tree(pid: int):
+    """强制终止整棵进程树（含孙进程）。
+
+    subprocess 超时默认只 kill 直接子进程——shell=True 时即 cmd.exe 壳，
+    其孙进程（node/python 服务等）会存活并持有 stdout 管道，
+    导致 communicate() 永久阻塞（工具调用卡死且超时失效）。
+    """
+    try:
+        if platform.system() == "Windows":
+            subprocess.run(
+                ["taskkill", "/T", "/F", "/PID", str(pid)],
+                capture_output=True, timeout=10,
+            )
+        else:
+            import signal
+            import os as _os
+            _os.killpg(_os.getpgid(pid), signal.SIGKILL)
+    except Exception as e:
+        logger.warning(f"进程树终止失败 (pid={pid}): {e}")
+
+
+def _run_subprocess(command, timeout: int, cwd: str, shell: bool = True):
+    """带进程树终止的子进程执行（替代 subprocess.run 的超时路径）。
+
+    Returns:
+        (returncode, stdout, stderr, timed_out)
+    """
+    popen_kwargs = dict(
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=cwd,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if platform.system() != "Windows":
+        # Unix: 独立进程组，超时后可 killpg 整组终止
+        popen_kwargs["start_new_session"] = True
+    proc = subprocess.Popen(command, shell=shell, **popen_kwargs)
+    try:
+        out, err = proc.communicate(timeout=timeout)
+        return proc.returncode, out or "", err or "", False
+    except subprocess.TimeoutExpired:
+        _kill_process_tree(proc.pid)
+        try:
+            out, err = proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            out, err = "", ""
+        note = f"\n[命令超时（{timeout}秒），已强制终止进程树]"
+        return proc.returncode, (out or "") + note, err or "", True
+
+
 # ── 后台任务管理 ────────────────────────────────────────────────────────────────
 
 _background_tasks: Dict[int, Dict] = {}
@@ -77,32 +131,18 @@ def _start_background_task(command: str, cwd: str, timeout: int) -> int:
 
     def _run():
         try:
-            shell = platform.system() == "Windows"
-            # 在类 Unix 系统中使用 bash -lc 确保加载 profile
-            if not shell and platform.system() != "Windows":
-                proc = subprocess.run(
-                    ["bash", "-lc", command],
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout,
-                    cwd=cwd,
-                )
+            is_windows = platform.system() == "Windows"
+            if is_windows:
+                rc, out, err, timed_out = _run_subprocess(
+                    command, timeout, cwd, shell=True)
             else:
-                proc = subprocess.run(
-                    command,
-                    shell=True,
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout,
-                    cwd=cwd,
-                )
-            task_info["stdout"] = proc.stdout or ""
-            task_info["stderr"] = proc.stderr or ""
-            task_info["returncode"] = proc.returncode
-            task_info["status"] = "completed"
-        except subprocess.TimeoutExpired:
-            task_info["status"] = "timeout"
-            task_info["stderr"] = f"命令超时（{timeout}秒）"
+                # 类 Unix 使用 bash -lc 确保加载 profile
+                rc, out, err, timed_out = _run_subprocess(
+                    ["bash", "-lc", command], timeout, cwd, shell=False)
+            task_info["stdout"] = out or ""
+            task_info["stderr"] = err or ""
+            task_info["returncode"] = rc
+            task_info["status"] = "timeout" if timed_out else "completed"
         except Exception as e:
             task_info["status"] = "error"
             task_info["stderr"] = str(e)
@@ -277,27 +317,14 @@ def run_command_handler(
         is_windows = platform.system() == "Windows"
 
         if is_windows:
-            result = subprocess.run(
-                command,
-                shell=True,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                cwd=cwd,
-                encoding="utf-8",
-                errors="replace",
-            )
+            _rc, stdout, stderr, _timed_out = _run_subprocess(
+                command, timeout, cwd, shell=True)
         else:
-            result = subprocess.run(
-                ["bash", "-lc", command],
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                cwd=cwd,
-            )
+            _rc, stdout, stderr, _timed_out = _run_subprocess(
+                ["bash", "-lc", command], timeout, cwd, shell=False)
 
-        stdout = result.stdout or ""
-        stderr = result.stderr or ""
+        stdout = stdout or ""
+        stderr = stderr or ""
 
         # 尝试检测 cd 后的工作目录（通过 echo $PWD 或 cd 命令）
         cd_match = re.search(r'^\s*cd\s+["\']?([^"\'\n;]+)["\']?\s*[;&\n]', command)
@@ -315,8 +342,8 @@ def run_command_handler(
             output_parts.append(stdout.rstrip())
         if stderr.strip():
             output_parts.append(f"STDERR:\n{stderr.rstrip()}")
-        if result.returncode != 0:
-            output_parts.append(f"Exit code: {result.returncode}")
+        if _rc != 0:
+            output_parts.append(f"Exit code: {_rc}")
         if not output_parts:
             output_parts.append("(success, no output)")
 

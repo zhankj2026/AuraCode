@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 # 与 run_command 共享同一份 cwd 状态：模型在两个 shell 工具间切换时
 # （原各自维护独立 _cwd），cd 结果会互相漂移。
 
-from tools.builtin.run_command import _get_cwd, _set_cwd  # noqa: E402
+from tools.builtin.run_command import _get_cwd, _set_cwd, _run_subprocess  # noqa: E402
 
 
 # ── 危险命令检测 ────────────────────────────────────────────────────────────────
@@ -129,22 +129,20 @@ def run_powershell_handler(
             f'Write-Output "\\n__PWD__:$PWD"'
         )
 
-        result = subprocess.run(
+        _rc, stdout, stderr, _timed_out = _run_subprocess(
             [
                 "powershell.exe",
                 "-NoProfile",
                 "-NonInteractive",
                 "-Command", ps_command,
             ],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            encoding="utf-8",
-            errors="replace",
+            timeout,
+            cwd,
+            shell=False,
         )
 
-        stdout = result.stdout or ""
-        stderr = result.stderr or ""
+        stdout = stdout or ""
+        stderr = stderr or ""
 
         # 提取更新后的工作目录
         pwd_match = re.search(r'__PWD__:(.+?)$', stdout, re.MULTILINE)
