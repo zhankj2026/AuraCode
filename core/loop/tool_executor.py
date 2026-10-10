@@ -219,17 +219,8 @@ class ToolExecutor:
                 # SessionTranscript: 记录工具调用及结果
                 loop.persistence.transcript_record_tool(tool_name, arguments, result)
 
-                # 5. 输出截断（基础保护）
-                if isinstance(result, str) and len(result.splitlines()) > 500:
-                    lines = result.splitlines()
-                    truncated = (
-                        lines[:250] +
-                        [f"... (截断 {len(lines) - 500} 行) ..."] +
-                        lines[-250:]
-                    )
-                    result = "\n".join(truncated)
-
-                # 5.5 ToolEnhancer: 智能裁剪 + 摘要
+                # 5. ToolEnhancer: 智能裁剪 + 摘要（唯一的输出裁剪层，
+                #    read_file 有豁免逻辑，见 tool_enhancer.process_tool_result）
                 if isinstance(result, str) and result:
                     result = loop.tool_enhancer.process_tool_result(tool_name, result)
 

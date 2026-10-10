@@ -47,7 +47,10 @@ register_tool("sleep", {
     "description": (
         "Wait for a specified duration. Can run concurrently with other tool calls. "
         "Use for waiting on async operations (server startup, file generation, "
-        "background processes). User can interrupt at any time."
+        "background processes). User can interrupt at any time. "
+        "IMPORTANT: never spend a whole turn on sleep alone — always batch it "
+        "with other tool calls in the same response; prefer run_command with "
+        "timeout/polling when waiting for a process to become ready."
     ),
     "parameters": {
         "type": "object",

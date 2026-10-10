@@ -81,6 +81,15 @@ DEFAULT_CONFIG = {
     "mcp_servers": {},
     "hooks": {},
     "plugins": {},
+    "tools": {
+        # 工具输出裁剪行数上限
+        "output_max_lines": 500,
+        # 摘要触发字符数阈值
+        "summary_threshold": 4000,
+        # read_file 豁免裁剪（行数/字符数双上限）
+        "read_file_exempt_lines": 2000,
+        "read_file_exempt_chars": 32768,
+    },
     "logging": {
         "level": "INFO",
     }

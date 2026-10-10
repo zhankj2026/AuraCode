@@ -90,7 +90,8 @@ if enhancer:
     delay2 = enhancer.get_retry_delay(2)
     check("重试延迟递增", delay2 >= delay1)
 
-# 4. 验证 agent_loop 导入了 tool_enhancer
+# 4. 验证 agent_loop / tool_executor 集成了 tool_enhancer
+#    （agent_loop 已重构为薄门面，执行逻辑在 core/loop/tool_executor.py）
 try:
     import core.agent_loop as al_mod
     source = open(al_mod.__file__, "r", encoding="utf-8").read()
@@ -98,14 +99,20 @@ try:
           "from core.tool_enhancer import get_tool_enhancer" in source)
     check("agent_loop.py 初始化 tool_enhancer",
           "self.tool_enhancer = get_tool_enhancer()" in source)
-    check("agent_loop.py 调用 process_tool_result",
-          "self.tool_enhancer.process_tool_result" in source)
-    check("agent_loop.py 调用 should_retry",
-          "self.tool_enhancer.should_retry" in source)
-    check("agent_loop.py 发送 tool_retry 事件",
-          "tool_retry" in source)
 except Exception as e:
     check("agent_loop.py 集成检查", False, str(e))
+
+try:
+    from core.loop import tool_executor as te_mod
+    te_source = open(te_mod.__file__, "r", encoding="utf-8").read()
+    check("tool_executor.py 调用 process_tool_result",
+          "process_tool_result" in te_source)
+    check("tool_executor.py 调用 should_retry",
+          "should_retry" in te_source)
+    check("tool_executor.py 发送 tool_retry 事件",
+          "tool_retry" in te_source)
+except Exception as e:
+    check("tool_executor.py 集成检查", False, str(e))
 
 
 # ============================================================

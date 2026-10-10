@@ -25,7 +25,6 @@ import os
 import re
 import subprocess
 import platform
-import threading
 import logging
 from typing import Optional, Dict
 from tools.registry import register_tool
@@ -33,20 +32,10 @@ from tools.registry import register_tool
 logger = logging.getLogger(__name__)
 
 # ── 全局工作目录（会话级持久化） ────────────────────────────────────────────────
+# 与 run_command 共享同一份 cwd 状态：模型在两个 shell 工具间切换时
+# （原各自维护独立 _cwd），cd 结果会互相漂移。
 
-_cwd_lock = threading.Lock()
-_cwd: str = os.getcwd()
-
-
-def _get_cwd() -> str:
-    with _cwd_lock:
-        return _cwd
-
-
-def _set_cwd(path: str):
-    global _cwd
-    with _cwd_lock:
-        _cwd = path
+from tools.builtin.run_command import _get_cwd, _set_cwd  # noqa: E402
 
 
 # ── 危险命令检测 ────────────────────────────────────────────────────────────────
@@ -196,11 +185,12 @@ register_tool("run_powershell", {
     "description": (
         "在 Windows PowerShell 中执行命令。\n"
         "专为 Windows 优化，支持：\n"
-        "- 工作目录会话级持久化（cd 效果保留）\n"
+        "- 工作目录会话级持久化（与 run_command 共享，cd 效果互通）\n"
         "- 超时控制（默认 60 秒）\n"
         "- 危险命令自动警告\n"
         "- UTF-8 编码输出\n"
-        "注意：仅支持 Windows 系统，Linux/macOS 请使用 run_command。"
+        "注意：仅支持 Windows 系统。常规命令请优先使用 run_command，"
+        "仅在需要 PowerShell 专有语法（Get-*/Invoke-*/对象管道等）时使用本工具。"
     ),
     "parameters": {
         "type": "object",

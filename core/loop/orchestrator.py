@@ -28,6 +28,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from core.session_state import QueryResult
 from core.loop.retry import classify_error, is_transient_error, is_server_error
+from core.loop.llm_client import usage_token
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +110,12 @@ class LoopOrchestrator:
                 assistant_content = stream_result.content
                 active_m = loop.state.get_active_model(loop.model)
                 loop.state.record_usage(stream_result.usage, model=active_m)
+                # 记录主调用的 prompt_tokens（≈当前上下文规模），
+                # 供 token 化的自动压缩触发判断（不含压缩摘要等辅助调用）
+                if stream_result.usage is not None:
+                    _pt = usage_token(stream_result.usage, 'prompt_tokens')
+                    if _pt:
+                        loop.state.last_main_prompt_tokens = _pt
 
                 # SessionTranscript: 记录费用
                 loop.persistence.transcript_record_cost(active_m, stream_result.usage)
@@ -263,11 +270,50 @@ class LoopOrchestrator:
 
     # ========== 上下文维护 ==========
 
+    def _context_window(self) -> int:
+        """当前模型的上下文窗口大小（未知时按 200k）"""
+        try:
+            from commands.builtin.context_command import _get_context_window
+            return _get_context_window(self.loop.model) or 200_000
+        except Exception:
+            return 200_000
+
+    def _auto_compact_threshold_pct(self) -> float:
+        """token 触发的窗口使用率阈值（消费 settings 的 auto_compact_threshold）"""
+        try:
+            from services.settings_store import get_settings_store
+            store = get_settings_store()
+            return float(store.get("auto_compact_threshold", 0.7))
+        except Exception:
+            return 0.7
+
     def _run_context_maintenance(self):
         """
         上下文维护：超过阈值则全量压缩，否则轻量预清理 + 接近阈值警告。
+
+        触发优先级:
+        1. token 触发 — 主调用返回的真实 prompt_tokens 超过
+           窗口 × auto_compact_threshold（默认 0.7）。消息条数阈值
+           假设每条 ~800 token，对包含大文件/长命令输出的会话严重
+           低估真实 token 量，token 触发修正这一失真。
+        2. 条数触发 — 无 usage 信息时（旧端点/降级路径）的 fallback。
         """
         loop = self.loop
+
+        # 1) token 触发
+        last_pt = getattr(loop.state, "last_main_prompt_tokens", 0)
+        if last_pt:
+            window = self._context_window()
+            threshold_pct = self._auto_compact_threshold_pct()
+            if last_pt >= window * threshold_pct:
+                logger.info(
+                    f"Token 触发压缩: prompt_tokens={last_pt} "
+                    f">= {window} × {threshold_pct:.0%}"
+                )
+                loop.context_manager.compact()
+                return
+
+        # 2) 条数触发（fallback）
         msg_count = len(loop.state.messages)
         if msg_count > loop.context_compact_threshold:
             loop.context_manager.compact()

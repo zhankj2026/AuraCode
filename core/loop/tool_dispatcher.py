@@ -32,12 +32,13 @@ class ToolDispatcher:
     """工具调用的批量调度:并行/顺序分批执行 + 结果统一记录。"""
 
     # 可并行执行的只读工具(只读 → 无副作用 → 可安全并行)
+    # todo_write: 纯内存状态 + 内部锁，与只读工具并发安全
     PARALLEL_SAFE_TOOLS = frozenset({
         "read_file", "list_directory", "grep", "find",
         "glob_tool", "search_code", "web_fetch", "web_search",
         "tool_search", "sleep", "get_relevant_memories",
         "list_memories", "lsp_tool", "brief_tool",
-        "task_get", "task_list",
+        "task_get", "task_list", "todo_write",
     })
 
     MAX_PARALLEL_WORKERS = 8

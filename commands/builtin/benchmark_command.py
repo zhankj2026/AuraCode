@@ -94,7 +94,7 @@ def benchmark_handler(args: list, loop=None) -> str:
                 for i in range(1, 21)
             ]
             t0 = time.perf_counter()
-            cleared = loop._microcompact()
+            cleared = loop.context_manager.microcompact()
             t1 = time.perf_counter()
             results.append(("Microcompact (20 msgs)", t1 - t0, f"清除 {cleared} 条"))
         finally:

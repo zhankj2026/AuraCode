@@ -339,7 +339,10 @@ register_tool("run_command", {
         "- Working directory persistence across commands\n"
         "- Dangerous command warnings\n"
         "- Background task status checking\n"
-        "Use run_powershell on Windows instead."
+        "Default choice on ALL platforms (Windows uses cmd.exe). "
+        "Only use run_powershell when you need PowerShell-specific "
+        "syntax (Get-*/Invoke-*/object pipeline). Working directory "
+        "is shared with run_powershell."
     ),
     "parameters": {
         "type": "object",

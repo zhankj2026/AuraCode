@@ -206,8 +206,16 @@ try:
                      "core", "agent_loop.py"),
         "r", encoding="utf-8"
     ).read()
-    check("agent_loop.py 创建检查点", "get_checkpoint_manager" in al_source)
-    check("agent_loop.py create_checkpoint 调用", "create_checkpoint" in al_source)
+    # agent_loop 已重构为薄门面，检查点逻辑移至 core/loop/orchestrator.py
+    orch_source = open(
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     "core", "loop", "orchestrator.py"),
+        "r", encoding="utf-8"
+    ).read()
+    check("agent_loop/orchestrator 检查点集成",
+          "get_checkpoint_manager" in al_source + orch_source)
+    check("orchestrator create_checkpoint 调用",
+          "create_checkpoint" in al_source + orch_source)
 except Exception as e:
     check("agent_loop.py 集成检查", False, str(e))
 

@@ -14,11 +14,15 @@ core.loop.context_manager — 多级上下文压缩
 import json
 import logging
 import os
+import re
 from typing import Dict, List
 
 from core.tool_categories import FILE_WRITE_TOOLS
 
 logger = logging.getLogger(__name__)
+
+# read_file 结果的行范围元信息头: "[path: lines 1-120 of 617]"
+_READ_RANGE_RE = re.compile(r'lines (\d+)-(\d+) of (\d+)')
 
 
 class ContextManager:
@@ -60,6 +64,11 @@ class ContextManager:
         if len(msgs) <= 4:
             return
 
+        # 设置开关: auto_compact_enabled=False 时跳过（此前该设置无消费方）
+        if getattr(loop.state, "auto_compact_enabled", True) is False:
+            logger.debug("Auto-compact 已禁用（auto_compact_enabled=False），跳过压缩")
+            return
+
         # 触发 PreCompact 钩子
         if loop.hooks_enabled:
             loop.events.fire_lifecycle_hook("PreCompact", {
@@ -88,14 +97,28 @@ class ContextManager:
         # 保留系统提示词和最近消息
         keep_count = max(6, len(msgs) // 3)
         system_msg = msgs[0] if msgs[0].get("role") == "system" else None
+
+        # 压后目标控制：估算保留部分仍明显超过目标线时收缩 keep_count，
+        # 避免"只压掉一点点"的高位稳态导致每轮重复触发
+        # （目标 ≈ 窗口 50% 的字符当量，token→字符按 ~2.5 折中估算）
+        target_chars = self._context_window() * 0.5 * 2.5
+        while keep_count > 6:
+            recent = msgs[-keep_count:]
+            if self._msgs_est_chars(recent) + 2000 <= target_chars:
+                break
+            keep_count = max(6, keep_count - max(4, keep_count // 4))
+
         old_msgs = msgs[1:-keep_count]
         recent_msgs = msgs[-keep_count:]
 
         if not old_msgs:
             return
 
-        # LLM 驱动摘要（优先）或简单摘要（降级）
-        summary = self.compact_messages_llm(old_msgs)
+        # LLM 驱动摘要（优先）或简单摘要（降级）。
+        # 摘要输入用"读取指针占位"替代文件全文：既缩小摘要输入，
+        # 又保留"读过哪个文件、哪一段"的指针，模型需要时可精确
+        # 重读，而不是压缩后丢失感知、盲目重读整个文件。
+        summary = self.compact_messages_llm(self._shadow_old_reads(old_msgs))
         if not summary:
             return
 
@@ -134,6 +157,86 @@ class ContextManager:
                 "mc_cleared": mc_cleared,
                 "cc_folded": cc_folded,
             })
+
+    # ========== 压缩辅助 ==========
+
+    def _context_window(self) -> int:
+        """当前模型的上下文窗口大小（未知时按 200k）"""
+        try:
+            from commands.builtin.context_command import _get_context_window
+            return _get_context_window(self.loop.model) or 200_000
+        except Exception:
+            return 200_000
+
+    @staticmethod
+    def _msgs_est_chars(msgs: List[Dict]) -> int:
+        """粗略估算一组消息的字符量（content + tool_calls.arguments）"""
+        total = 0
+        for m in msgs:
+            content = m.get("content")
+            if isinstance(content, str):
+                total += len(content)
+            for tc in (m.get("tool_calls") or []):
+                args = tc.get("function", {}).get("arguments")
+                if isinstance(args, str):
+                    total += len(args)
+        return total
+
+    def _shadow_old_reads(self, old_msgs: List[Dict]) -> List[Dict]:
+        """返回 old_msgs 的副本列表，read_file 的长结果替换为指针占位。
+
+        原消息不做修改（摘要失败时历史保持完整）。占位保留
+        "读过哪个文件、哪一段"的指针，模型需要时可精确重读。
+        """
+        # tool_call_id -> (tool_name, arguments)
+        tc_index: Dict[str, tuple] = {}
+        for msg in self.loop.state.messages:
+            for tc in (msg.get("tool_calls") or []):
+                tc_id = tc.get("id")
+                if tc_id:
+                    func = tc.get("function", {})
+                    tc_index[tc_id] = (func.get("name", ""),
+                                       func.get("arguments", ""))
+
+        PLACEHOLDER_MIN_CHARS = 600  # 小读取不值得占位
+        result = []
+        for m in old_msgs:
+            if m.get("role") != "tool":
+                result.append(m)
+                continue
+            name, args = tc_index.get(m.get("tool_call_id", ""), ("", ""))
+            if name != "read_file":
+                result.append(m)
+                continue
+            content = m.get("content", "") or ""
+            if len(content) < PLACEHOLDER_MIN_CHARS:
+                result.append(m)
+                continue
+            path = self._extract_read_path(args)
+            lines_info = self._extract_lines_info(content)
+            result.append({**m, "content": (
+                f"[已读取 {path} {lines_info}，内容已随压缩省略；"
+                f"需要时可用 read_file 重新读取该文件]"
+            )})
+        return result
+
+    @staticmethod
+    def _extract_read_path(args: str) -> str:
+        """从 read_file 调用参数中提取文件路径"""
+        try:
+            d = json.loads(args) if args else {}
+            return d.get("path") or d.get("file_path") or "?"
+        except (json.JSONDecodeError, TypeError):
+            return "?"
+
+    @staticmethod
+    def _extract_lines_info(content: str) -> str:
+        """从读取结果中提取行范围信息（兼容范围头与全文两种形态）"""
+        m = _READ_RANGE_RE.search(content)
+        if m:
+            return f"第 {m.group(1)}-{m.group(2)}/{m.group(3)} 行"
+        n = len(content.splitlines())
+        return f"(约 {n} 行)"
 
     def image_strip(self) -> int:
         """
@@ -456,15 +559,12 @@ class ContextManager:
             if content.startswith("[collapsed:"):
                 continue
 
-            # 计算折叠摘要
+            # 计算折叠摘要（从行范围头提取信息；read_file 的头格式为
+            # "[path: lines s-e of total]"，原先按 "总行数:" 解析永远取不到）
             lines_info = ""
-            if "总行数:" in content:
-                # 从元信息头提取行数
-                try:
-                    lines_part = content.split("总行数:")[1].split("|")[0].split("]")[0]
-                    lines_info = f", {lines_part.strip()} 行"
-                except (IndexError, ValueError):
-                    pass
+            m = _READ_RANGE_RE.search(content)
+            if m:
+                lines_info = f", 第 {m.group(1)}-{m.group(2)}/{m.group(3)} 行"
 
             n_writes = len(subsequent_writes)
             filename = os.path.basename(read_path)

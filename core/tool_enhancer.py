@@ -359,7 +359,12 @@ class ToolOutputTrimmer:
         self.max_lines = max_lines
 
     def trim(self, output: str, max_lines: int = None) -> str:
-        """裁剪工具输出"""
+        """裁剪工具输出
+
+        关键行密集（代码/日志）: 保留关键行 + 首尾各 20 行
+        关键行稀疏（文档/数据）: 首/中/尾三段采样 + 显式省略区间标注，
+                                 模型能明确知道缺了哪几行、可精确分段补读
+        """
         if max_lines is None:
             max_lines = self.max_lines
         lines = output.splitlines()
@@ -368,35 +373,61 @@ class ToolOutputTrimmer:
             return self._collapse_blank_lines("\n".join(lines))
 
         # 标记关键行
-        scored = []
-        for i, line in enumerate(lines):
-            is_key = bool(self.KEY_PATTERNS.search(line))
-            scored.append((i, line, is_key))
+        key_idx = [i for i, line in enumerate(lines)
+                   if self.KEY_PATTERNS.search(line)]
 
-        # 保留: 所有关键行 + 首尾各 20 行
+        # 关键行足够多以支撑"关键行+首尾"策略时走原路径，
+        # 否则（如中文文档对代码向正则零命中）走区间采样
+        if len(key_idx) >= max(15, max_lines // 20):
+            return self._trim_key_lines(lines, key_idx)
+        return self._trim_sparse(lines, key_idx, max_lines)
+
+    def _trim_key_lines(self, lines: List[str], key_idx: List[int]) -> str:
+        """关键行密集: 保留首尾各 20 行 + 所有关键行"""
         keep = set()
-        for i in range(min(20, len(scored))):
+        for i in range(min(20, len(lines))):
             keep.add(i)
-        for i in range(max(0, len(scored) - 20), len(scored)):
+        for i in range(max(0, len(lines) - 20), len(lines)):
             keep.add(i)
-        for i, line, is_key in scored:
-            if is_key:
-                keep.add(i)
+        keep.update(key_idx)
 
-        # 按序输出
-        kept_lines = []
-        for i in sorted(keep):
-            if i < len(scored):
-                kept_lines.append(scored[i][1])
-
-        result = "\n".join(kept_lines)
-        result = self._collapse_blank_lines(result)
+        kept_lines = [lines[i] for i in sorted(keep)]
+        result = self._collapse_blank_lines("\n".join(kept_lines))
 
         if len(kept_lines) < len(lines):
             header = f"[输出已裁剪: {len(lines)} → {len(kept_lines)} 行]\n"
             result = header + result
 
         return result
+
+    def _trim_sparse(self, lines: List[str], key_idx: List[int], max_lines: int) -> str:
+        """关键行稀疏: 首/中/尾三段采样 + 省略区间标注"""
+        total = len(lines)
+        head_n = max_lines // 4
+        tail_n = max_lines // 4
+        mid_n = max_lines // 4
+        mid_start = head_n + max(0, (total - head_n - tail_n - mid_n) // 2)
+        tail_start = total - tail_n
+
+        parts = list(lines[:head_n])
+        parts.append(f"⋯ 已省略第 {head_n + 1}-{mid_start} 行（全文 {total} 行），"
+                     f"如需该段内容请用 start_line/end_line 分段读取 ⋯")
+        parts.extend(lines[mid_start:mid_start + mid_n])
+        parts.append(f"⋯ 已省略第 {mid_start + mid_n + 1}-{tail_start} 行（全文 {total} 行），"
+                     f"如需该段内容请用 start_line/end_line 分段读取 ⋯")
+        parts.extend(lines[tail_start:])
+
+        # 稀疏但存在的关键行（错误/告警等）附加在末尾，避免丢失
+        kept = (set(range(head_n)) | set(range(mid_start, mid_start + mid_n))
+                | set(range(tail_start, total)))
+        for i in key_idx:
+            if i not in kept and len(parts) < max_lines:
+                parts.append(f"L{i + 1}: {lines[i]}")
+
+        result = self._collapse_blank_lines("\n".join(parts))
+        header = (f"[输出已采样: {total} → {len(parts)} 行 | "
+                  f"关键行稀疏，保留首/中/尾三段并标注省略区间]\n")
+        return header + result
 
     def _collapse_blank_lines(self, text: str) -> str:
         """合并连续空行为最多 1 行"""
@@ -413,20 +444,39 @@ class ToolEnhancer:
     组合: Summarizer + RetryPolicy + OutputTrimmer
     """
 
-    def __init__(self, summary_threshold: int = 4000, max_output_lines: int = 500):
+    def __init__(self, summary_threshold: int = 4000, max_output_lines: int = 500,
+                 read_file_exempt_lines: int = 2000,
+                 read_file_exempt_chars: int = 32768):
         self.summarizer = ToolResultSummarizer(threshold=summary_threshold)
         self.retry = ToolRetryPolicy()
         self.trimmer = ToolOutputTrimmer(max_lines=max_output_lines)
+        self.read_file_exempt_lines = read_file_exempt_lines
+        self.read_file_exempt_chars = read_file_exempt_chars
 
     def process_tool_result(self, tool_name: str, result: str) -> str:
-        """处理工具结果: 裁剪 → 摘要"""
+        """处理工具结果: 裁剪 → 摘要
+
+        read_file 豁免: 常规大小文件全文进上下文——关键行正则是为
+        代码/报错设计的，对文档类内容会裁到只剩首尾各 20 行，迫使
+        模型分段重读同一个文件。超限的读取只裁剪（带省略区间标注）
+        不再摘要，保住"缺哪段"的指针信息。
+        """
         if not result:
             return result
+        if tool_name == "read_file":
+            if self._is_small_read(result):
+                return result
+            return self.trimmer.trim(result)
         # 1. 裁剪
         trimmed = self.trimmer.trim(result)
         # 2. 摘要
         summarized = self.summarizer.summarize(tool_name, trimmed)
         return summarized
+
+    def _is_small_read(self, result: str) -> bool:
+        """read_file 豁免判定: 行数与字符数均在豁免线内"""
+        return (len(result.splitlines()) <= self.read_file_exempt_lines
+                and len(result) <= self.read_file_exempt_chars)
 
     def should_retry(self, tool_name: str, error: str, attempt: int) -> bool:
         """判断是否重试"""
@@ -449,8 +499,26 @@ _enhancer: Optional[ToolEnhancer] = None
 
 
 def get_tool_enhancer() -> ToolEnhancer:
-    """获取全局工具增强器"""
+    """获取全局工具增强器
+
+    阈值可经 config.yaml 的 tools.* 键覆盖:
+      tools.output_max_lines       工具输出裁剪行数上限 (默认 500)
+      tools.summary_threshold      摘要触发字符数阈值 (默认 4000)
+      tools.read_file_exempt_lines read_file 豁免裁剪的行数上限 (默认 2000)
+      tools.read_file_exempt_chars read_file 豁免裁剪的字符数上限 (默认 32768)
+    """
     global _enhancer
     if _enhancer is None:
-        _enhancer = ToolEnhancer()
+        kwargs = {}
+        try:
+            from config.manager import config_manager
+            kwargs = {
+                "max_output_lines": int(config_manager.get("tools.output_max_lines", 500)),
+                "summary_threshold": int(config_manager.get("tools.summary_threshold", 4000)),
+                "read_file_exempt_lines": int(config_manager.get("tools.read_file_exempt_lines", 2000)),
+                "read_file_exempt_chars": int(config_manager.get("tools.read_file_exempt_chars", 32768)),
+            }
+        except Exception:
+            kwargs = {}
+        _enhancer = ToolEnhancer(**kwargs)
     return _enhancer

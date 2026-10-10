@@ -71,6 +71,33 @@ class LLMClient:
     def __init__(self, loop):
         self.loop = loop
 
+    def _create_stream(self, **kwargs):
+        """创建流式请求。
+
+        显式开启 stream_options.include_usage，否则 OpenAI 兼容流式
+        响应默认不返回 usage —— token 统计/费用记录会恒为 0。
+        个别兼容端点或旧版 SDK 不识别该参数，此时降级为普通流式。
+        """
+        try:
+            return self.loop.client.chat.completions.create(
+                stream=True,
+                stream_options={"include_usage": True},
+                **kwargs,
+            )
+        except TypeError:
+            # 本地 SDK 版本过旧，不识别 stream_options
+            logger.debug("SDK 不支持 stream_options，降级为普通流式")
+            return self.loop.client.chat.completions.create(stream=True, **kwargs)
+        except Exception as e:
+            # 部分兼容端点对未知参数报 400/422；仅当报错指向该参数时才降级，
+            # 其余错误原样抛给外层重试逻辑
+            msg = str(e).lower()
+            if any(k in msg for k in ("stream_options", "include_usage",
+                                      "unexpected", "unknown parameter", "not support")):
+                logger.debug(f"端点不支持 stream_options，降级重试: {str(e)[:120]}")
+                return self.loop.client.chat.completions.create(stream=True, **kwargs)
+            raise
+
     def call_streaming(self) -> StreamResult:
         """
         流式调用 LLM — 逐 token 实时输出，同时累积工具调用。
@@ -91,14 +118,13 @@ class LLMClient:
                 # ── 写入请求日志 ──
                 loop.events.write_llm_log("REQUEST", active_model, attempt)
 
-                response = loop.client.chat.completions.create(
+                response = self._create_stream(
                     model=active_model,
                     messages=loop.messages,
                     tools=loop.tools,
                     tool_choice="auto",
                     temperature=0.2,
                     max_tokens=loop.max_tokens,
-                    stream=True,
                 )
 
                 # 流式处理

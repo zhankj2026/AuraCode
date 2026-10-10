@@ -274,6 +274,9 @@ class SessionState:
         # === Token 追踪 ===
         self.total_usage = TokenUsage()
         self.last_turn_usage = TokenUsage()  # 当轮用量（用于展示）
+        # 最近一次主 LLM 调用的 prompt_tokens（≈当前上下文规模，
+        # 供 token 化的自动压缩触发判断使用；不含压缩摘要等辅助调用）
+        self.last_main_prompt_tokens: int = 0
 
         # === 成本 ===
         self.total_cost_usd: float = 0.0
