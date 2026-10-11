@@ -262,7 +262,99 @@ check("auto_compact_threshold 读取正常（0.5~0.9 区间）", 0.5 <= pct <= 0
       f"pct={pct}")
 
 # ------------------------------------------------------------
-# 6. context_collapse: 读后被写 → 折叠（含行段信息）
+# 6. Microcompact 活跃/热点文件保护（demo10 读→清→重读循环）
+# ------------------------------------------------------------
+class FakeOpsLoop(FakeLoop):
+    def __init__(self, msgs, ops):
+        super().__init__(msgs)
+        self._cc_file_ops = ops
+
+
+def _mk(msgs, role, **kw):
+    msgs.append({**{"role": role}, **kw})
+
+
+# 6a. 写活跃: 窗口内被写过的文件，其读取不被清理
+msgs_a = [{"role": "system", "content": "SYS"}, {"role": "user", "content": "t"}]
+ops_a = []
+_mk(msgs_a, "assistant", tool_calls=[
+    {"id": "tcE", "type": "function", "function": {"name": "read_file",
+     "arguments": '{"path": "F:/proj/js/enemy.js"}'}}])
+_mk(msgs_a, "tool", tool_call_id="tcE", content="enemy 全文\n" * 200)
+ops_a.append((2, "read", "F:\\proj\\js\\enemy.js"))
+_mk(msgs_a, "assistant", tool_calls=[
+    {"id": "tcW", "type": "function", "function": {"name": "write_file",
+     "arguments": '{"file_path": "F:/proj/js/enemy.js"}'}}])
+_mk(msgs_a, "tool", tool_call_id="tcW", content="Wrote")
+ops_a.append((4, "write", "F:\\proj\\js\\enemy.js"))
+_mk(msgs_a, "assistant", tool_calls=[
+    {"id": "tcP", "type": "function", "function": {"name": "read_file",
+     "arguments": '{"path": "F:/proj/js/player.js"}'}}])
+_mk(msgs_a, "tool", tool_call_id="tcP", content="player 全文\n" * 200)
+ops_a.append((6, "read", "F:\\proj\\js\\player.js"))
+for i in range(12):
+    _mk(msgs_a, "assistant", tool_calls=[
+        {"id": f"n{i}", "type": "function",
+         "function": {"name": "run_command", "arguments": '{"command":"x"}'}}])
+    _mk(msgs_a, "tool", tool_call_id=f"n{i}", content="out")
+ContextManager(FakeOpsLoop(msgs_a, ops_a)).microcompact()
+get = lambda k: [x for x in msgs_a if x.get("tool_call_id") == k][0]
+check("写活跃文件读取不被清理", "enemy 全文" in get("tcE")["content"])
+check("非活跃文件正常清理", "[已读取" in get("tcP")["content"])
+
+# 6b. 热点: 同文件窗口内读 ≥2 次 → 仅最近一次保留
+msgs_b = [{"role": "system", "content": "SYS"}, {"role": "user", "content": "t"}]
+ops_b = []
+_mk(msgs_b, "assistant", tool_calls=[
+    {"id": "tC1", "type": "function", "function": {"name": "read_file",
+     "arguments": '{"path": "F:/proj/js/config.js"}'}}])
+_mk(msgs_b, "tool", tool_call_id="tC1", content="config 旧内容\n" * 100)
+ops_b.append((2, "read", "F:\\proj\\js\\config.js"))
+for i in range(6):
+    _mk(msgs_b, "assistant", tool_calls=[
+        {"id": f"o{i}", "type": "function", "function": {
+            "name": "read_file",
+            "arguments": '{"path": "F:/proj/js/o%d.js"}' % i}}])
+    _mk(msgs_b, "tool", tool_call_id=f"o{i}", content="x\n" * 100)
+    ops_b.append((len(msgs_b) - 1, "read", "F:\\proj\\js\\o%d.js" % i))
+_mk(msgs_b, "assistant", tool_calls=[
+    {"id": "tC2", "type": "function", "function": {"name": "read_file",
+     "arguments": '{"path": "F:/proj/js/config.js"}'}}])
+_mk(msgs_b, "tool", tool_call_id="tC2", content="config 最新内容\n" * 100)
+ops_b.append((len(msgs_b) - 1, "read", "F:\\proj\\js\\config.js"))
+for i in range(6):
+    _mk(msgs_b, "assistant", tool_calls=[
+        {"id": f"n{i}", "type": "function",
+         "function": {"name": "run_command", "arguments": '{"command":"x"}'}}])
+    _mk(msgs_b, "tool", tool_call_id=f"n{i}", content="out")
+ContextManager(FakeOpsLoop(msgs_b, ops_b)).microcompact()
+get_b = lambda k: [x for x in msgs_b if x.get("tool_call_id") == k][0]
+check("热点文件最近一次读取保留", "config 最新内容" in get_b("tC2")["content"])
+check("热点文件旧读取正常清理", "[已读取" in get_b("tC1")["content"])
+
+# 6c. 窗口外写操作不保护
+msgs_c = [{"role": "system", "content": "SYS"}]
+ops_c = [(1, "write", "F:\\proj\\js\\old.js")]
+_mk(msgs_c, "assistant", tool_calls=[
+    {"id": "tcO", "type": "function", "function": {"name": "read_file",
+     "arguments": '{"path": "F:/proj/js/old.js"}'}}])
+_mk(msgs_c, "tool", tool_call_id="tcO", content="old 全文\n" * 200)
+ops_c.append((2, "read", "F:\\proj\\js\\old.js"))
+msgs_c += [{"role": "user", "content": "m%d" % i} for i in range(45)]
+for i in range(12):
+    _mk(msgs_c, "assistant", tool_calls=[
+        {"id": f"q{i}", "type": "function",
+         "function": {"name": "run_command", "arguments": '{"command":"x"}'}}])
+    _mk(msgs_c, "tool", tool_call_id=f"q{i}", content="out")
+ContextManager(FakeOpsLoop(msgs_c, ops_c)).microcompact()
+get_c = lambda k: [x for x in msgs_c if x.get("tool_call_id") == k][0]
+check("窗口外写操作不再保护", "[已读取" in get_c("tcO")["content"])
+
+check("MICROCOMPACT_KEEP_RECENT 提升至 10",
+      ContextManager.MICROCOMPACT_KEEP_RECENT == 10)
+
+# ------------------------------------------------------------
+# 7. context_collapse: 读后被写 → 折叠（含行段信息）
 # ------------------------------------------------------------
 loop_cc = FakeLoop(make_history())
 loop_cc.state.messages.append(

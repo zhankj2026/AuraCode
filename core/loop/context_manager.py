@@ -45,7 +45,18 @@ class ContextManager:
 
     MICROCOMPACT_CLEARED_MSG = "[result cleared to save context]"
     MICROCOMPACT_TRIGGER_MSGS = 12   # 消息数超过此值时触发
-    MICROCOMPACT_KEEP_RECENT = 6     # 保留最近 N 个可清除工具的结果
+    # 保留最近 N 个可清除工具的结果。
+    # 6 → 10: 实测（demo10 会话）重读间隔约 7-8 轮，KEEP=6 时调试中的
+    # 文件内容总在需要时已被清掉，触发"读→清→重读"循环（enemy.js 全文
+    # 被重读 3 遍）。
+    MICROCOMPACT_KEEP_RECENT = 10
+    # 活跃文件窗口: 最近 N 条消息内被写过的文件视为"正在调试"，
+    # 其读取结果不被 Microcompact 清理（demo10 实测写入到重读的
+    # 间隔可达 30+ 条消息，窗口需足够宽）
+    MICROCOMPACT_ACTIVE_WINDOW = 40
+    # 热点文件: 窗口内被读取 ≥2 次的路径（模型反复依赖同一文件），
+    # 其最近一次读取结果同样保护，直接打断重读循环
+    MICROCOMPACT_HOT_READ_THRESHOLD = 2
 
     def __init__(self, loop):
         self.loop = loop
@@ -416,6 +427,9 @@ class ContextManager:
 
         cleared = 0
         total_chars_saved = 0
+        # 活跃/热点文件保护：清掉调试中文件的内容会触发"读→清→重读"循环
+        active_paths, hot_msg_idx = self._protected_read_paths()
+
         for idx in to_clear:
             msg = msgs[idx]
             content = msg.get("content", "")
@@ -423,13 +437,22 @@ class ContextManager:
                 continue  # 已清除
             if content.startswith("[已读取 "):
                 continue  # 已替换为读取指针占位
+            name, args = tool_meta_by_id.get(msg.get("tool_call_id", ""), ("", ""))
+
+            # 写活跃文件全保护; 热点文件仅保护最近一次读取
+            if idx in hot_msg_idx:
+                continue
+            if name == "read_file":
+                p = self._extract_read_path(args)
+                if p and os.path.normcase(os.path.abspath(p)) in active_paths:
+                    continue
+
             total_chars_saved += len(content)
 
             # read_file 的结果替换为指针占位而非空清除消息：
             # 保留"读过哪个文件、哪一段"的感知，模型需要时可精确重读，
             # 而不是发现内容凭空消失后盲目重读整个文件
             new_content = self.MICROCOMPACT_CLEARED_MSG
-            name, args = tool_meta_by_id.get(msg.get("tool_call_id", ""), ("", ""))
             if name == "read_file" and len(content) > 200:
                 path = self._extract_read_path(args)
                 lines_info = self._extract_lines_info(content)
@@ -494,6 +517,38 @@ class ContextManager:
                         except (json.JSONDecodeError, TypeError):
                             pass
         return cleared
+
+    def _protected_read_paths(self):
+        """Microcompact 清理保护信息。
+
+        Returns:
+            (protected_paths, protected_msg_idx)
+            - protected_paths: 写活跃文件路径集合（normcase，窗口内被写过
+              → 该文件所有读取保留）
+            - protected_msg_idx: 热点文件最近一次读取的消息索引集合
+              （窗口内被读 ≥2 次 → 仅保留最新一次，旧版本清理）
+
+        demo10 实证: enemy.js 全文被重读 3 遍，根因是调试中文件的内容
+        被 Microcompact 清掉后模型被迫重读。数据来自 loop._cc_file_ops
+        （file_tracker 维护，op_idx 即对应 tool 消息索引）。
+        """
+        msgs = self.loop.state.messages
+        window_start = max(0, len(msgs) - self.MICROCOMPACT_ACTIVE_WINDOW)
+        writes = set()
+        read_counts: Dict[str, int] = {}
+        read_latest: Dict[str, int] = {}
+        for op_idx, op_type, op_path in (getattr(self.loop, "_cc_file_ops", None) or []):
+            if op_idx < window_start:
+                continue
+            key = os.path.normcase(op_path)
+            if op_type == "write":
+                writes.add(key)
+            elif op_type == "read":
+                read_counts[key] = read_counts.get(key, 0) + 1
+                read_latest[key] = max(read_latest.get(key, 0), op_idx)
+        hot_idx = {idx for path, idx in read_latest.items()
+                   if read_counts[path] >= self.MICROCOMPACT_HOT_READ_THRESHOLD}
+        return writes, hot_idx
 
     def _build_tool_meta_index(self) -> Dict[str, tuple]:
         """
