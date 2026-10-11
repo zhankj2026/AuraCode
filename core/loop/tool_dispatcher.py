@@ -21,11 +21,34 @@ core.loop.tool_dispatcher — 工具调用批量调度
     - #16  抽取 _record 消除并行/顺序两分支的重复结果记录逻辑
 """
 
+import json
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
+
+# 参数摘要中允许带上的标识性字段（绝不含 content/新文件内容等大负载，
+# 仅供前端显示"这个工具在操作什么"）
+_ARG_BRIEF_KEYS = ("file_path", "path", "pattern", "query", "url",
+                   "command", "skill", "name", "language", "dir", "directory")
+
+
+def _arg_brief(raw_arguments) -> Dict[str, str]:
+    """从工具调用参数中提取标识性小字段摘要"""
+    try:
+        d = json.loads(raw_arguments) if isinstance(raw_arguments, str) else (raw_arguments or {})
+    except (json.JSONDecodeError, TypeError):
+        return {}
+    if not isinstance(d, dict):
+        return {}
+    brief = {}
+    for k in _ARG_BRIEF_KEYS:
+        v = d.get(k)
+        if v:
+            s = str(v).replace("\n", " ").strip()
+            brief[k] = s[:100] + ("…" if len(s) > 100 else "")
+    return brief
 
 
 class ToolDispatcher:
@@ -106,7 +129,10 @@ class ToolDispatcher:
                 tc_obj, tool_result = tc, {"success": False, "error": "并行执行超时"}
 
             # 并行分支也补发 tool_execute 事件(#6),与顺序分支行为一致
-            loop.events.emit("tool_execute", {"tool_name": tc_obj.function.name})
+            loop.events.emit("tool_execute", {
+                "tool_name": tc_obj.function.name,
+                "arguments": _arg_brief(tc_obj.function.arguments),
+            })
             self._record(tc_obj, tool_result)
 
     def _run_sequential(self, batch_calls: List[Any]) -> None:
@@ -116,7 +142,10 @@ class ToolDispatcher:
             if loop.state.is_aborted():
                 break
 
-            loop.events.emit("tool_execute", {"tool_name": tool_call.function.name})
+            loop.events.emit("tool_execute", {
+                "tool_name": tool_call.function.name,
+                "arguments": _arg_brief(tool_call.function.arguments),
+            })
             tool_result = loop.tool_executor.execute(tool_call)
             self._record(tool_call, tool_result)
 
@@ -130,10 +159,13 @@ class ToolDispatcher:
         loop = self.loop
         # 构建结果元数据(供前端显示上下文信息)
         result_meta = loop.events.build_result_metadata(tool_result)
+        error_text = str(tool_result.get("error", ""))[:150]
         loop.events.emit("tool_complete", {
             "tool_name": tool_call.function.name,
+            "arguments": _arg_brief(tool_call.function.arguments),
             "success": tool_result.get("success", False),
             "result": result_meta,
+            "error": error_text,
         })
 
         # 工具结果以 role=tool 返回(OpenAI 规范)

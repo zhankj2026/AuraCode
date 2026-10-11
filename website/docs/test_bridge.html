@@ -312,7 +312,8 @@ function handle(e){
       break}
     case'tool_execute':{
       const tn=e.data.tool_name||'?';
-      tln('tool',`⚙️ 执行: ${tn}`+(e.data.arguments?` ${formatArgs(e.data)}`:''),'exec');
+      const tgt=toolTarget(e.data.arguments);
+      tln('tool',`⚙️ ${tn}${tgt?' → '+tgt:''}`,'exec');
       // 检测 Plan Mode 进入
       if (tn === 'enter_plan_mode') {
         isPlanMode = true;
@@ -322,7 +323,9 @@ function handle(e){
       break}
     case'tool_complete':{
       const tn=e.data.tool_name||'?',ok=e.data.success!==false;
-      tln(ok?'result':'error',`${ok?'✅':'❌'} ${tn} ${ok?'完成':'失败'}`,ok?'ok':'err');
+      const tgt=toolTarget(e.data.arguments);
+      const detail=ok?fmtMeta(e.data.result):` · ${String(e.data.error||'失败').split('\n')[0].slice(0,80)}`;
+      tln(ok?'result':'error',`${ok?'✅':'❌'} ${tn}${tgt?' → '+tgt:''}${detail}`,ok?'ok':'err');
       // 检测 Plan Mode 退出
       if (tn === 'exit_plan_mode' && ok) {
         isPlanMode = false;
@@ -382,10 +385,23 @@ function showResult(e){
   tln('sys','└───────────────────────────');
   tln('','');
 }
-function formatArgs(d){
-  const a=d.arguments;if(!a)return'';
-  if(typeof a==='object'){return a.file_path||a.path||a.pattern||a.url||(a.command||'').substring(0,50)||''}
-  try{const p=JSON.parse(a);return p.file_path||p.path||p.pattern||(p.command||'').substring(0,50)||''}catch{return''}
+function toolTarget(args){
+  if(!args)return'';
+  let a=args;if(typeof a==='string'){try{a=JSON.parse(a)}catch{return''}}
+  let t=a.file_path||a.path||a.pattern||a.query||a.url||a.command||a.skill||a.name||a.dir||a.directory||a.language||'';
+  t=String(t).replace(/\s+/g,' ').trim();
+  if(!t)return'';
+  return t.length>70?t.slice(0,70)+'…':t;
+}
+function fmtMeta(m){
+  if(!m)return'';
+  const p=[];
+  if(m.file_count)p.push(m.file_count+' 个文件');
+  if(m.match_count)p.push(m.match_count+' 处匹配');
+  if(m.line_count)p.push(m.line_count+' 行');
+  if(!m.line_count&&m.char_count)p.push(m.char_count>=1024?(m.char_count/1024).toFixed(1)+'KB':m.char_count+' 字符');
+  if(m.truncated)p.push('已截断');
+  return p.length?' · '+p.join(' '):'';
 }
 // ── Files ──
 async function browseTo(path){

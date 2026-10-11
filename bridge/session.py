@@ -979,9 +979,11 @@ class BridgeSession:
 
         elif event_type == "tool_complete":
             tool_name = event_data.get("tool_name", "")
+            brief = event_data.get("arguments") or {}
+            success = event_data.get("success", True)
             activity = SessionActivity(
                 type="result",
-                summary=f"{tool_name} completed",
+                summary=f"{_tool_summary(tool_name, brief)}{' ✓' if success else ' ✗'}",
             )
             self._push_activity(activity)
             self._clear_activity()
