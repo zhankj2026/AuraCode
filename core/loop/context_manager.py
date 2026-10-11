@@ -356,8 +356,14 @@ class ContextManager:
 
             summary_prompt = (
                 "Summarize the following conversation history in Chinese. "
-                "Focus on: key decisions made, files modified, errors encountered, "
-                "and the current task state. Be concise but preserve critical details.\n\n"
+                "Output MUST use this structure (工作记忆，供恢复后直接续作，避免重读文件):\n"
+                "## 任务目标\n(1-2 句)\n"
+                "## 已完成工作\n- 文件清单: 每行 `路径 — 职责/导出的关键 API(函数名与签名)`\n"
+                "## 进行中\n(当前正在做什么、进行到哪一步)\n"
+                "## 已知问题/待办\n(编号列出)\n"
+                "## 关键决策与约定\n(命名/架构/技术选型等必须记住的约定)\n\n"
+                "Be concise but preserve critical details, especially the file list "
+                "with exported function signatures.\n\n"
                 + "\n".join(content_parts)
             )
 

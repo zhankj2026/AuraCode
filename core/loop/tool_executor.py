@@ -41,11 +41,70 @@ def _path_outside_workspace(path_str: str, project_root: str) -> bool:
         return True
 
 
+def _syntax_check_python(path: str) -> str:
+    """Python 语法检查，返回错误描述（无错误返回空串）"""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            compile(f.read(), path, "exec")
+        return ""
+    except SyntaxError as e:
+        return f"line {e.lineno}: {e.msg}"
+    except Exception as e:
+        return str(e)
+
+
+def _syntax_check_node(path: str) -> str:
+    """JS/TS 语法检查（node --check），返回错误描述（无错误/无 node 返回空串）"""
+    try:
+        import subprocess
+        r = subprocess.run(
+            ["node", "--check", path],
+            capture_output=True, text=True, timeout=15,
+        )
+        if r.returncode != 0:
+            err = (r.stderr or "").strip().splitlines()
+            return " | ".join(err[-3:])[:400]
+        return ""
+    except FileNotFoundError:
+        return ""  # node 不可用 → 跳过
+    except Exception:
+        return ""
+
+
+# 写后即验: 扩展名 → 语法检查器（结果同步附进工具结果，模型当场修复，
+# 而不是等后续测试运行才发现——demo10 实测 45 次 replace 中大量是延后发现的低级错误）
+_SYNTAX_CHECKERS = {
+    ".py": _syntax_check_python,
+    ".js": _syntax_check_node,
+    ".mjs": _syntax_check_node,
+    ".cjs": _syntax_check_node,
+}
+
+
 class ToolExecutor:
     """执行工具调用(经过钩子和权限检查)。"""
 
     def __init__(self, loop):
         self.loop = loop
+
+    @staticmethod
+    def _append_syntax_check(arguments: Dict[str, Any], result: str) -> str:
+        """写操作后附加语法检查结果（错误直接回流模型，当场修复）"""
+        try:
+            path = arguments.get("file_path") or arguments.get("path") or ""
+            if not path:
+                return result
+            ext = os.path.splitext(path)[1].lower()
+            checker = _SYNTAX_CHECKERS.get(ext)
+            if not checker or not os.path.isfile(path):
+                return result
+            err = checker(path)
+            if err:
+                return (f"{result}\n\n⚠ 语法检查未通过（请在下一步立即修复）:\n"
+                        f"{os.path.basename(path)}: {err}")
+            return result + "\n✓ 语法检查通过"
+        except Exception:
+            return result
 
     def execute(self, tool_call) -> Dict[str, Any]:
         """执行工具调用(经过钩子和权限检查)"""
@@ -247,6 +306,12 @@ class ToolExecutor:
 
                 # SessionTranscript: 记录工具调用及结果
                 loop.persistence.transcript_record_tool(tool_name, arguments, result)
+
+                # 4.6 写后即验: 代码文件语法检查结果同步回流给模型
+                #    （对标主流工具的 PostToolUse 验证回流；后台
+                #    auto_validate 的事件无消费者，模型此前看不到）
+                if tool_name in FILE_WRITE_TOOLS and isinstance(result, str):
+                    result = self._append_syntax_check(arguments, result)
 
                 # 5. ToolEnhancer: 智能裁剪 + 摘要（唯一的输出裁剪层，
                 #    read_file 有豁免逻辑，见 tool_enhancer.process_tool_result）
