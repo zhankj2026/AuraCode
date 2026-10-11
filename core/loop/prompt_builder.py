@@ -449,6 +449,11 @@ class SystemPromptBuilder:
         work_dir = getattr(loop, 'work_dir', os.getcwd())
         sections.append(f"## 环境\n\n您在以下环境中被调用：")
         sections.append(f"主工作目录：{work_dir}")
+        sections.append(
+            "工作区边界：除非用户明确要求，所有文件读写/搜索操作必须限制在主工作目录内，"
+            "禁止访问其上级目录或兄弟目录（如其他项目/demo 目录）。"
+            "越界的工具调用会被直接拒绝。"
+        )
 
         # 2. Git 状态
         is_git = self._is_git_repository()

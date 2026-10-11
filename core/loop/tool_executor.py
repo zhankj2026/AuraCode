@@ -23,9 +23,22 @@ from core.tool_categories import (
     PROJECT_ROOT_INJECT_TOOLS,
     COMMAND_EXEC_TOOLS,
     SEARCH_TOOLS,
+    WORKSPACE_BOUND_TOOLS,
+    PATH_ARG_KEYS,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _path_outside_workspace(path_str: str, project_root: str) -> bool:
+    """判断路径是否在项目工作区之外（相对路径按进程 cwd 解析）"""
+    try:
+        abs_p = os.path.normcase(os.path.abspath(path_str))
+        abs_root = os.path.normcase(os.path.abspath(project_root))
+        return os.path.commonpath([abs_p, abs_root]) != abs_root
+    except ValueError:
+        # Windows 不同盘符等 commonpath 无法比较 → 视为越界
+        return True
 
 
 class ToolExecutor:
@@ -108,6 +121,22 @@ class ToolExecutor:
                 self._trigger_failure_hook(tool_name, arguments, error_msg)
 
             return {"success": False, "error": error_msg}
+
+        # 3.4 工作区边界检查：文件/搜索类工具的路径必须落在 project_root 内。
+        # 防止 agent 通过绝对路径或 ../ 访问项目外文件（如兄弟 demo* 目录）。
+        project_root = getattr(loop, "project_root", "") or ""
+        if project_root and tool_name in WORKSPACE_BOUND_TOOLS:
+            for key in PATH_ARG_KEYS:
+                val = arguments.get(key)
+                if val and isinstance(val, str) and val.strip():
+                    if _path_outside_workspace(val, project_root):
+                        error_msg = (
+                            f"路径越界: {val} 不在工作区 {project_root} 内。"
+                            f"除非用户明确要求，所有文件操作必须限制在主工作目录内，"
+                            f"禁止访问其上级/兄弟目录。请改用项目内路径。"
+                        )
+                        logger.warning(f"Workspace bound: {tool_name} {val}")
+                        return {"success": False, "error": error_msg}
 
         # 3.5 计划模式检查：禁止写入/执行类工具（仅允许 write_file 写入 plan 文件）
         try:

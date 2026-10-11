@@ -46,3 +46,14 @@ SEARCH_TOOLS = frozenset({
     "glob",
     "grep",
 })
+
+# 受工作区边界约束的工具(文件/目录访问类 → tool_executor 做越界拦截,
+# 防止 agent 访问项目目录之外的文件,如兄弟 demo* 目录)
+WORKSPACE_BOUND_TOOLS = frozenset({
+    "read_file", "write_file", "replace_in_file",
+    "list_directory", "glob", "grep", "find",
+    "analyze_file", "lint",
+})
+
+# 上述工具中承载文件/目录路径的参数键(越界检查读取这些参数)
+PATH_ARG_KEYS = ("file_path", "path", "dir", "directory")
