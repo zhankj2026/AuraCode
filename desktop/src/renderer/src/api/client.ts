@@ -6,6 +6,8 @@ import type {
   FileListing,
   FileContent,
   FileChange,
+  SkillhubSearchResult,
+  SkillhubInstallResult,
 } from './types'
 
 /**
@@ -154,6 +156,26 @@ export class BridgeClient {
       body: JSON.stringify({ model }),
     })
     return r.json()
+  }
+
+  // ── SkillHub 技能商店 ─────────────────────────────────────────
+  async skillhubSearch(q: string, limit = 20): Promise<SkillhubSearchResult> {
+    const r = await fetch(
+      this.url(`/api/skillhub/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+      { headers: this.headers() },
+    )
+    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`)
+    return (await r.json()) as SkillhubSearchResult
+  }
+
+  async skillhubInstall(slug: string, namespace: string): Promise<SkillhubInstallResult> {
+    const r = await fetch(this.url('/api/skillhub/install'), {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({ slug, namespace }),
+    })
+    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`)
+    return (await r.json()) as SkillhubInstallResult
   }
 
   async deleteSession(sessionId: string) {

@@ -24,13 +24,15 @@ import json
 import logging
 import os
 import shutil
+import subprocess
+import sys
 import time
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Set
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, Query
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -731,6 +733,134 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
         except Exception as e:
             logger.warning(f"File search error: {e}")
         return {"query": q, "results": results, "total": len(results)}
+
+    # ── SkillHub 技能商店 ────────────────────────────────────────────
+    # 封装 skillhub CLI（~/.local/bin/skillhub，python 实现）。
+    # 安装目标固定为用户级 ~/.auracode/skills/（引擎支持 @namespace 两层布局）。
+
+    def _run_skillhub(*args: str, timeout: float = 60.0) -> tuple:
+        """执行 skillhub CLI，返回 (returncode, stdout, stderr)。
+
+        候选顺序：
+          1) ~/.local/bin/skillhub[.exe]  —— 官方安装位置
+          2) ~/.skillhub/skills_store_cli.py —— python 直跑（Windows 下首选，
+             因为 ~/.local/bin/skillhub 是 bash 包裹脚本，Windows 无法直接 exec）
+        调用时剥离 http(s)_proxy 环境变量，避免经由（沙箱/公司）代理访问
+        skillhub.cn 失败；CLI 自身仍走系统默认网络栈。
+        """
+        home = os.path.expanduser("~")
+        if os.name == "nt":
+            candidates = [
+                os.path.join(home, ".skillhub", "skills_store_cli.py"),
+                os.path.join(home, ".local", "bin", "skillhub.exe"),
+                os.path.join(home, ".local", "bin", "skillhub"),
+            ]
+        else:
+            candidates = [
+                os.path.join(home, ".local", "bin", "skillhub"),
+                os.path.join(home, ".skillhub", "skills_store_cli.py"),
+            ]
+
+        env = dict(os.environ)
+        for k in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY",
+                  "all_proxy", "ALL_PROXY"):
+            env.pop(k, None)
+
+        for target in candidates:
+            if not os.path.exists(target):
+                continue
+            cmd = [target, *args] if target.endswith(".py") else [target, *args]
+            if target.endswith(".py"):
+                cmd = [sys.executable, target, *args]
+            try:
+                r = subprocess.run(cmd, capture_output=True, text=True,
+                                   timeout=timeout, encoding="utf-8",
+                                   errors="replace", env=env)
+                return r.returncode, r.stdout, r.stderr
+            except Exception as e:
+                logger.warning(f"skillhub 调用失败 ({target}): {e}")
+                continue
+        return 1, "", "skillhub CLI 未安装（参考 https://skillhub.cn/install/skillhub.md）"
+
+    def _skillhub_user_skills_dir() -> str:
+        return os.path.join(os.path.expanduser("~"), ".auracode", "skills")
+
+    @app.get("/api/skillhub/search")
+    async def skillhub_search(
+        q: str = Query(..., min_length=1),
+        limit: int = Query(20, ge=1, le=50),
+        auth: bool = Depends(_auth.verify),
+    ):
+        """搜索 SkillHub 技能商店"""
+        code, out, err = _run_skillhub("search", q, "--json", timeout=30)
+        if code != 0:
+            raise HTTPException(status_code=502, detail=f"skillhub search failed: {err or out}")
+        try:
+            # 输出可能混有非 JSON 前缀（如 Downloading: ...），取第一个 { 起
+            idx = out.find("{")
+            data = json.loads(out[idx:]) if idx >= 0 else {}
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=502, detail=f"skillhub 返回无法解析: {out[:200]}")
+        results = data.get("results", [])[:limit]
+        # 标注安装状态（按 publicSlug 匹配已装目录名）
+        installed_dirs = set()
+        skills_root = _skillhub_user_skills_dir()
+        if os.path.isdir(skills_root):
+            for ns in os.listdir(skills_root):
+                ns_path = os.path.join(skills_root, ns)
+                if os.path.isdir(ns_path):
+                    for s in os.listdir(ns_path):
+                        installed_dirs.add(s)
+        for item in results:
+            slug = item.get("publicSlug", "")
+            ns = (item.get("namespace") or {}).get("handle", "")
+            item["installed"] = slug in installed_dirs
+            item["namespace_handle"] = ns
+        return {"query": q, "results": results, "total": len(results)}
+
+    @app.post("/api/skillhub/install")
+    async def skillhub_install(
+        req: Dict[str, Any] = Body(...),
+        auth: bool = Depends(_auth.verify),
+    ):
+        """安装 SkillHub 技能到用户级 ~/.auracode/skills/"""
+        slug = str(req.get("slug", "")).strip()
+        namespace = str(req.get("namespace", "")).strip()
+        if not slug:
+            raise HTTPException(status_code=400, detail="缺少 slug")
+        target_dir = _skillhub_user_skills_dir()
+        args = ["install", slug, "--dir", target_dir, "--json"]
+        if namespace:
+            args += ["--namespace", namespace]
+        # 下载可能较慢，放宽超时
+        code, out, err = _run_skillhub(*args, timeout=180)
+        if code != 0:
+            raise HTTPException(status_code=502, detail=f"安装失败: {err or out}")
+        try:
+            idx = out.find("{")
+            data = json.loads(out[idx:]) if idx >= 0 else {}
+        except json.JSONDecodeError:
+            data = {"success": True, "raw": out[:500]}
+        if not data.get("success", False):
+            raise HTTPException(status_code=502, detail=f"安装失败: {out[:300]}")
+        # 找到实际落盘的技能名（@ns/slug 两层）
+        installed_name = slug
+        ns_dir = os.path.join(target_dir, f"@{namespace}") if namespace else None
+        search_dir = ns_dir if ns_dir and os.path.isdir(ns_dir) else target_dir
+        if os.path.isdir(search_dir):
+            for d in os.listdir(search_dir):
+                if os.path.isdir(os.path.join(search_dir, d)) and not d.startswith((".", "@")):
+                    if d == slug or slug in d:
+                        installed_name = d
+                        break
+        return {
+            "success": True,
+            "slug": data.get("slug", slug),
+            "installed_name": installed_name,
+            "version": data.get("version", ""),
+            "target_dir": data.get("targetDir", target_dir),
+            "note": "已安装到用户级 ~/.auracode/skills/，新会话自动加载；对话中可让 agent activate_skill 立即使用",
+        }
 
     # ── WebSocket 端点 ────────────────────────────────────────────────
 

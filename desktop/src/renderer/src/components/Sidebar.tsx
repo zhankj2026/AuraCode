@@ -184,15 +184,26 @@ function McpList({ data }: { data: McpServerInfo[] }) {
 }
 
 function SkillList({ data }: { data: SkillInfo[] }) {
-  if (data.length === 0) return <div className="search">未扫描到技能（skills/*/SKILL.md）</div>
-  return data.map((s) => (
-    <div className="item" key={s.name}>
-      <span className="t">
-        <div className="n">{s.name}</div>
-        <div className="s">{s.description}</div>
-      </span>
-    </div>
-  ))
+  return (
+    <>
+      <button
+        className="btn"
+        style={{ marginBottom: 8, width: '100%' }}
+        onClick={() => actions.openSkillhub()}
+      >
+        🛒 SkillHub 技能商店
+      </button>
+      {data.length === 0 && <div className="search">未扫描到技能（skills/*/SKILL.md）</div>}
+      {data.map((s) => (
+        <div className="item" key={s.name}>
+          <span className="t">
+            <div className="n">{s.name}</div>
+            <div className="s">{s.description}</div>
+          </span>
+        </div>
+      ))}
+    </>
+  )
 }
 
 function PluginList({ data }: { data: PluginInfo[] }) {

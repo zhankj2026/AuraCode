@@ -187,7 +187,14 @@ class SkillManager:
         logger.info(f"成功加载 {total} 个 Skill (builtin + project + user + programmatic)")
 
     def _load_skills_from_dir(self, skills_dir: str, source: str) -> int:
-        """从指定目录加载 Skill"""
+        """从指定目录加载 Skill
+
+        支持两种布局：
+        1. <dir>/<skill-name>/SKILL.md           —— 原生布局（一层）
+        2. <dir>/<@namespace>/<skill>/SKILL.md   —— SkillHub 安装布局（两层，
+           如 ~/.auracode/skills/@clawhub_xx/calendar-crab/）。
+           skillhub CLI 默认装出 @namespace 命名空间目录，不展开会被跳过。
+        """
         if not os.path.exists(skills_dir):
             logger.debug(f"Skill 目录不存在: {skills_dir}")
             return 0
@@ -204,7 +211,11 @@ class SkillManager:
 
             skill_md = os.path.join(skill_path, 'SKILL.md')
             if not os.path.exists(skill_md):
-                logger.debug(f"Skill {skill_name} 缺少 SKILL.md，跳过")
+                # SkillHub 布局：@namespace/ 下钻一层
+                if skill_name.startswith('@') and os.path.isdir(skill_path):
+                    skill_count += self._load_skills_from_dir(skill_path, source)
+                else:
+                    logger.debug(f"Skill {skill_name} 缺少 SKILL.md，跳过")
                 continue
 
             try:

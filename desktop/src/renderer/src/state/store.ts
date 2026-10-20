@@ -30,6 +30,7 @@ export interface AppState {
   mode: string
   settingsOpen: boolean
   mcpOpen: boolean
+  skillhubOpen: boolean
   log: string[]
   workspace: string
   tempSession: boolean
@@ -56,6 +57,7 @@ const initial: AppState = {
   mode: '普通',
   settingsOpen: false,
   mcpOpen: false,
+  skillhubOpen: false,
   log: [],
   workspace: 'auracode-src',
   tempSession: false,
@@ -212,6 +214,12 @@ export const actions = {
   },
   closeMcp() {
     setState({ mcpOpen: false })
+  },
+  openSkillhub() {
+    setState({ skillhubOpen: true })
+  },
+  closeSkillhub() {
+    setState({ skillhubOpen: false })
   },
   setWorkspace(name: string, temp = false) {
     setState({ workspace: name, tempSession: temp })

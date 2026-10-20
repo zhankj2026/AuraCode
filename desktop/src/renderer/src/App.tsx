@@ -10,6 +10,7 @@ import { Inspector } from './components/Inspector'
 import { SettingsModal } from './components/SettingsModal'
 import { PermissionModal } from './components/PermissionModal'
 import { McpModal } from './components/McpModal'
+import { SkillHubModal } from './components/SkillHubModal'
 
 export default function App() {
   const client = useStore((s) => s.client)
@@ -212,6 +213,7 @@ export default function App() {
       <SettingsModal />
       <PermissionModal />
       <McpModal />
+      <SkillHubModal />
 
       {toast && (
         <div

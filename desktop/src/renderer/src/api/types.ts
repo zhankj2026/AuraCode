@@ -146,3 +146,28 @@ export interface ExtensionsData {
   plugins: PluginInfo[]
   tasks: TaskInfo[]
 }
+
+// ── SkillHub 技能商店 ─────────────────────────────────────────
+export interface SkillhubItem {
+  slug: string
+  publicSlug: string
+  name: string
+  description: string
+  version: string
+  source: string
+  installed?: boolean
+  namespace_handle?: string
+}
+export interface SkillhubSearchResult {
+  query: string
+  results: SkillhubItem[]
+  total: number
+}
+export interface SkillhubInstallResult {
+  success: boolean
+  slug: string
+  installed_name: string
+  version: string
+  target_dir: string
+  note: string
+}
