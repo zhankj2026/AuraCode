@@ -1,0 +1,323 @@
+:root {
+  --bg: #0f1626;
+  --bg2: #141d30;
+  --bg3: #18233a;
+  --bg4: #1e2a44;
+  --line: #243049;
+  --line2: #2e3c5c;
+  --text: #e6eaf2;
+  --muted: #8a94a8;
+  --muted2: #5e6b85;
+  --primary: #1565c0;
+  --primaryLite: #4a9be8;
+  --accent: #00897b;
+  --accentLite: #26c6a6;
+  --warn: #e8a33d;
+  --danger: #e05a5a;
+  --ok: #3fb37f;
+  --font: "Microsoft YaHei", "PingFang SC", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", Consolas, "Courier New", monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0 }
+html, body, #root { height: 100% }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  overflow: hidden;
+  user-select: none;
+}
+::selection { background: #2a3d63 }
+/* 仅对话内容区允许选中/复制，其余 UI（按钮、标签等）保持不可选 */
+.thread, .msg, .bubble, .ev, .ev .body, .sysline, .ecode { user-select: text; -webkit-user-select: text; }
+::-webkit-scrollbar { width: 9px; height: 9px }
+::-webkit-scrollbar-thumb { background: #2a3a5c; border-radius: 6px }
+button { font-family: inherit; cursor: pointer; color: inherit; border: none; background: none }
+textarea, input, select { font-family: inherit }
+
+/* 布局 */
+.app { flex: 1; display: flex; flex-direction: column; height: 100% }
+
+/* Header */
+header {
+  height: 46px; flex: 0 0 46px; background: var(--bg2);
+  border-bottom: 1px solid var(--line); display: flex; align-items: center;
+  padding: 0 12px; gap: 12px;
+}
+.logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px }
+.logo .dot {
+  width: 18px; height: 18px; border-radius: 5px;
+  background: linear-gradient(135deg, var(--primaryLite), var(--accentLite));
+}
+.ws {
+  display: flex; align-items: center; gap: 6px; background: var(--bg3);
+  border: 1px solid var(--line); padding: 5px 10px; border-radius: 7px; font-size: 12.5px;
+}
+.ws:hover { border-color: var(--line2) }
+.ghost { background: var(--bg3); border: 1px solid var(--line); border-radius: 7px; padding: 6px 10px; font-size: 12px; color: var(--muted) }
+.ghost:hover { color: var(--text); border-color: var(--line2) }
+.seg { display: flex; background: var(--bg3); border: 1px solid var(--line); border-radius: 8px; overflow: hidden }
+.seg button { background: transparent; border: none; padding: 6px 11px; font-size: 12px; color: var(--muted) }
+.seg button.on { background: var(--primary); color: #fff }
+.seg button:not(.on):hover { color: var(--text) }
+.spacer { flex: 1 }
+.pill {
+  display: flex; align-items: center; gap: 6px; background: var(--bg3);
+  border: 1px solid var(--line); padding: 6px 10px; border-radius: 7px; font-size: 12px;
+}
+.pill .k { color: var(--muted); font-size: 11px }
+.pill .v { color: var(--accentLite); font-family: var(--mono) }
+.iconbtn {
+  width: 32px; height: 32px; display: grid; place-items: center; background: var(--bg3);
+  border: 1px solid var(--line); border-radius: 7px; color: var(--muted); font-size: 15px;
+}
+.iconbtn:hover { color: var(--text); border-color: var(--line2) }
+
+/* 工作区下拉 */
+.wsmenu {
+  position: absolute; top: 40px; left: 0; width: 300px; background: var(--bg2);
+  border: 1px solid var(--line2); border-radius: 12px; box-shadow: 0 18px 55px #000b;
+  padding: 8px; display: none; z-index: 30;
+}
+.wsmenu.show { display: block }
+.wsearch { background: var(--bg3); border: 1px solid var(--line); border-radius: 7px; padding: 7px 9px; color: var(--muted); font-size: 12px; margin-bottom: 6px }
+.wsmenu .wi { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 7px; font-size: 12.5px; cursor: pointer; color: var(--text) }
+.wsmenu .wi:hover { background: var(--bg3) }
+.wsmenu .wi.on { background: var(--bg4) }
+.wsmenu .wi .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.wsmenu .wi.muted { color: var(--muted2); cursor: default }
+.wsmenu .wi.muted:hover { background: transparent }
+.wgroup { font-size: 10px; color: var(--muted2); text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 9px 3px }
+.wsearch input { width: 100%; background: transparent; border: none; outline: none; color: var(--text); font-size: 12px; font-family: inherit }
+.wsearch input::placeholder { color: var(--muted2) }
+.wsmenu .sep { height: 1px; background: var(--line); margin: 6px 4px }
+
+/* Body / Activity bar */
+.body { flex: 1; display: flex; min-height: 0 }
+.actbar {
+  width: 52px; flex: 0 0 52px; background: var(--bg2); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; align-items: center; padding-top: 8px; gap: 4px;
+}
+.act {
+  width: 40px; height: 40px; border-radius: 9px; display: grid; place-items: center;
+  font-size: 18px; color: var(--muted); position: relative;
+}
+.act:hover { background: var(--bg3); color: var(--text) }
+.act.on { color: var(--primaryLite); background: var(--bg3) }
+.act.on::before { content: ""; position: absolute; left: -1px; top: 8px; bottom: 8px; width: 3px; border-radius: 3px; background: var(--primaryLite) }
+.act .lbl {
+  position: absolute; left: 46px; white-space: nowrap; background: #000d; color: #fff;
+  padding: 4px 9px; border-radius: 6px; font-size: 11px; opacity: 0; pointer-events: none;
+  transition: 0.12s; z-index: 20;
+}
+.act:hover .lbl { opacity: 1; left: 50px }
+
+/* Sidebar */
+.side {
+  width: 248px; flex: 0 0 248px; background: var(--bg2); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; min-height: 0;
+}
+.side h3 { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; padding: 12px 14px 6px }
+.side .scroll { flex: 1; overflow-y: auto; padding: 0 8px 10px }
+.btn-primary {
+  margin: 8px 10px; background: var(--primary); color: #fff; border-radius: 8px;
+  padding: 8px; font-size: 12.5px; font-weight: 600; display: flex; align-items: center;
+  justify-content: center; gap: 6px;
+}
+.btn-primary:hover { background: var(--primaryLite) }
+.item { display: flex; align-items: center; gap: 8px; padding: 8px 9px; border-radius: 8px; cursor: pointer; color: var(--text) }
+.item:hover { background: var(--bg3) }
+.item.active { background: var(--bg3); box-shadow: inset 2px 0 0 var(--primaryLite) }
+.item .t { flex: 1; min-width: 0 }
+.item .t .n { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.item .t .s { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.item .meta { font-size: 10px; color: var(--muted2); font-family: var(--mono) }
+.tabs { display: flex; gap: 4px; padding: 6px 10px }
+.tabs button { flex: 1; background: var(--bg3); border: 1px solid var(--line); border-radius: 6px; padding: 6px; font-size: 11.5px; color: var(--muted) }
+.tabs button.on { color: #fff; border-color: var(--primary); background: var(--bg4) }
+.toggle { width: 34px; height: 18px; border-radius: 10px; background: var(--bg4); position: relative; flex: 0 0 auto; transition: 0.15s }
+.toggle.on { background: var(--accent) }
+.toggle.on::after { left: 18px; background: #fff }
+.toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #9fb0d0; transition: 0.15s }
+.tag { font-size: 10px; padding: 1px 7px; border-radius: 10px; background: var(--bg4); color: var(--muted) }
+.tag.green { background: #103024; color: var(--ok) }
+.tag.red { background: #3a1414; color: var(--danger) }
+.search { margin: 6px 10px; background: var(--bg3); border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; color: var(--muted); font-size: 12px }
+.tree .n { padding: 5px 6px; border-radius: 6px; font-size: 12.5px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.tree .n:hover { background: var(--bg3) }
+.tree .n.f { color: var(--text) }
+.tree .n.d { color: var(--muted) }
+
+/* Main */
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg) }
+.tabstrip {
+  height: 38px; flex: 0 0 38px; background: var(--bg2); border-bottom: 1px solid var(--line);
+  display: flex; align-items: flex-end; padding: 0 8px; gap: 2px; overflow-x: auto;
+}
+.ctab {
+  height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 12px;
+  border: 1px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0;
+  background: transparent; color: var(--muted); font-size: 12.5px; white-space: nowrap;
+}
+.ctab.on { background: var(--bg); color: var(--text); border-color: var(--line) }
+.ctab .x { color: var(--muted2); font-size: 14px }
+.ctab .x:hover { color: var(--danger) }
+.ctab .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warn) }
+#stage { flex: 1; min-height: 0; display: flex; flex-direction: column }
+.thread { flex: 1; overflow-y: auto; padding: 18px 22px; display: flex; flex-direction: column; gap: 16px }
+.msg { max-width: 860px }
+.msg.user { align-self: flex-end }
+.bubble { border-radius: 12px; padding: 10px 13px; line-height: 1.65; font-size: 13px; white-space: pre-wrap; word-break: break-word }
+.msg.user .bubble { background: var(--primary); color: #fff; border-bottom-right-radius: 3px }
+.msg.ai .bubble { background: var(--bg3); border: 1px solid var(--line); border-bottom-left-radius: 3px }
+.who { font-size: 11px; color: var(--muted2); margin: 0 4px 5px }
+.ev { background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; max-width: 860px }
+.ev .eh { display: flex; align-items: center; gap: 8px; padding: 7px 11px; cursor: pointer; background: var(--bg3); min-width: 0 }
+.ev .eh .ic { width: 20px; height: 20px; border-radius: 5px; display: grid; place-items: center; font-size: 12px; color: #fff }.ic.t { background: var(--primary) }
+.ic.r { background: var(--accent) }
+.ic.w { background: var(--warn); color: #222 }
+.ev .eh .tt { font-size: 12px; font-weight: 600; flex-shrink: 0; white-space: nowrap }
+/* 事件标题右侧的操作目标（文件路径/命令预览）：弹性收缩 + 省略号，绝不挤压标题与时间 */
+.ev .eh .tg { flex: 1 1 auto; min-width: 40px; font-size: 11px; color: var(--muted); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.ev .eh .tm { margin-left: auto; flex-shrink: 0; font-size: 10px; color: var(--muted2); font-family: var(--mono) }
+.ev .body { padding: 9px 12px; font-family: var(--mono); font-size: 11.5px; color: #bcd0f0; display: none; border-top: 1px solid var(--line) }
+.ev.open .body { display: block }
+.ev .body .k { color: var(--muted) }
+.ev .body .v { color: var(--accentLite) }
+/* 对话内代码/工具载荷：限高内部滚动，代替此前的硬截断 */
+.ev .body pre.ecode-lite { margin: 0; white-space: pre-wrap; word-break: break-word; color: #cdd9f0; background: #0c1220; border-radius: 7px; padding: 8px 10px; max-height: 300px; overflow: auto; user-select: text; -webkit-user-select: text }
+.sysline { max-width: 860px; align-self: flex-start; font-size: 12px; line-height: 1.6; padding: 7px 11px; border-radius: 9px; background: var(--bg2); border: 1px solid var(--line); color: var(--muted2) }
+.sysline.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, var(--line)) }
+.sysline.err { color: var(--err); border-color: color-mix(in srgb, var(--err) 35%, var(--line)); background: color-mix(in srgb, var(--err) 10%, var(--bg2)) }
+.sysline.warn { color: #d99a2b; border-color: color-mix(in srgb, #d99a2b 40%, var(--line)); background: color-mix(in srgb, #d99a2b 8%, var(--bg2)) }
+.sysline .muted { color: var(--muted2); margin-left: 4px }
+.ev .body pre.out { margin: 0; white-space: pre-wrap; word-break: break-word; color: #9fb3d6; max-height: 220px; overflow: auto }
+.muted { color: var(--muted2) }
+.composer { flex: 0 0 auto; padding: 12px 18px 14px; background: var(--bg2); border-top: 1px solid var(--line) }
+.composer.hide { display: none }
+.cin { background: var(--bg3); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: flex; gap: 10px; align-items: flex-end }
+.cin textarea { flex: 1; background: transparent; border: none; color: var(--text); font-family: inherit; font-size: 13px; resize: none; outline: none; line-height: 1.6; max-height: 120px }
+.cin .send { background: var(--primary); border-radius: 9px; padding: 8px 14px; color: #fff; font-weight: 600 }
+.cin .send:hover { background: var(--primaryLite) }
+.hint { font-size: 11px; color: var(--muted2); margin: 7px 4px 0; display: flex; gap: 10px }
+.hint .ok { color: var(--ok) }
+
+/* 编辑器 */
+.editor { flex: 1; display: flex; flex-direction: column; min-height: 0 }
+.ebar { height: 34px; flex: 0 0 34px; display: flex; align-items: center; gap: 8px; padding: 0 14px; background: var(--bg2); border-bottom: 1px solid var(--line); font-size: 12px }
+.ebar .fn { font-weight: 600 }
+.ebar .dirty { color: var(--warn); font-size: 11px }
+.ebar .sp { flex: 1 }
+.ebar .save { background: var(--primary); border-radius: 7px; padding: 5px 12px; color: #fff; font-size: 11.5px }
+.ecode { flex: 1; overflow: auto; margin: 0; padding: 12px 14px; background: #0c1220; color: #cdd9f0; font-family: var(--mono); font-size: 12.5px; line-height: 1.6; border: none; outline: none; resize: none; white-space: pre; width: 100% }
+
+/* ── CodeMirror 编辑器容器 ── */
+.cm-host { flex: 1; min-height: 0; overflow: hidden }
+.cm-host .cm-editor { height: 100% }
+.cm-host .cm-editor.cm-focused { outline: none }
+
+/* ── HTML 预览 ── */
+.preview-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; background: #fff }
+.pbar { display: flex; align-items: center; gap: 8px; padding: 5px 10px; background: var(--bg3); border-bottom: 1px solid var(--line); flex-shrink: 0 }
+.phint { font-size: 11.5px; color: var(--muted) }
+.pframe { flex: 1; min-height: 0; border: none; background: #fff; width: 100% }
+
+/* 内联失败提示：白屏时能立刻看出是哪个依赖没读到 */
+.pfail { flex-shrink: 0; padding: 5px 10px; font-size: 11.5px; color: #ffb4b4; background: rgba(120, 26, 26, 0.28); border-bottom: 1px solid rgba(255, 107, 107, 0.32); line-height: 1.5 }
+.pfail-tip { color: var(--muted); margin-left: 4px }
+
+/* 迷你分段切换（代码/预览） */
+.seg.mini { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; margin-right: 8px }
+.seg.mini button { padding: 3px 12px; font-size: 11.5px; background: transparent; color: var(--muted); border: none; cursor: pointer }
+.seg.mini button.on { background: var(--primary); color: #fff }
+
+/* Inspector */
+.insp { width: 312px; flex: 0 0 312px; background: var(--bg2); border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0 }
+.ih { height: 38px; flex: 0 0 38px; display: flex; align-items: center; border-bottom: 1px solid var(--line); padding: 0 6px; gap: 2px }
+.ih .it { flex: 1; text-align: center; padding: 7px 4px; font-size: 12px; color: var(--muted); border-radius: 7px }
+.ih .it.on { color: var(--text); background: var(--bg3) }
+.iscroll { flex: 1; overflow-y: auto; padding: 12px 14px }
+.card { background: var(--bg3); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; margin-bottom: 11px }
+.card .ct { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px }
+.bar { height: 7px; border-radius: 5px; background: var(--bg4); overflow: hidden; margin: 5px 0 }
+.bar > i { display: block; height: 100% }
+.kv { display: flex; justify-content: space-between; font-size: 11.5px; margin: 3px 0; color: var(--muted) }
+.kv b { color: var(--text); font-family: var(--mono); font-weight: 600 }
+.diff { font-family: var(--mono); font-size: 11px; line-height: 1.5; border-radius: 8px; overflow: hidden; border: 1px solid var(--line) }
+.diff .dh { padding: 5px 10px; background: var(--bg4); color: var(--muted); font-family: var(--font); font-size: 11px; display: flex; justify-content: space-between }
+.diff pre { margin: 0; padding: 2px 10px; white-space: pre-wrap }
+.diff .add { background: #0e2a1c; color: #7fe0ad }
+.diff .del { background: #2e1212; color: #f09a9a }
+.diff .ctx { color: var(--muted2) }
+.chg { display: flex; align-items: center; gap: 8px; padding: 8px 9px; border-radius: 8px; cursor: pointer; background: var(--bg3); margin-bottom: 8px }
+.chg:hover { background: var(--bg4) }
+.chg .nm { flex: 1; font-size: 12px }
+.chg .st { font-size: 10px; color: var(--ok); font-family: var(--mono) }
+
+/* Modal */
+.mask { position: fixed; inset: 0; background: #04060ccc; display: none; align-items: center; justify-content: center; z-index: 40 }
+.mask.show { display: flex }
+.modal { width: 460px; max-width: calc(100vw - 48px); max-height: calc(100vh - 64px); display: flex; flex-direction: column; background: var(--bg2); border: 1px solid var(--line2); border-radius: 14px; overflow: hidden; box-shadow: 0 24px 70px #000a }
+.modal.lg { width: 520px }
+.modal.xl { width: 820px; height: 580px; display: flex; flex-direction: column }
+.mh { display: flex; align-items: center; gap: 10px; padding: 15px 18px; border-bottom: 1px solid var(--line); flex-shrink: 0 }
+.mh .ic { width: 26px; height: 26px; border-radius: 7px; background: var(--warn); display: grid; place-items: center; color: #222; font-size: 15px }
+.mh .ti { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+/* 弹窗主体：超高时内部滚动，绝不撑出屏幕 */
+.mb { padding: 16px 18px; overflow-y: auto; min-height: 0; flex-shrink: 1 }
+.mf { padding: 13px 18px; border-top: 1px solid var(--line); display: flex; gap: 9px; align-items: center; flex-shrink: 0 }
+.mrow { background: var(--bg3); border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; margin-bottom: 9px; font-family: var(--mono); font-size: 12px; word-break: break-word }
+.mrow .k { color: var(--muted); font-family: var(--font) }
+.mrow .v { color: var(--warn) }
+/* 权限弹窗内的大块内容（write_file 的 content 等）：限高滚动 */
+.mpre { margin: 0 0 9px; padding: 10px 12px; background: #0c1220; border: 1px solid var(--line); border-radius: 9px; font-family: var(--mono); font-size: 11.5px; line-height: 1.55; color: #cdd9f0; white-space: pre-wrap; word-break: break-word; max-height: 200px; overflow: auto; user-select: text; -webkit-user-select: text; }
+.mf .ck { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); margin-right: auto }
+.btn { border: 1px solid var(--line2); background: var(--bg3); color: var(--text); padding: 8px 16px; border-radius: 8px; font-size: 12.5px }
+.btn:hover { border-color: var(--muted) }
+.btn.danger { background: var(--danger); border-color: var(--danger); color: #fff }
+.btn.ok { background: var(--ok); border-color: var(--ok); color: #04130b; font-weight: 600 }
+.field { margin-bottom: 11px }
+.field label { display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 5px }
+.field input, .field select { width: 100%; background: var(--bg3); border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; color: var(--text); font-size: 12.5px }
+.field input:focus, .field select:focus { outline: none; border-color: var(--primaryLite) }
+.mseg { display: flex; gap: 6px; margin: 8px 0 4px }
+.mseg button { flex: 1; background: var(--bg3); border: 1px solid var(--line); border-radius: 8px; padding: 9px; font-size: 12px; color: var(--muted) }
+.mseg button.on { color: #fff; border-color: var(--primary); background: var(--bg4) }
+.note { font-size: 11.5px; color: var(--muted); line-height: 1.6; background: var(--bg3); border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; margin-top: 8px }
+
+/* Settings */
+.setwrap { flex: 1; display: flex; min-height: 0 }
+.setnav { width: 150px; flex: 0 0 150px; border-right: 1px solid var(--line); padding: 8px; overflow-y: auto }
+.setnav .sec { font-size: 10px; color: var(--muted2); padding: 10px 10px 4px; letter-spacing: 0.5px }
+.setnav .sn { padding: 8px 10px; border-radius: 8px; font-size: 12.5px; color: var(--muted); cursor: pointer; display: flex; gap: 8px; align-items: center }
+.setnav .sn:hover { background: var(--bg3); color: var(--text) }
+.setnav .sn.on { background: var(--bg4); color: var(--text) }
+.setbody { flex: 1; overflow-y: auto; padding: 16px 20px }
+.spane { display: none }
+.spane.on { display: block }
+.setrow { display: flex; align-items: center; gap: 12px; background: var(--bg3); border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px; margin-bottom: 9px }
+.setrow > div:first-child { flex: 1; min-width: 0 }
+.srt { font-size: 12.5px; font-weight: 600; color: var(--text) }
+.srd { font-size: 11.5px; color: var(--muted); margin-top: 2px; line-height: 1.5 }
+.kbd { font-family: var(--mono); font-size: 11px; background: var(--bg4); border: 1px solid var(--line2); border-radius: 6px; padding: 3px 8px; color: var(--text) }
+
+/* 连接/错误态 */
+.overlay { flex: 1; display: grid; place-items: center; color: var(--muted); font-size: 13px; gap: 8px; text-align: center; padding: 40px }
+.overlay .big { font-size: 15px; color: var(--text); font-weight: 600 }
+.spin { width: 26px; height: 26px; border: 3px solid var(--line2); border-top-color: var(--primaryLite); border-radius: 50%; animation: sp 0.9s linear infinite }
+@keyframes sp { to { transform: rotate(360deg) } }
+
+/* 顶部轻提示 */
+.toast {
+  position: fixed; top: 58px; left: 50%; transform: translateX(-50%);
+  z-index: 60; max-width: 70vw; padding: 10px 16px; border-radius: 10px;
+  font-size: 12.5px; line-height: 1.5; cursor: pointer;
+  border: 1px solid var(--line2); background: var(--bg3); color: var(--text);
+  box-shadow: 0 12px 40px #000a; animation: toastIn 0.18s ease-out;
+  word-break: break-all;
+}
+.toast.error { border-color: var(--danger); background: #2a1414; color: #ffb3b3 }
+.toast.ok { border-color: var(--ok); background: #10301f; color: #9fe7c4 }
+.toast.info { border-color: var(--line2); background: var(--bg3); color: var(--text) }
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, -8px) } to { opacity: 1; transform: translate(-50%, 0) } }

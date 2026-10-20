@@ -68,3 +68,8 @@ csdn-article.md
 
 # Internal directories (not for public release)
 examples/
+
+# Desktop client build artifacts
+desktop/node_modules/
+desktop/out/
+desktop/dist/

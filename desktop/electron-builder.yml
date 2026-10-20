@@ -1,0 +1,15 @@
+appId: com.auracode.desktop
+productName: AuraCode
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**
+  - package.json
+win:
+  target:
+    - nsis
+  artifactName: AuraCode-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
