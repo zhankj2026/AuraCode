@@ -55,6 +55,7 @@ Thumbs.db
 .backup/
 .opencode/
 .claude/
+.workbuddy/
 memory/
 -p/
 
