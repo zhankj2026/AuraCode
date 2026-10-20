@@ -100,3 +100,6 @@ from . import worktree_tool
 # 17. Cron - 定时任务调度
 from . import cron_tool
 
+# ── 扩展体系对话管理（技能/MCP/钩子/插件的创建与删除）──
+from . import extension_tools
+

@@ -29,6 +29,15 @@ from core.tool_categories import (
 
 logger = logging.getLogger(__name__)
 
+# 扩展管理工具（extension_tools.py 注册）：执行前注入当前 loop，
+# 供其以 loop.project_root 定位项目根
+EXTENSION_MANAGEMENT_TOOLS = frozenset({
+    "skill_create", "skill_delete",
+    "mcp_add", "mcp_remove", "mcp_list_servers",
+    "hook_add", "hook_remove", "hook_list",
+    "plugin_create", "plugin_list",
+})
+
 
 def _path_outside_workspace(path_str: str, project_root: str) -> bool:
     """判断路径是否在项目工作区之外。
@@ -314,6 +323,16 @@ class ToolExecutor:
                 if tool_name in SEARCH_TOOLS:
                     if "project_root" not in arguments:
                         arguments["project_root"] = loop.project_root
+
+                # 扩展管理工具（extension_tools）：注入当前 loop 供其定位
+                # 项目根。Bridge 会话线程初始化后会 chdir 回引擎目录，
+                # 这些工具若靠 cwd 定位会把配置写到引擎根。
+                if tool_name in EXTENSION_MANAGEMENT_TOOLS:
+                    try:
+                        from tools.builtin import extension_tools as _et
+                        _et._CURRENT_LOOP["loop"] = loop
+                    except Exception:
+                        pass
 
                 result = handler(**arguments)
                 logger.info(f"Handler returned: {str(result)[:200]}")
