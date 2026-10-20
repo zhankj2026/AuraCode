@@ -69,7 +69,7 @@ AVAILABLE_MODELS = [
     "claude-3.5-sonnet",
     "claude-3.5-haiku",
     # GLM 系列
-    "glm-4-plus",
+    "glm-4-flash",
     "glm-4",
     "glm-4.5",
     "glm-4.7",
@@ -261,7 +261,7 @@ def _cmd_compare(loop, prompt: str) -> str:
     # 选择对比模型（当前 + 常见模型，最多 4 个）
     current = getattr(loop, 'model', 'unknown')
     compare_models = [current]
-    candidates = ["gpt-4o", "claude-3.5-sonnet", "deepseek-chat", "glm-4-plus"]
+    candidates = ["gpt-4o", "claude-3.5-sonnet", "deepseek-chat", "glm-4-flash"]
     for m in candidates:
         if m != current and len(compare_models) < 4:
             compare_models.append(m)

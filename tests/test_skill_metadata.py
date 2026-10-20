@@ -36,7 +36,7 @@ def test_skill_metadata_injection():
     print("\n[测试 1] 初始化 AgentLoop（不激活任何技能）")
     config = {
         "api_key": "test_key",
-        "model": "glm-4-plus",
+        "model": "glm-4-flash",
         "max_iterations": 1,
         "permission_mode": "bypass",
         "enable_skills": True,
@@ -124,7 +124,7 @@ def test_skill_metadata_injection():
     # 两个激活技能
     config_with_active = {
         "api_key": "test_key",
-        "model": "glm-4-plus",
+        "model": "glm-4-flash",
         "max_iterations": 1,
         "permission_mode": "bypass",
         "enable_skills": True,

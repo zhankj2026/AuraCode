@@ -152,7 +152,7 @@ MODEL_PRICING: Dict[str, ModelPricing] = {
     "claude-3.5-haiku":  ModelPricing(0.8, 4.0, 0.08, 1.0),
     "claude-3-opus":     ModelPricing(15.0, 75.0, 1.5, 18.75),
     # GLM 系列（按人民币换算估算）
-    "glm-4-plus":  ModelPricing(2.0, 10.0, 0.2, 2.5),
+    "glm-4-flash":  ModelPricing(2.0, 10.0, 0.2, 2.5),
     "glm-4":       ModelPricing(1.0, 5.0, 0.1, 1.25),
     "glm-4.5":     ModelPricing(2.0, 10.0, 0.2, 2.5),
     "glm-4.7":     ModelPricing(3.0, 15.0, 0.3, 3.75),

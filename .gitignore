@@ -73,3 +73,9 @@ examples/
 desktop/node_modules/
 desktop/out/
 desktop/dist/
+
+# 大型内容产物目录（不入库）
+AuraCode-desktop-prototype/
+AuraCode产品介绍deck/
+AuraCode讲解视频/
+tetris/

@@ -140,7 +140,7 @@ def test_subagent_spawn():
     # Test creation
     handle = manager.spawn_subagent(
         task="Test task",
-        model="glm-4-plus",
+        model="glm-4-flash",
         agent_type="general",
         run_in_background=True
     )

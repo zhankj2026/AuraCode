@@ -36,7 +36,7 @@ CHARS_PER_TOKEN = 3.5
 MODEL_CONTEXT_SIZES = {
     # GLM 系列
     "glm-4": 128_000,
-    "glm-4-plus": 128_000,
+    "glm-4-flash": 128_000,
     "glm-4.5": 128_000,
     "glm-4.7": 128_000,
     # GPT-4 系列

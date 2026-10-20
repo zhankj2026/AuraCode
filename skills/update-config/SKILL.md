@@ -48,7 +48,7 @@ llm:
 llm:
   provider: openai
   model: glm-4.7
-  base_url: https://open.bigmodel.cn/api/paas/v4
+  base_url: https://open.bigmodel.cn/api/coding/paas/v4
 
 # 本地 Ollama
 llm:

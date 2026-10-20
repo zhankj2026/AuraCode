@@ -34,7 +34,7 @@ def test_integration():
     print("\n[Test 1] Initialize AgentLoop")
     config = {
         "api_key": "test_key",
-        "model": "glm-4-plus",
+        "model": "glm-4-flash",
         "max_iterations": 1,
         "permission_mode": "bypass",
         "enable_plugins": True,

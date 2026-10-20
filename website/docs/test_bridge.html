@@ -259,7 +259,7 @@ async function createSession(){
   try{
     const k=$('nKey').value.trim(),b=$('nBase').value.trim();
     if(!k&&!confirm('API Key 未填写，继续？'))return;
-    const body={work_dir:$('nDir').value.trim()||'.',model:$('nModel').value.trim()||'glm-4-plus',permission_mode:$('nPerm').value,api_key:k||'',base_url:b||''};
+    const body={work_dir:$('nDir').value.trim()||'.',model:$('nModel').value.trim()||'glm-4-flash',permission_mode:$('nPerm').value,api_key:k||'',base_url:b||''};
     const r=await api('POST','/api/sessions',body);
     await refreshSessions();selSess(r.session_id);
     tln('sys',`── 会话已创建: ${short(r.session_id)} ──`);

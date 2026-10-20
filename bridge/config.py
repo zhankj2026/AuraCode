@@ -27,5 +27,5 @@ class BridgeServerConfig:
     auth_token: str = field(default_factory=lambda: secrets.token_urlsafe(32))
     max_history_per_session: int = 500
     session_timeout: int = 3600  # 秒
-    default_model: str = "glm-4-plus"
+    default_model: str = "glm-4-flash"
     default_permission_mode: str = "auto"

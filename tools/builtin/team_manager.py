@@ -51,7 +51,7 @@ class Teammate:
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     last_active: str = field(default_factory=lambda: datetime.now().isoformat())
     current_task: str = ""           # 当前任务 ID
-    model: str = "glm-4-plus"        # 使用的模型
+    model: str = "glm-4-flash"        # 使用的模型
     
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

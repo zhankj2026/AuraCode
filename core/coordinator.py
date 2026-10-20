@@ -569,7 +569,7 @@ def execute_workflow(self, model: str = None) -> str:
     if not self._workflow_script:
         return "❌ 未加载工作流脚本，请先调用 load_workflow_script()"
 
-    # 继承父会话模型（未显式指定时使用当前线程模型，避免硬编码 glm-4-plus）
+    # 继承父会话模型（未显式指定时使用当前线程模型，避免硬编码 glm-4-flash）
     from core.subagent import get_current_model
     model = model or get_current_model()
 

@@ -189,7 +189,7 @@ def _continue_subagent_task(agent_id: str, new_message: str):
         
         # 调用 LLM
         response = client.chat.completions.create(
-            model=handle.model if (handle := subagent_manager.agents.get(agent_id)) else "glm-4-plus",
+            model=handle.model if (handle := subagent_manager.agents.get(agent_id)) else "glm-4-flash",
             messages=messages,
             temperature=0.3,
             max_tokens=4096

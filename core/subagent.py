@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 # ── 父会话模型继承（线程局部）─────────────────────────────────────────────
-# Subagent 默认继承父 AgentLoop 的当前模型。此前 spawn 链路硬编码 "glm-4-plus"，
+# Subagent 默认继承父 AgentLoop 的当前模型。此前 spawn 链路硬编码 "glm-4-flash"，
 # 当目标 API（如 LongCat）不支持该模型时，子代理会以 400 失败。
 # AgentLoop 在执行工具前调用 set_current_model(self.model) 注入当前会话模型，
 # spawn_subagent 在未显式指定 model 时通过 get_current_model() 继承。
@@ -44,7 +44,7 @@ def set_current_model(model: str) -> None:
     _current_model_local.model = model
 
 
-def get_current_model(default: str = "glm-4-plus") -> str:
+def get_current_model(default: str = "glm-4-flash") -> str:
     """获取当前线程的父会话模型；未设置时回退到 default。"""
     return getattr(_current_model_local, "model", None) or default
 

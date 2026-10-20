@@ -125,7 +125,7 @@ def _summarize_with_llm(markdown_content: str, prompt: str) -> str:
         import os
         api_key = os.environ.get("OPENAI_API_KEY")
         base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
-        model = os.environ.get("OPENAI_MODEL", "glm-4-plus")
+        model = os.environ.get("OPENAI_MODEL", "glm-4-flash")
         if not api_key:
             return _truncate(markdown_content, 4000)
         client = OpenAI(api_key=api_key, base_url=base_url, timeout=30.0)

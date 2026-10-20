@@ -386,9 +386,9 @@ def check_api_key():
         print("\n配置方法:")
         print("  智谱 GLM:")
         print("    Windows: $env:OPENAI_API_KEY=\"your-key\"")
-        print("    Windows: $env:OPENAI_BASE_URL=\"https://open.bigmodel.cn/api/paas/v4\"")
+        print("    Windows: $env:OPENAI_BASE_URL=\"https://open.bigmodel.cn/api/coding/paas/v4\"")
         print("    Linux/Mac: export OPENAI_API_KEY=\"your-key\"")
-        print("    Linux/Mac: export OPENAI_BASE_URL=\"https://open.bigmodel.cn/api/paas/v4\"")
+        print("    Linux/Mac: export OPENAI_BASE_URL=\"https://open.bigmodel.cn/api/coding/paas/v4\"")
         print("\n获取 GLM API Key: https://open.bigmodel.cn/")
         return False
     return True
@@ -413,7 +413,7 @@ def main():
   python cli.py --command status
 
   # 指定模型
-  python cli.py "重构代码" --model glm-4-plus
+  python cli.py "重构代码" --model glm-4-flash
 
   # 权限模式
   python cli.py "执行命令" --mode auto
@@ -545,7 +545,7 @@ def main():
     config = {
         "api_key": os.environ.get("OPENAI_API_KEY"),
         "base_url": args.base_url or os.environ.get("OPENAI_BASE_URL") or file_config.get("llm", {}).get("base_url"),
-        "model": args.model or file_config.get("llm", {}).get("model", "glm-4-plus"),
+        "model": args.model or file_config.get("llm", {}).get("model", "glm-4-flash"),
         "max_iterations": args.max_iterations,  # None 表示无限制
         "max_tokens": args.max_tokens,  # token 预算
         "max_budget_usd": args.max_budget_usd,  # 费用预算

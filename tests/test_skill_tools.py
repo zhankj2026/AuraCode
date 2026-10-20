@@ -36,7 +36,7 @@ def test_skill_tools():
     print("\n[测试 1] 初始化 AgentLoop")
     config = {
         "api_key": "test_key",
-        "model": "glm-4-plus",
+        "model": "glm-4-flash",
         "max_iterations": 1,
         "permission_mode": "bypass",
         "enable_skills": True,

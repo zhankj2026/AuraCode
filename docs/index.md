@@ -55,7 +55,7 @@ AuraCode 通过 OpenAI 兼容接口对接各类大语言模型：
 
 | 提供商 | 模型示例 | 说明 |
 |--------|----------|------|
-| 智谱 AI | `glm-4-plus`, `glm-4.7`, `glm-4.5-air` | 推荐，中文能力强 |
+| 智谱 AI | `glm-4-flash`, `glm-4.7`, `glm-4.5-air` | 推荐，中文能力强 |
 | OpenAI | `gpt-4o`, `gpt-4-turbo` | 需科学上网 |
 | 其他 | 任意 OpenAI 兼容 API | 通过 `base_url` 配置 |
 

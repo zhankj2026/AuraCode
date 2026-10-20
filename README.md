@@ -59,8 +59,8 @@ cp config.example.yaml config.yaml
 ```yaml
 llm:
   provider: openai            # OpenAI 兼容接口
-  model: glm-4-plus           # 模型名称
-  base_url: https://open.bigmodel.cn/api/paas/v4
+  model: glm-4-flash           # 模型名称
+  base_url: https://open.bigmodel.cn/api/coding/paas/v4
   api_key: ${OPENAI_API_KEY}  # 推荐使用环境变量
   max_tokens: 4096
   temperature: 0.2
@@ -768,7 +768,7 @@ AuraCode 通过 OpenAI 兼容接口对接各类 LLM：
 
 | 提供商 | 模型示例 | 说明 |
 |--------|----------|------|
-| 智谱 AI | `glm-4-plus`, `glm-4.7`, `glm-4.5-air` | 推荐，中文能力强 |
+| 智谱 AI | `glm-4-flash`, `glm-4.7`, `glm-4.5-air` | 推荐，中文能力强 |
 | OpenAI | `gpt-4o`, `gpt-4-turbo` | 需科学上网 |
 | 自定义 | 任意 OpenAI 兼容 API | 通过 `base_url` 配置 |
 

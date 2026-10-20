@@ -32,7 +32,7 @@ if not api_key:
     print("❌ API Key not set", flush=True)
     sys.exit(1)
 
-config_base_url = "https://open.bigmodel.cn/api/paas/v4/"
+config_base_url = "https://open.bigmodel.cn/api/coding/paas/v4/"
 base_url = base_url or config_base_url
 print(f"Using base_url: {base_url}", flush=True)
 print(f"Using timeout: 300s", flush=True)

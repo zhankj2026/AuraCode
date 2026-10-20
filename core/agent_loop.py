@@ -74,7 +74,7 @@ class AgentLoop:
             config: 配置字典,包含:
                 - api_key: LLM API 密钥(可选,从环境变量读取)
                 - base_url: API 基础 URL(可选,从环境变量读取)
-                - model: 模型名称(默认 glm-4-plus)
+                - model: 模型名称(默认 glm-4-flash)
                 - max_iterations: 最大迭代次数(默认 20)
                 - default_max_tokens: 每次 LLM 请求的输出 token 上限(默认 32000)
                 - max_tokens: 整个 query 的 输入+输出 token 总预算(历史命名,实际是预算)
