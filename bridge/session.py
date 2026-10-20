@@ -342,6 +342,7 @@ class BridgeSession:
         # AgentLoop（在线程中初始化）
         self._agent_loop = None
         self._init_error: Optional[str] = None
+        self._pending_model: Optional[str] = None  # loop 未就绪时排队的模型切换
 
         # 统计
         self.created_at = time.time()
@@ -429,20 +430,40 @@ class BridgeSession:
         """
         if self.state != SessionState.IDLE:
             return False  # 正在运行中不能切换
-        if not self._agent_loop:
-            return False
-        old_model = self._agent_loop.model
+        old_model = self.config.model
         if old_model == new_model:
             return False
+        # AgentLoop 在后台线程异步初始化（加载工具/模型需 1-3s），
+        # 此刻可能仍为 None。先把 config 改了，loop 就绪后 _sync_model_to_loop
+        # 会补上——否则用户在会话刚建好就切模型会得到 409"不生效"。
+        self.config.model = new_model
+        if self._agent_loop is None:
+            self._pending_model = new_model
+            logger.info(f"Model switch queued (loop not ready): {old_model} → {new_model}")
+            self._emit(BridgeEvent(
+                type=BridgeEventType.MODEL_CHANGED.value,
+                session_id=self.session_id,
+                data={"old_model": old_model, "new_model": new_model, "pending": True},
+            ))
+            return True
+        self._sync_model_to_loop(old_model, new_model)
+        return True
+
+    def _sync_model_to_loop(self, old_model: str, new_model: str):
+        """把 config.model 同步进 AgentLoop（含自动记忆提取器，否则它还用旧模型）"""
+        if not self._agent_loop:
+            return
         self._agent_loop.model = new_model
-        self.config.model = new_model  # 同步配置
+        # 自动记忆提取器持有独立的模型名，热切换时一并更新
+        extractor = getattr(self._agent_loop, "auto_memory_extractor", None)
+        if extractor is not None:
+            extractor.llm_model = new_model
         self._emit(BridgeEvent(
             type=BridgeEventType.MODEL_CHANGED.value,
             session_id=self.session_id,
             data={"old_model": old_model, "new_model": new_model},
         ))
         logger.info(f"Model switched: {old_model} → {new_model}")
-        return True
 
     def _setup_ask_user_callback(self):
         """
@@ -769,6 +790,14 @@ class BridgeSession:
                 emit_event=self._emit,
             )
             self._agent_loop.permission_manager = self._perm_manager
+
+            # 模型同步：AgentLoop(config) 用的是构造那一刻的快照，
+            # 若 switch_model 在此之前/期间到达，loop.model 可能是旧值。
+            # 就绪后一律强制对齐到 config.model（含记忆提取器）。
+            if self._agent_loop.model != self.config.model:
+                old = self._agent_loop.model
+                self._sync_model_to_loop(old, self.config.model)
+            self._pending_model = None
 
         finally:
             os.chdir(original_dir)
