@@ -738,6 +738,16 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
     # 封装 skillhub CLI（~/.local/bin/skillhub，python 实现）。
     # 安装目标固定为用户级 ~/.auracode/skills/（引擎支持 @namespace 两层布局）。
 
+    def _decode_pipe(data: bytes) -> str:
+        """子进程管道输出解码：优先 utf-8（子进程已被强制 UTF-8 输出），
+        失败退回 gbk（Windows 本地代码页），最后 replace 兜底。"""
+        for enc in ("utf-8", "gbk"):
+            try:
+                return data.decode(enc)
+            except UnicodeDecodeError:
+                continue
+        return data.decode("utf-8", errors="replace")
+
     def _run_skillhub(*args: str, timeout: float = 60.0) -> tuple:
         """执行 skillhub CLI，返回 (returncode, stdout, stderr)。
 
@@ -747,6 +757,9 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
              因为 ~/.local/bin/skillhub 是 bash 包裹脚本，Windows 无法直接 exec）
         调用时剥离 http(s)_proxy 环境变量，避免经由（沙箱/公司）代理访问
         skillhub.cn 失败；CLI 自身仍走系统默认网络栈。
+        强制子进程以 UTF-8 输出：Windows 下 Python 子进程的 stdout 为管道时
+        默认用本地代码页（GBK），print 含 emoji 直接 UnicodeEncodeError，
+        含中文则被父进程按 utf-8 解成乱码（两个症状同一根因）。
         """
         home = os.path.expanduser("~")
         if os.name == "nt":
@@ -765,18 +778,20 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
         for k in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY",
                   "all_proxy", "ALL_PROXY"):
             env.pop(k, None)
+        # 强制子进程 UTF-8 写 stdout/stderr（PYTHONUTF8 连文件系统编码一起管）
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
 
         for target in candidates:
             if not os.path.exists(target):
                 continue
-            cmd = [target, *args] if target.endswith(".py") else [target, *args]
-            if target.endswith(".py"):
-                cmd = [sys.executable, target, *args]
+            cmd = [sys.executable, target, *args] if target.endswith(".py") \
+                else [target, *args]
             try:
-                r = subprocess.run(cmd, capture_output=True, text=True,
-                                   timeout=timeout, encoding="utf-8",
-                                   errors="replace", env=env)
-                return r.returncode, r.stdout, r.stderr
+                # 捕获原始字节自行解码（不依赖子进程遵守编码约定时的兜底）
+                r = subprocess.run(cmd, capture_output=True,
+                                   timeout=timeout, env=env)
+                return r.returncode, _decode_pipe(r.stdout), _decode_pipe(r.stderr)
             except Exception as e:
                 logger.warning(f"skillhub 调用失败 ({target}): {e}")
                 continue
