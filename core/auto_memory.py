@@ -198,6 +198,161 @@ def _summarize_messages(
     return "\n".join(lines)
 
 
+def _extract_balanced_json(text: str) -> Optional[str]:
+    """括号深度扫描：从 text 中提取第一个完整平衡的 {...} JSON 对象。
+
+    与正则/tail-rfind 的区别：
+    - 跳过字符串字面量内部的 { } 与转义（\" { 等），因此 JSON 值里嵌
+      ``` 或花括号都不会误判边界；
+    - 截断场景（max_tokens 用尽）下 depth 永不归零 → 返回 None，
+      不会把半截 JSON 当候选。
+    """
+    start = text.find('{')
+    if start < 0:
+        return None
+    depth = 0
+    in_str = False
+    esc = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == '\\':
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                return text[start:i + 1]
+    return None
+
+
+def _try_loads_lenient(s: str) -> Optional[Any]:
+    """宽松 JSON 解析：标准解析 → 去尾逗号 → 单引号键值替换。
+
+    弱模型常犯：{"a": 1,} 与 {'a': 1}。逐级降级尝试。
+    """
+    s = s.strip()
+    if not s:
+        return None
+    try:
+        return json.loads(s)
+    except json.JSONDecodeError:
+        pass
+    # 去尾逗号: ,] 或 ,}（仅在字符串外）
+    import re
+    cleaned = re.sub(r',(\s*[}\]])', r'\1', s)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+    # 单引号键/值 → 双引号（粗暴但对提取场景足够；内容里再含单引号则放弃）
+    try:
+        fixed = cleaned.replace("'", '"')
+        return json.loads(fixed)
+    except json.JSONDecodeError:
+        pass
+    # 最后一级：修复字符串值内的裸双引号（模型复制报错原文时常见，如
+    # "content": "ReferenceError: "boss" is not defined"）。
+    # 状态机重转义：只在「值位置」的字符串内，把不成对的 " 变 \"。
+    fixed2 = _requote_inner_strings(cleaned)
+    if fixed2:
+        try:
+            return json.loads(fixed2)
+        except json.JSONDecodeError:
+            pass
+    return None
+
+
+def _normalize_action(raw) -> str:
+    """把模型输出的 action 归一化到 save/update/delete。
+
+    实测弱模型（json_schema 未被端点强制时）会造出 fixed_error /
+    noted_resolution 之类的自创值 —— 语义上都是"记住这条"，归为 save。
+    """
+    s = str(raw or "").strip().lower()
+    if s in ("update", "replace", "modify", "edit"):
+        return "update"
+    if s in ("delete", "remove", "forget", "drop"):
+        return "delete"
+    return "save"
+
+
+def _normalize_mem_type(raw):
+    """把模型输出的记忆类型归一到 MEMORY_TYPES 的四类之一；无法判断返回 None。
+
+    常见偏差：reference_error/bug 类 → feedback（排错经验）；
+    preference/user 类 → user；无 type 时默认 project。
+    """
+    s = str(raw or "").strip().lower()
+    if not s:
+        return "project"
+    if s in MEMORY_TYPES:
+        return s
+    if any(k in s for k in ("user", "preference", "role", "profile")):
+        return "user"
+    if any(k in s for k in ("feedback", "error", "bug", "fix", "resolution",
+                            "lesson", "correction", "convention")):
+        return "feedback"
+    if any(k in s for k in ("project", "task", "milestone", "deadline", "release")):
+        return "project"
+    if any(k in s for k in ("reference", "link", "doc", "tracker", "dashboard")):
+        return "reference"
+    return "project"
+
+
+def _requote_inner_strings(s: str) -> Optional[str]:
+    """把 JSON 字符串值内部的裸双引号转义。
+
+    扫描规则：遇到开引号进入字符串；字符串内遇 " 时向前看，若它后面
+    （跳过空白）跟的是 : , } ] 之一或文本结束，则视为闭引号，否则视为
+    内容中的裸引号 → 转义。这利用了合法 JSON 结构中闭引号后必是定界符
+    的性质，能处理绝大多数模型输出。
+    """
+    out = []
+    i = 0
+    n = len(s)
+    in_str = False
+    while i < n:
+        ch = s[i]
+        if not in_str:
+            if ch == '"':
+                in_str = True
+            out.append(ch)
+            i += 1
+            continue
+        # 字符串内部
+        if ch == '\\':
+            out.append(ch)
+            if i + 1 < n:
+                out.append(s[i + 1])
+            i += 2
+            continue
+        if ch == '"':
+            # 判断是否为闭引号：后面跳过空白遇到 : , } ] 或结尾
+            j = i + 1
+            while j < n and s[j] in ' \t\r\n':
+                j += 1
+            if j >= n or s[j] in ':,}]':
+                in_str = False
+                out.append(ch)
+                i += 1
+            else:
+                out.append('\\"')  # 裸引号 → 转义
+                i += 1
+            continue
+        out.append(ch)
+        i += 1
+    return ''.join(out)
+
+
 class AutoMemoryExtractor:
     """
     自动记忆提取器
@@ -405,9 +560,23 @@ class AutoMemoryExtractor:
 
             parsed = self._parse_llm_json(text)
             if parsed is None:
-                logger.warning(f"Auto-memory: failed to parse LLM response as JSON (first 200 chars): {text[:200]!r}")
-                # 不推进游标，下次重试
-                return None
+                # 截断抢救：max_tokens 用尽时（finish_reason=length）响应是半截 JSON，
+                # 逐条提取 memories 数组里已完整的对象，别让已生成的记忆白跑一趟。
+                finish = getattr(resp.choices[0], "finish_reason", None)
+                if finish == "length":
+                    salvaged = self._salvage_truncated_memories(text)
+                    if salvaged:
+                        logger.info(
+                            f"Auto-memory: response truncated but salvaged "
+                            f"{len(salvaged)} complete entries"
+                        )
+                        parsed = {"memories": salvaged}
+                if parsed is None:
+                    logger.warning(f"Auto-memory: failed to parse LLM response as JSON (first 200 chars): {text[:200]!r}")
+                    # 不推进游标，下次重试
+                    return None
+            # 形状归一：模型无视 schema 时把自由 JSON 重组为 memories 列表
+            parsed = self._reshape_parsed(parsed)
             memory_actions = parsed.get("memories", [])
 
         except Exception as e:
@@ -418,12 +587,13 @@ class AutoMemoryExtractor:
         # ── 5. 执行记忆操作 ──
         saved_count = 0
         for mem in memory_actions:
-            action = mem.get("action", "save")
-            mem_type = mem.get("type")
-            title = mem.get("title", "")
-            content = mem.get("content", "")
+            action = _normalize_action(mem.get("action", "save"))
+            mem_type = _normalize_mem_type(mem.get("type"))
+            title = str(mem.get("title", "")).strip()
+            content = str(mem.get("content", "") or "")
 
-            if not title:
+            if not title or mem_type is None:
+                # type 无法归一 → 丢弃该条（避免污染错误目录）
                 continue
 
             try:
@@ -500,14 +670,57 @@ class AutoMemoryExtractor:
         return False
 
     @staticmethod
+    def _salvage_truncated_memories(text: str) -> list:
+        """从被 max_tokens 截断的响应中抢救已完整的 memory 条目。
+
+        思路：不依赖外层 {"memories": [...]} 壳（截断时永不闭合）。
+        定位 "memories" 键对应的数组起点，在数组内逐个扫描平衡的 {...}
+        对象；含 action/type/title 三必需键且值合法才保留。
+        被腰斩的条目自然不平衡，会被跳过。
+        """
+        import re as _re
+        # 定位 memories 数组的 [ 起点；找不到就全文扫
+        arr = _re.search(r'"memories"\s*:\s*\[', text)
+        scan_from = arr.end() if arr else 0
+        results = []
+        i = scan_from
+        while i < len(text):
+            start = text.find('{', i)
+            if start < 0:
+                break
+            frag = _extract_balanced_json(text[start:])
+            if frag is None:
+                break  # 之后没有完整对象了（截断点）
+            i = start + len(frag)
+            try:
+                obj = _try_loads_lenient(frag)
+            except Exception:
+                obj = None
+            if not isinstance(obj, dict):
+                continue
+            if not ({"action", "type", "title"} <= set(obj.keys())):
+                continue
+            if obj.get("action") not in ("save", "update", "delete"):
+                continue
+            if not isinstance(obj.get("title"), str) or not obj["title"].strip():
+                continue
+            results.append(obj)
+        return results
+
+    @staticmethod
     def _parse_llm_json(text: str) -> Optional[Dict[str, Any]]:
         """
         容错解析 LLM 返回的 JSON。
 
-        LLM 可能返回以下格式：
+        LLM 可能返回以下格式（实测智谱端点即便传了 response_format=json_schema
+        也会包 markdown 围栏，且弱模型会犯各种 JSON 语法错）：
         1. 纯 JSON: {"memories": [...]}
         2. Markdown包裹: ```json\n{"memories": [...]}\n```
         3. 文本+JSON混合: ...some text... {"memories": [...]} ...more text...
+        4. JSON 字符串值内嵌 ``` 代码块（记忆内容引用 markdown 时常见，
+           旧正则的非贪婪匹配会在此提前截断）
+        5. 尾逗号 / 单引号键值
+        6. max_tokens 截断（尽力提取已完整的条目）
 
         Returns:
             解析后的字典，或 None（解析失败时）
@@ -524,27 +737,52 @@ class AutoMemoryExtractor:
         except json.JSONDecodeError:
             pass
 
-        # 尝试 2: 剥离 markdown 代码块
-        md_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', text, re.DOTALL)
-        if md_match:
-            try:
-                return json.loads(md_match.group(1).strip())
-            except json.JSONDecodeError:
-                pass
+        # 尝试 2: 剥离 markdown 代码块。
+        # 关键修复：旧正则 (.*?) 非贪婪扫描会在 JSON 字符串值内嵌的 ```
+        # 处提前闭合，把合法 JSON 腰斩成 "Unterminated string"。
+        # 改为：从首个 ``` 之后找第一个 {，再从末尾向前找配对的 }，
+        # 用括号深度扫描（跳过字符串字面量内的括号）确定 JSON 边界。
+        fence = re.search(r'```(?:json)?\s*\n?', text)
+        if fence:
+            body = text[fence.end():]
+            candidate = _extract_balanced_json(body)
+            if candidate:
+                parsed = _try_loads_lenient(candidate)
+                if parsed is not None:
+                    return parsed
 
-        # 尝试 3: 查找第一个 { ... } 块
-        brace_start = text.find('{')
-        if brace_start >= 0:
-            # 从后向前找最后一个 }
-            brace_end = text.rfind('}')
-            if brace_end > brace_start:
-                candidate = text[brace_start:brace_end + 1]
-                try:
-                    return json.loads(candidate)
-                except json.JSONDecodeError:
-                    pass
+        # 尝试 3: 无围栏时，直接对全文做括号深度提取
+        candidate = _extract_balanced_json(text)
+        if candidate:
+            parsed = _try_loads_lenient(candidate)
+            if parsed is not None:
+                return parsed
 
         return None
+
+    @staticmethod
+    def _reshape_parsed(parsed: Dict[str, Any]) -> Dict[str, Any]:
+        """形状归一：解析成功但缺 memories 键时，尝试从自由形状重组。
+
+        实测 GLM-4-Flash 常无视 json_schema，返回自定义键名的对象
+        （如 {"error_message": ..., "correction": ..., "user_instruction": ...}）。
+        无法可靠重组时原样返回（下游按空 memories 处理，安全降级）。
+        """
+        if "memories" in parsed and isinstance(parsed["memories"], list):
+            return parsed
+        # 情形 1：数组藏在其他键下（memories/durable_memories/items/...）
+        for k, v in parsed.items():
+            if isinstance(v, list) and v and all(isinstance(x, dict) for x in v):
+                return {"memories": v}
+        # 情形 2：扁平键值对象 → 整体视作一条记忆
+        if parsed and all(isinstance(v, (str, int, float)) for v in parsed.values()):
+            merged = "；".join(f"{k}: {v}" for k, v in parsed.items())
+            if merged.strip():
+                return {"memories": [{
+                    "action": "save", "type": "feedback",
+                    "title": merged[:60], "content": merged,
+                }]}
+        return parsed
 
     def get_stats(self) -> Dict[str, Any]:
         """获取提取器统计信息"""
