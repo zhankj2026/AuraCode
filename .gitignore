@@ -74,6 +74,7 @@ examples/
 desktop/node_modules/
 desktop/out/
 desktop/dist/
+desktop/resources/
 
 # 大型内容产物目录（不入库）
 AuraCode-desktop-prototype/

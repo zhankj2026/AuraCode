@@ -9,7 +9,9 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "package": "electron-vite build && electron-builder --win nsis"
+    "stage": "powershell -ExecutionPolicy Bypass -File scripts/stage.ps1",
+    "dist": "npm run stage && electron-vite build && electron-builder --win nsis",
+    "package": "npm run stage && electron-vite build && electron-builder --win nsis"
   },
   "dependencies": {
     "@codemirror/language-data": "^6.5.2",

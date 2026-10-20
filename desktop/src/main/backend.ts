@@ -23,20 +23,42 @@ export function createBackend() {
   let proc: ChildProcess | null = null
   let config: BridgeConfig | null = null
 
+  /**
+   * 解析 Python 解释器路径，优先级：
+   *   1) AURACODE_PYTHON 环境变量（调试/覆盖）
+   *   2) 内置 portable Python：<resources>/python/python.exe（生产分发）
+   *   3) 系统 python / python3（未打包时的兜底）
+   */
   function pythonCmd(): string {
-    return process.env.AURACODE_PYTHON || (process.platform === 'win32' ? 'python' : 'python3')
+    if (process.env.AURACODE_PYTHON) return process.env.AURACODE_PYTHON
+    if (process.resourcesPath) {
+      const bundled = path.join(process.resourcesPath, 'python', 'python.exe')
+      if (fs.existsSync(bundled)) return bundled
+    }
+    return process.platform === 'win32' ? 'python' : 'python3'
   }
 
-  /** 定位包含 cli.py 的 AuraCode 根目录 */
+  /**
+   * 定位包含 cli.py 的 AuraCode 引擎根目录，优先级：
+   *   1) AURACODE_ROOT 环境变量
+   *   2) 内置引擎：<resources>/engine（生产分发，与 portable python 同级）
+   *   3) dev：out/main -> 仓库根（cli.py 在 desktop 的上一级）
+   *   4) cwd / 上一级
+   */
   function guessRoot(): string {
     const candidates = [
       process.env.AURACODE_ROOT,
+    ]
+    if (process.resourcesPath) {
+      candidates.push(path.join(process.resourcesPath, 'engine'))
+    }
+    candidates.push(
       path.resolve(__dirname, '../../..'), // dev: out/main -> repo root
       path.resolve(process.cwd(), '..'),
       process.cwd(),
-    ].filter(Boolean) as string[]
+    )
     for (const c of candidates) {
-      if (fs.existsSync(path.join(c, 'cli.py'))) return c
+      if (c && fs.existsSync(path.join(c, 'cli.py'))) return c
     }
     return process.cwd()
   }
@@ -73,7 +95,7 @@ export function createBackend() {
     ]
     proc = spawn(py, args, {
       cwd: root,
-      env: { ...process.env },
+      env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     })
