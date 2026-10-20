@@ -31,6 +31,22 @@ _bridge_stop_event = None
 _bridge_config = None
 
 
+def _default_model_from_engine_config() -> str:
+    """从引擎 config.yaml 读 llm.model 作为 Bridge 会话默认模型。
+
+    修复：Bridge 的 default_model 此前硬编码 glm-4-flash，与引擎 config.yaml 脱节，
+    导致桌面端会话用的模型比 CLI 模式弱（长任务"每轮 stop 不连锁工具"）。
+    读不到时保持原默认兜底，零行为变化。
+    """
+    try:
+        from config.manager import config_manager
+        config_manager.load("config.yaml")
+        m = config_manager.get("llm.model")
+        return m if isinstance(m, str) and m.strip() else "glm-4-flash"
+    except Exception:
+        return "glm-4-flash"
+
+
 def _start_bridge_in_background(port: int, max_sessions: int, token: str = None):
     """在后台线程中启动 Bridge 服务器"""
     global _bridge_thread, _bridge_stop_event, _bridge_config
@@ -43,6 +59,7 @@ def _start_bridge_in_background(port: int, max_sessions: int, token: str = None)
         port=port,
         max_sessions=max_sessions,
         auth_token=token or secrets.token_urlsafe(32),
+        default_model=_default_model_from_engine_config(),
     )
 
     def _run():

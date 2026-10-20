@@ -10,6 +10,7 @@ core.loop.prompt_builder — 系统提示词 7 层构建
 
 import logging
 import os
+import time
 from typing import Any, Dict
 
 from tools.registry import TOOL_REGISTRY
@@ -457,6 +458,15 @@ class SystemPromptBuilder:
             "越界的工具调用会被直接拒绝。"
         )
 
+        # 1.5 最近计划：自动加载 .auracode/plans/ 下最新计划文件的摘要，
+        # 让续接的会话知道"计划进行到哪一步"（Bridge 重启续接场景）
+        try:
+            plan_summary = self._load_recent_plan_summary(work_dir)
+            if plan_summary:
+                sections.append(plan_summary)
+        except Exception:
+            pass
+
         # 2. Git 状态
         is_git = self._is_git_repository()
         sections.append(f"是否为git仓库：{'是' if is_git else '否'}")
@@ -505,6 +515,56 @@ class SystemPromptBuilder:
                 sections.append(f"状态：\n{git_status}")
 
         return "\n".join(sections)
+
+    def _load_recent_plan_summary(self, work_dir: str, max_chars: int = 1200) -> str:
+        """加载 .auracode/plans/（兼容 .auraCode/plans/）下最新的计划文件摘要。
+
+        Bridge 会话续接场景：模型据此知道"上次计划到哪一步"，
+        配合恢复的消息历史可直接继续未完成任务。
+        超长计划截断到 max_chars（保持完整任务列表通常足够）。
+        """
+        import os
+
+        plans_dirs = [
+            os.path.join(work_dir, ".auracode", "plans"),
+            os.path.join(work_dir, ".auraCode", "plans"),
+        ]
+        latest = None  # (mtime, path)
+        for d in plans_dirs:
+            try:
+                if not os.path.isdir(d):
+                    continue
+                for name in os.listdir(d):
+                    if not name.endswith(".md"):
+                        continue
+                    p = os.path.join(d, name)
+                    try:
+                        mt = os.path.getmtime(p)
+                    except OSError:
+                        continue
+                    if latest is None or mt > latest[0]:
+                        latest = (mt, p)
+            except OSError:
+                continue
+        if not latest:
+            return ""
+        try:
+            with open(latest[1], "r", encoding="utf-8", errors="replace") as f:
+                content = f.read().strip()
+        except OSError:
+            return ""
+        if not content:
+            return ""
+        if len(content) > max_chars:
+            content = content[:max_chars] + "\n…（计划过长已截断，可自行 read_file 完整内容）"
+        import os as _os
+        return (
+            f"## 最近的开发计划（自动加载自 {_os.path.basename(latest[1])}，"
+            f"{time.strftime('%Y-%m-%d %H:%M', time.localtime(latest[0]))}）\n\n"
+            f"{content}\n\n"
+            "如任务尚未完成，请基于该计划与已恢复的对话历史继续执行；"
+            "如计划已过时或用户另有指示，以用户当前指令为准。"
+        )
 
     def _is_git_repository(self) -> bool:
         """检查是否是 git 仓库（结果缓存：git 状态作为会话快照，期间不变）"""

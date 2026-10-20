@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 from core.loop.retry import (
     classify_error,
     get_retry_wait,
+    is_quota_error,
     is_transient_error,
 )
 
@@ -304,6 +305,29 @@ class LLMClient:
                 )
 
             except Exception as e:
+                # 配额/余额类错误（智谱 429+1113 余额不足等）：
+                # 重试注定失败，立即抛出让 orchestrator 触发 fallback 模型。
+                # 否则 10 次 × 8~60s 的退避让用户干等数分钟后依然失败。
+                if is_quota_error(e):
+                    logger.error(
+                        f"LLM 配额/余额不足，跳过重试直接失败 ({active_model}): {e}"
+                    )
+                    loop.events.emit("api_retry", {
+                        "attempt": attempt,
+                        "max_retries": max_retries,
+                        "wait_seconds": 0,
+                        "error": str(e),
+                        "category": "quota_exhausted",
+                        "is_rate_limit": False,
+                        "give_up": True,
+                    })
+                    loop.events.status(
+                        f"\n⚠️ 模型 {active_model} 配额/余额不足（重试无效），"
+                        f"尝试切换备用模型...",
+                        kind="error",
+                    )
+                    raise
+
                 # 瞬时错误 → 按类型计算等待时间并重试
                 if is_transient_error(e) and attempt < max_retries:
                     wait = get_retry_wait(e, attempt)

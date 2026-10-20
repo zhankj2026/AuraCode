@@ -141,12 +141,15 @@ class SessionConfig:
     """会话配置"""
     session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     work_dir: str = "."
-    model: str = "glm-4-plus"
+    model: str = "glm-4-flash"
     permission_mode: str = "auto"
     max_iterations: Optional[int] = None  # None 表示无限制，由配置文件控制
     base_url: Optional[str] = None
     api_key: Optional[str] = None
     session_timeout: int = 3600  # 秒（0=不超时）
+    # 启动时是否按 work_dir 恢复最近归档会话的历史（续接未完成任务）。
+    # 默认 True；前端「新会话」可传 False 表示全新开始。
+    restore_history: bool = True
 
     def __post_init__(self):
         # 将 work_dir 规范化为绝对路径。

@@ -51,6 +51,7 @@ class CreateSessionRequest(BaseModel):
     max_iterations: Optional[int] = None  # None 表示无限制，由配置文件控制
     api_key: Optional[str] = None
     base_url: Optional[str] = None
+    restore_history: bool = True  # 是否按 work_dir 恢复最近归档会话（False=全新开始）
 
 
 class CreateSessionResponse(BaseModel):
@@ -326,6 +327,7 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
                 max_iterations=req.max_iterations,
                 api_key=req.api_key,
                 base_url=req.base_url,
+                restore_history=req.restore_history,
             )
             session = _manager.create_session(cfg)
             return CreateSessionResponse(
@@ -832,6 +834,22 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
     return app
 
 
+def _default_model_from_engine_config() -> str:
+    """从引擎 config.yaml 读 llm.model 作为 Bridge 会话默认模型。
+
+    修复：Bridge 的 default_model 此前硬编码 glm-4-flash，与引擎 config.yaml 脱节，
+    导致桌面端会话用的模型比 CLI 模式弱（长任务每轮 stop、不连锁工具调用）。
+    读不到时保持原默认兜底，零行为变化。
+    """
+    try:
+        from config.manager import config_manager
+        config_manager.load("config.yaml")
+        m = config_manager.get("llm.model")
+        return m if isinstance(m, str) and m.strip() else "glm-4-flash"
+    except Exception:
+        return "glm-4-flash"
+
+
 # ── 启动入口 ─────────────────────────────────────────────────────────────────
 
 def start_bridge_server(
@@ -848,6 +866,7 @@ def start_bridge_server(
         port=port,
         max_sessions=max_sessions,
         auth_token=auth_token or secrets.token_urlsafe(32),
+        default_model=_default_model_from_engine_config(),
     )
 
     app = create_app(config)

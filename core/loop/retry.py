@@ -42,6 +42,29 @@ _RATE_LIMIT_KEYWORDS = (
     "1302",  # GLM 速率限制错误码
 )
 
+# 配额/余额类错误关键词 —— 重试毫无意义，应立即失败并触发 fallback。
+# 智谱 1113 = 余额不足或无可用资源包；OpenAI insufficient_quota 同类。
+_QUOTA_ERROR_KEYWORDS = (
+    "1113",                              # 智谱：余额不足
+    "余额不足", "无可用资源包", "请充值",   # 智谱中文报错
+    "insufficient_quota", "insufficient quota",  # OpenAI
+    "exceeded your current quota",
+    "billing", "arrears",                # 计费/欠费
+)
+
+
+def is_quota_error(error: Exception) -> bool:
+    """判断是否为配额/余额耗尽错误（429 伪装的计费错误）。
+
+    智谱的余额不足返回 HTTP 429 + code 1113，和真限流（1302）同为 429，
+    但语义完全不同：充值前重试一万次也不会成功。
+    这类错误必须立即放弃重试，直接走 fallback 或报错，否则用户要干等
+    10 轮 × 8~60s 的无意义退避（此前表现为"发消息后没任何反应"）。
+    """
+    error_str = str(error)
+    return any(kw in error_str for kw in _QUOTA_ERROR_KEYWORDS)
+
+
 
 def extract_status_code(error: Exception) -> Optional[int]:
     """从异常中提取 HTTP 状态码（兼容 openai SDK 各种异常类型）"""

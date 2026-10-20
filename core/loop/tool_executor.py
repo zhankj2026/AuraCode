@@ -31,9 +31,16 @@ logger = logging.getLogger(__name__)
 
 
 def _path_outside_workspace(path_str: str, project_root: str) -> bool:
-    """判断路径是否在项目工作区之外（相对路径按进程 cwd 解析）"""
+    """判断路径是否在项目工作区之外。
+
+    相对路径按 project_root 解析（与执行期「路径解析」步骤的
+    abspath(join(project_root, p)) 口径一致）。
+    修复：此前按进程 cwd 解析，Bridge 模式下 cwd 是后端启动目录（引擎根），
+    与会话 work_dir 不同，导致合法的项目内相对路径被误判越界。
+    """
     try:
-        abs_p = os.path.normcase(os.path.abspath(path_str))
+        p = path_str if os.path.isabs(path_str) else os.path.join(project_root, path_str)
+        abs_p = os.path.normcase(os.path.abspath(p))
         abs_root = os.path.normcase(os.path.abspath(project_root))
         return os.path.commonpath([abs_p, abs_root]) != abs_root
     except ValueError:
@@ -249,6 +256,13 @@ class ToolExecutor:
         attempt = 0
         while attempt <= max_retries:
             try:
+                # 缺省路径注入：list_directory 的 handler 默认 path="." 会按进程 cwd
+                # 解析，Bridge 模式下 cwd 是后端启动目录（引擎根）而非会话 work_dir，
+                # 导致「列目录」显示引擎源码树、误导模型。这里显式注入 "."，让下面的
+                # 路径解析步骤统一按 project_root 解析。
+                if tool_name == "list_directory" and "path" not in arguments:
+                    arguments["path"] = "."
+
                 # 路径解析：将相对路径转换为绝对路径（基于 project_root）
                 for pk in ("path", "file_path", "directory"):
                     if pk in arguments and isinstance(arguments[pk], str):
@@ -277,7 +291,7 @@ class ToolExecutor:
                 logger.info(f"Executing handler for {tool_name} with args: {list(arguments.keys())}")
 
                 # 注入当前会话模型到线程局部，供 Subagent/Workflow 默认继承
-                # （否则 spawn 链路会用硬编码 glm-4-plus，与目标 API 不兼容）
+                # （否则 spawn 链路会用硬编码 glm-4-flash，与目标 API 不兼容）
                 try:
                     set_current_model(loop.model)
                 except Exception:

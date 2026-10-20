@@ -57,6 +57,7 @@ class SessionMeta:
     last_prompt: str = ""               # 最后一条用户输入（摘要）
     status: str = "active"              # active / completed / aborted / error
     tags: List[str] = field(default_factory=list)  # 用户标签
+    work_dir: str = ""                  # 会话工作目录（Bridge 恢复按项目匹配用）
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -135,6 +136,7 @@ class SessionStore:
         session_id: Optional[str] = None,
         state_snapshot: Optional[Dict[str, Any]] = None,
         existing_meta: Optional[SessionMeta] = None,
+        work_dir: str = "",
     ) -> SessionMeta:
         """
         保存会话到 JSON 文件
@@ -149,6 +151,7 @@ class SessionStore:
             session_id: 会话 ID（None 则自动生成）
             state_snapshot: SessionState 快照
             existing_meta: 已有的元数据（用于更新而非创建新会话）
+            work_dir: 会话工作目录（用于后续按项目恢复）
 
         Returns:
             SessionMeta 元数据
@@ -163,6 +166,8 @@ class SessionStore:
             meta.total_tokens = total_tokens
             meta.total_cost_usd = total_cost_usd
             meta.status = status
+            if work_dir:
+                meta.work_dir = work_dir
         else:
             sid = session_id or str(uuid.uuid4())[:12]
             # 提取首条用户消息
@@ -188,6 +193,7 @@ class SessionStore:
                 first_prompt=first_prompt,
                 last_prompt=last_prompt,
                 status=status,
+                work_dir=work_dir,
             )
 
         record = SessionRecord(
@@ -442,6 +448,32 @@ class SessionStore:
             return None
         return self.load_session(sessions[0].session_id)
 
+    def find_latest_by_workdir(self, work_dir: str, exclude_ids: Optional[List[str]] = None) -> Optional[SessionRecord]:
+        """按工作目录查找最近一个有消息的会话记录（Bridge 重启续接未完成任务用）。
+
+        匹配规则：meta.work_dir 规范化后相等（大小写不敏感，Windows 友好），
+        且 messages 非空（跳过只有 system 的空会话）。
+        """
+        try:
+            target = os.path.normcase(os.path.abspath(work_dir or "."))
+        except Exception:
+            return None
+        exclude = set(exclude_ids or [])
+        for meta in self.list_sessions(limit=100):
+            if meta.session_id in exclude:
+                continue
+            if not meta.work_dir:
+                continue
+            try:
+                if os.path.normcase(os.path.abspath(meta.work_dir)) != target:
+                    continue
+            except Exception:
+                continue
+            record = self.load_session(meta.session_id)
+            if record and record.messages:
+                return record
+        return None
+
     def _find_by_prefix(self, prefix: str) -> List[SessionMeta]:
         """按 ID 前缀匹配会话"""
         all_sessions = self.list_sessions(limit=1000)
@@ -479,6 +511,7 @@ def auto_save_session(
     status: str = "completed",
     session_id: Optional[str] = None,
     existing_meta: Optional[SessionMeta] = None,
+    work_dir: str = "",
 ) -> Optional[SessionMeta]:
     """
     便捷函数：自动保存当前会话状态。
@@ -498,6 +531,7 @@ def auto_save_session(
             status=status,
             session_id=session_id,
             existing_meta=existing_meta,
+            work_dir=work_dir,
         )
         return meta
     except Exception as e:

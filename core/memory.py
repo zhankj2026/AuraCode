@@ -25,6 +25,7 @@ import re
 import json
 import time
 import logging
+import threading
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 from pathlib import Path
@@ -752,6 +753,78 @@ def memory_age_text(updated_at: str) -> str:
     return f"{days} days ago"
 
 
+# 急切注入的记忆类型：几乎每轮都相关（协作规则/用户画像），全文直进系统提示词，
+# 省掉模型先调 get_relevant_memories 再取全文的一轮往返。
+# project/reference 是话题相关的（项目背景/外部指针），保持索引+按需加载。
+EAGER_MEMORY_TYPES = ("user", "feedback")
+
+# 急切注入的总体积上限（字符）：防止大量 user/feedback 记忆撑爆系统提示词。
+# 超限时按 mtime 新→旧截断，并附提示（模型可自行 load_memory 取完整内容）。
+EAGER_MEMORY_MAX_CHARS = 4000
+
+# 单条急切记忆截断长度：单条超长（异常情况）时截断。
+EAGER_MEMORY_ITEM_MAX_CHARS = 1200
+
+
+def build_eager_memory_section(memory_dir: Path) -> str:
+    """
+    构建急切注入记忆段：user/feedback 类记忆的全文。
+
+    设计（对标 Claude Code 行为）：
+    - user/feedback 决定"如何与这个用户协作"，与具体任务话题无关，每轮都该在场；
+    - 全文注入省一次 get_relevant_memories 工具往返（弱模型常忘记主动调它）；
+    - 带总体积上限与新鲜度标注，超限按 mtime 截断。
+
+    Returns:
+        注入段字符串；无 user/feedback 记忆时返回 ""。
+    """
+    headers = scan_memory_files(memory_dir)
+    eager = [h for h in headers if h.get("type") in EAGER_MEMORY_TYPES]
+    if not eager:
+        return ""
+
+    parts = [
+        "## Active Memories (always loaded)",
+        "",
+        "以下是 user/feedback 类记忆全文——关于用户画像与协作规则，"
+        "每轮对话都应遵守；无需再通过工具加载它们。",
+        "",
+    ]
+    total = 0
+    shown, dropped = 0, 0
+    for h in eager:  # headers 已按 mtime 降序（最新优先）
+        if total >= EAGER_MEMORY_MAX_CHARS:
+            dropped += 1
+            continue
+        try:
+            content = Path(h["filePath"]).read_text(encoding="utf-8")
+        except Exception:
+            continue
+        # 去掉 frontmatter，取正文
+        _, body = _parse_frontmatter(content)
+        body = body.strip()
+        if not body:
+            continue
+        if len(body) > EAGER_MEMORY_ITEM_MAX_CHARS:
+            body = body[:EAGER_MEMORY_ITEM_MAX_CHARS] + "…（单条截断）"
+        if total + len(body) > EAGER_MEMORY_MAX_CHARS:
+            dropped += 1
+            continue
+        total += len(body)
+        shown += 1
+        parts.append(f"### [{h.get('type')}] {h.get('name', h.get('filename', ''))}\n")
+        parts.append(body + "\n")
+
+    if shown == 0:
+        return ""
+    if dropped:
+        parts.append(
+            f"（另有 {dropped} 条较旧的 user/feedback 记忆因体积上限未注入，"
+            "可用 load_memory 按需读取）"
+        )
+    return "\n".join(parts)
+
+
 def scan_memory_files(memory_dir: Path) -> List[Dict[str, Any]]:
     """
     扫描记忆目录中的 .md 文件，读取 frontmatter，按 mtime 降序排序。
@@ -971,6 +1044,12 @@ def build_memory_prompt_section(memory_dir: Path) -> str:
         "",
     ]
 
+    # 急切注入段：user/feedback 全文（每轮都在场，省一次工具往返）
+    eager_section = build_eager_memory_section(memory_dir)
+    if eager_section:
+        lines.append("")
+        lines.append(eager_section)
+
     # 加载 MEMORY.md 索引内容
     index_content = load_memory_index(memory_dir)
     if index_content:
@@ -1075,13 +1154,23 @@ def select_relevant_memories_with_llm(
         return None
 
 
-# 全局记忆管理器实例
+# 全局记忆管理器实例（CLI 单会话场景）
 _global_memory_manager: Optional[MemoryManager] = None
+
+# 线程局部记忆管理器（Bridge 多会话场景：每个会话线程一个，目录跟随各自 work_dir）
+# 根因：Bridge 同进程跑多个不同工作区的会话，若共用一个全局单例，第一个会话会把
+# 记忆目录锁定在自己 project_root/.auracode/memory，后续会话（如 demo6）的记忆
+# 会被读写到错误目录——记忆串仓。
+_thread_local = threading.local()
 
 
 def get_memory_manager(project_root: str = ".") -> MemoryManager:
     """
-    获取全局记忆管理器实例
+    获取记忆管理器实例。
+
+    线程感知：若当前线程已有实例（Bridge 会话线程），返回该线程的实例；
+    传入不同 project_root 时按线程重建（目录跟随会话工作区）。
+    主线程/CLI 单会话回退到全局单例。
 
     Args:
         project_root: 项目根目录
@@ -1089,9 +1178,26 @@ def get_memory_manager(project_root: str = ".") -> MemoryManager:
     Returns:
         MemoryManager 实例
     """
+    import os as _os
+
+    root_key = _os.path.normcase(str(Path(project_root).resolve()))
+
+    # 当前线程已有实例且目录一致 → 直接复用（Windows 大小写不敏感，用 normcase 比较）
+    existing = getattr(_thread_local, "manager", None)
+    if existing is not None and _os.path.normcase(str(existing.project_root)) == root_key:
+        return existing
+
+    # 主线程之外的线程（Bridge 会话线程）→ 线程局部实例
+    if threading.current_thread() is not threading.main_thread():
+        mgr = MemoryManager(project_root)
+        _thread_local.manager = mgr
+        return mgr
+
+    # 主线程：全局单例（目录不一致时重建，修复"首个目录锁死"问题）
     global _global_memory_manager
-
-    if _global_memory_manager is None:
+    if (
+        _global_memory_manager is None
+        or _os.path.normcase(str(_global_memory_manager.project_root)) != root_key
+    ):
         _global_memory_manager = MemoryManager(project_root)
-
     return _global_memory_manager

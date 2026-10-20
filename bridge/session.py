@@ -349,6 +349,7 @@ class BridgeSession:
         self.title = ""
         self._round_count = 0  # 已处理的消息轮次数
         self._session_store = SessionStore()  # 会话持久化
+        self._archived_meta = None  # 增量归档复用的元数据（同一会话只写一份档案）
 
         # 活动追踪
         self.current_activity: Optional[Dict[str, Any]] = None
@@ -571,6 +572,76 @@ class BridgeSession:
         except Exception as e:
             logger.warning(f"Failed to setup cron callback: {e}")
 
+    def _restore_history(self, record) -> int:
+        """把归档会话的消息历史恢复到当前 AgentLoop（续接未完成任务）。
+
+        - 跳过原 system 消息：init_messages 会在下一轮 run 时重建最新 system prompt；
+          但要保留一个 system 占位（index 0），否则 init_messages 的 else 分支
+          messages[0] = system 会覆盖掉第一条用户消息。
+        - tool 消息若残留未闭合的 tool_calls（中断的回合），剔除尾部残缺组，
+          避免 OpenAI 兼容 API 报 'tool message must follow tool_calls'。
+        - 恢复后回放 user/assistant 文本为桥接事件，前端能看到历史上下文。
+
+        Returns: 恢复的消息数。
+        """
+        try:
+            msgs = [m for m in record.messages if m.get("role") != "system"]
+            # 剔除未闭合的 tool_calls 组（中断的回合）：assistant 带 tool_calls 但
+            # 其后没有覆盖全部 tool_call_id 的 tool 结果。未闭合组整体剔除
+            # （assistant + 其后的 tool 消息），否则 OpenAI 兼容 API 会拒绝请求。
+            cleaned: list = []
+            i = 0
+            while i < len(msgs):
+                m = msgs[i]
+                if m.get("role") == "assistant" and m.get("tool_calls"):
+                    call_ids = {tc.get("id") for tc in m["tool_calls"] if tc.get("id")}
+                    answered = set()
+                    j = i + 1
+                    while j < len(msgs) and msgs[j].get("role") == "tool":
+                        if msgs[j].get("tool_call_id"):
+                            answered.add(msgs[j]["tool_call_id"])
+                        j += 1
+                    if call_ids and answered >= call_ids:
+                        # 完整组：assistant + tool 结果全部保留
+                        cleaned.extend(msgs[i:j])
+                        i = j
+                    else:
+                        # 未闭合组：跳过 assistant 与零散 tool 消息
+                        i = j
+                    continue
+                cleaned.append(m)
+                i += 1
+            msgs = cleaned
+
+            if not msgs:
+                return 0
+
+            self._agent_loop.state.messages = [{"role": "system", "content": ""}] + msgs
+
+            # 回放可见历史（前端渲染用）
+            for m in msgs:
+                if m.get("role") == "user" and m.get("content"):
+                    self._emit(BridgeEvent(
+                        type=BridgeEventType.USER_MESSAGE.value,
+                        session_id=self.session_id,
+                        data={"content": m["content"], "_replayed": True},
+                    ))
+                elif m.get("role") == "assistant" and m.get("content"):
+                    self._emit(BridgeEvent(
+                        type=BridgeEventType.ASSISTANT_MESSAGE.value,
+                        session_id=self.session_id,
+                        data={"content": m["content"], "_replayed": True},
+                    ))
+
+            logger.info(
+                f"Session history restored: {len(msgs)} messages "
+                f"(archive {record.meta.session_id}, work_dir={record.meta.work_dir})"
+            )
+            return len(msgs)
+        except Exception as e:
+            logger.warning(f"Restore history failed: {e}")
+            return 0
+
     def get_info(self) -> SessionInfo:
         """获取会话摘要"""
         with self._activities_lock:
@@ -671,6 +742,13 @@ class BridgeSession:
                 "active_skills": [],
                 "project_root": abs_work_dir if self.config.work_dir else os.getcwd(),  # 工具文件操作的基准路径
             }
+            # 备用模型：主模型连续失败（429 余额不足/服务器错误等）时自动切换，
+            # 避免 10 次重试全部耗尽后整轮直接报错。会话显式指定了 fallback 优先，
+            # 否则用引擎默认（智谱免费档 GLM-4-Flash 与付费模型互补）。
+            if getattr(self.config, "fallback_model", None):
+                config["fallback_model"] = self.config.fallback_model
+            elif self.config.model and self.config.model.lower() not in ("glm-4-flash", "glm-4.7-flash"):
+                config["fallback_model"] = "GLM-4-Flash"
             logger.info(f"Bridge session: config.project_root={config['project_root']}")
 
             self._agent_loop = AgentLoop(config)
@@ -717,6 +795,32 @@ class BridgeSession:
                 session_id=self.session_id,
                 data={"model": self.config.model, "work_dir": self.config.work_dir},
             ))
+
+            # 续接上次未完成的任务：按 work_dir 找最近归档会话，恢复消息历史。
+            # 条件：配置允许恢复、工作目录真实存在、且档案不是当前会话自身。
+            try:
+                from core.session_store import SessionStore
+                wd = self.config.work_dir or ""
+                if self.config.restore_history and wd and os.path.isdir(wd):
+                    archive = self._session_store.find_latest_by_workdir(
+                        wd, exclude_ids=[self.session_id]
+                    )
+                    if archive:
+                        restored = self._restore_history(archive)
+                        if restored:
+                            self.title = archive.meta.last_prompt or archive.meta.first_prompt or self.title
+                            self._round_count = archive.meta.turn_count or 0
+                            self._emit(BridgeEvent(
+                                type="history_restored",
+                                session_id=self.session_id,
+                                data={
+                                    "archive_id": archive.meta.session_id,
+                                    "messages": restored,
+                                    "turn_count": self._round_count,
+                                },
+                            ))
+            except Exception as e:
+                logger.warning(f"Session restore skipped: {e}")
 
             # 启动超时看门狗
             self._watchdog_thread = threading.Thread(
@@ -804,6 +908,8 @@ class BridgeSession:
                 total_cost_usd=state.total_cost_usd,
                 status=status,
                 session_id=self.session_id,
+                existing_meta=self._archived_meta,
+                work_dir=self.config.work_dir,
             )
             if meta:
                 logger.info(
@@ -883,10 +989,19 @@ class BridgeSession:
                     ))
 
             # 提取 QueryResult 结构化信息
-            result_data = {"success": True}
+            # 注意：success 不能硬编码 True。orchestrator 在 LLM 调用失败
+            # （如 429 限流耗尽 10 次重试）时返回 status="error" 的 QueryResult
+            # 而非抛异常，此前这里一律报 success=true，前端显示绿色"✓ 完成"，
+            # 实际上一个字都没生成——用户只看到"没收到消息"。
+            result_data = {}
             if result:
+                _status = getattr(result, "status", "success")
+                _error = getattr(result, "error", None)
+                result_data["success"] = _status == "success"
+                result_data["status"] = _status
+                if _error:
+                    result_data["error"] = _error
                 result_data["result"] = result.text or ""
-                result_data["status"] = result.status
                 result_data["stop_reason"] = result.stop_reason
                 result_data["num_turns"] = result.num_turns
                 result_data["duration_ms"] = result.duration_ms
@@ -895,7 +1010,7 @@ class BridgeSession:
                 if _summary:
                     result_data["summary"] = _summary
             else:
-                result_data["result"] = ""
+                result_data = {"success": False, "result": "", "error": "内部错误：无返回结果"}
 
             # 轮次完成事件
             # 注意：一轮完成 ≠ 会话结束。会话保持 IDLE 等待下一条用户消息。
@@ -906,6 +1021,26 @@ class BridgeSession:
                 session_id=self.session_id,
                 data=result_data,
             ))
+
+            # 每轮结束增量归档：即使进程被强杀（桌面端退出/崩溃），
+            # 重启后也能按 work_dir 找回全部进度（existing_meta 复用同一份档案）。
+            try:
+                state = self._agent_loop.state
+                if state.messages:
+                    self._archived_meta = auto_save_session(
+                        store=self._session_store,
+                        messages=state.messages,
+                        model=self.config.model,
+                        turn_count=self._round_count,
+                        total_tokens=state.total_usage.total_tokens,
+                        total_cost_usd=state.total_cost_usd,
+                        status="active",
+                        session_id=self.session_id,
+                        existing_meta=self._archived_meta,
+                        work_dir=self.config.work_dir,
+                    )
+            except Exception as e:
+                logger.debug(f"Incremental archive failed: {e}")
 
         except Exception as e:
             logger.error(f"Message processing failed: {e}", exc_info=True)
@@ -939,6 +1074,10 @@ class BridgeSession:
         event_data = event.get("data", {})
 
         # 映射 AgentLoop 事件类型到 BridgeEventType
+        # 注意：api_retry / status / turn_retry 不在 BridgeEventType 枚举里，
+        # 直接以原始字符串转发（前端按 type 字符串处理，无需枚举）。
+        # 此前这两个类型被丢弃，导致 429 限流重试期间（每次等 8~60s、最多 10 次）
+        # 前端完全静默，用户只看到"发出消息后没有任何反应"。
         type_map = {
             "turn_start": BridgeEventType.TURN_START,
             "turn_complete": BridgeEventType.TURN_COMPLETE,
@@ -950,12 +1089,26 @@ class BridgeSession:
             "aborted": BridgeEventType.ABORTED,
             "llm_call": BridgeEventType.LLM_CALL,
             "text_chunk": BridgeEventType.TEXT_CHUNK,  # Token 级流式
+            # ── 以下为透传事件（LLM 重试/状态提示），此前被静默丢弃 ──
+            "api_retry": None,      # LLM API 失败重试（429 限流最常见）
+            "turn_retry": None,     # 轮次级重试（服务器错误）
+            "status": None,         # 状态提示（"⚠️ API 速率限制...Ns 后重试"）
+            "error": None,          # AgentLoop 内部错误
         }
 
-        bridge_type = type_map.get(event_type)
-        if bridge_type:
+        passthrough = type_map.get(event_type, "")
+        if passthrough is None:
+            # 透传：保留原始 type 字符串，前端按需渲染
             self._emit(BridgeEvent(
-                type=bridge_type.value,
+                type=event_type,
+                session_id=self.session_id,
+                data=dict(event_data),
+            ))
+            logger.debug(f"Agent event → Bridge(passthrough): {event_type}")
+            return
+        if passthrough:
+            self._emit(BridgeEvent(
+                type=passthrough.value,
                 session_id=self.session_id,
                 data={
                     **event_data,
@@ -963,6 +1116,7 @@ class BridgeSession:
                 },
             ))
             logger.debug(f"Agent event → Bridge: {event_type} turn={event.get('turn')}")
+            return
 
         # ── 活动追踪 ──
         if event_type == "tool_execute":
