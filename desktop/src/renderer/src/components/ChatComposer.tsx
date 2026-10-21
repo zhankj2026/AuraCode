@@ -46,7 +46,11 @@ export function ChatComposer() {
   const [mention, setMention] = useState<Mention | null>(null)
   const [activeIdx, setActiveIdx] = useState(0)
   const [fileCache, setFileCache] = useState<Record<string, FileEntry[]>>({})
-  const [loadingDirs, setLoadingDirs] = useState<Set<string>>(new Set())
+  // 用 ref 记录「正在加载的目录」，避免把 loading 状态放进 effect 依赖引发自我取消的死循环：
+  // 之前 setLoadingDirs 触发的重渲染会重跑 effect，使上一次请求的 cleanup 把 cancelled 置真，
+  // 导致 finally 不执行 → loadingDirs 永久残留 → 一直显示「加载中」。
+  const loadingRef = useRef<Set<string>>(new Set())
+  const [, setLoadingVersion] = useState(0)
   const taRef = useRef<HTMLTextAreaElement>(null)
 
   // 加载技能清单（供 / 触发）。root 就绪后才会真正拉取。
@@ -73,9 +77,10 @@ export function ChatComposer() {
   // 按需拉取目录列表，按目录路径缓存，避免每次按键都打后端。
   useEffect(() => {
     if (!mention || mention.type !== 'file' || !client || !activeId) return
-    if (fileCache[fileDir] || loadingDirs.has(fileDir)) return
+    if (fileCache[fileDir] || loadingRef.current.has(fileDir)) return
     let cancelled = false
-    setLoadingDirs((s) => new Set(s).add(fileDir))
+    loadingRef.current.add(fileDir)
+    setLoadingVersion((v) => v + 1)
     client
       .listFiles(activeId, fileDir)
       .then((fl) => {
@@ -85,17 +90,15 @@ export function ChatComposer() {
         if (!cancelled) setFileCache((c) => ({ ...c, [fileDir]: [] }))
       })
       .finally(() => {
-        if (!cancelled)
-          setLoadingDirs((s) => {
-            const n = new Set(s)
-            n.delete(fileDir)
-            return n
-          })
+        // 无论成功/失败/取消都清 loading 标记，避免「加载中」卡死
+        loadingRef.current.delete(fileDir)
+        setLoadingVersion((v) => v + 1)
       })
     return () => {
       cancelled = true
     }
-  }, [mention, fileDir, client, activeId, fileCache, loadingDirs])
+    // 注意：依赖里不要放 fileCache/loadingRef，否则自身状态更新会重跑 effect 并取消在途请求
+  }, [mention, fileDir, client, activeId])
 
   const items = useMemo<Item[]>(() => {
     if (!mention) return []
@@ -218,7 +221,7 @@ export function ChatComposer() {
 
   const showPop = !!mention
   const loading =
-    mention?.type === 'file' && !fileCache[fileDir] && loadingDirs.has(fileDir)
+    mention?.type === 'file' && !fileCache[fileDir] && loadingRef.current.has(fileDir)
   const empty = showPop && items.length === 0 && !loading
 
   return (
