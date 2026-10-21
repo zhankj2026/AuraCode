@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { actions, useStore } from '../state/store'
-import type { SkillInfo, FileEntry } from '../api/types'
+import type { SkillInfo, FileEntry, CommandInfo } from '../api/types'
 
 interface Mention {
-  type: 'skill' | 'file'
-  /** 触发符（/ 或 @）在 text 中的索引 */
+  type: 'skill' | 'file' | 'command'
+  /** 触发符（/ 或 @ 或 #）在 text 中的索引 */
   start: number
-  /** 触发符之后、光标之前的查询串（@ 模式下可含 / 表示子目录） */
+  /** 触发符之后、光标之前的查询串 */
   query: string
 }
 
 /**
  * 检测光标前的「提及」触发：
  *  - /   后面跟 [非空格且非 /] 的字符  → 技能选择
+ *  - #   后面跟 [非空格且非 #] 的字符  → 命令选择（前端用 # 输入引擎命令，发送前转为 /）
  *  - @   后面跟 [非空格且非 @] 的字符  → 文件选择（query 可含 / 用于子目录导航）
  * 触发符必须位于行首或空白之后，避免误触 URL（http://）或邮箱（a@b）。
  */
@@ -22,6 +23,11 @@ function detectMention(text: string, cursor: number): Mention | null {
   if (slash) {
     const q = slash[2]
     return { type: 'skill', start: cursor - q.length - 1, query: q }
+  }
+  const hash = before.match(/(?:^|\s)(#)([^\s#]*)$/)
+  if (hash) {
+    const q = hash[2]
+    return { type: 'command', start: cursor - q.length - 1, query: q }
   }
   const at = before.match(/(?:^|\s)(@)([^\s@]*)$/)
   if (at) {
@@ -33,6 +39,7 @@ function detectMention(text: string, cursor: number): Mention | null {
 
 type Item =
   | { kind: 'skill'; name: string; desc: string; insert: string }
+  | { kind: 'command'; name: string; desc: string; insert: string }
   | { kind: 'file'; name: string; isDir: boolean; relPath: string; insert: string }
 
 export function ChatComposer() {
@@ -40,6 +47,7 @@ export function ChatComposer() {
   const client = useStore((s) => s.client)
   const mode = useStore((s) => s.mode)
   const extensions = useStore((s) => s.extensions)
+  const commands = useStore((s) => s.commands)
 
   const [text, setText] = useState('')
   const [cursorPos, setCursorPos] = useState(0)
@@ -53,9 +61,12 @@ export function ChatComposer() {
   const [, setLoadingVersion] = useState(0)
   const taRef = useRef<HTMLTextAreaElement>(null)
 
-  // 加载技能清单（供 / 触发）。root 就绪后才会真正拉取。
+  // 加载技能清单（供 / 触发）与命令清单（供 # 触发）。root 就绪后才会真正拉取。
   useEffect(() => {
-    if (activeId) actions.loadExtensions()
+    if (activeId) {
+      actions.loadExtensions()
+      actions.loadCommands()
+    }
   }, [activeId])
 
   // @ 模式下：query 中最后一个 / 之前为目录，之后为过滤词
@@ -115,6 +126,19 @@ export function ChatComposer() {
         .slice(0, 12)
         .map((s) => ({ kind: 'skill', name: s.name, desc: s.description || '', insert: `/${s.name} ` }))
     }
+    if (mention.type === 'command') {
+      const q = mention.query.toLowerCase()
+      const cmds: CommandInfo[] = commands ?? []
+      return cmds
+        .filter(
+          (c) =>
+            !q ||
+            c.name.toLowerCase().includes(q) ||
+            (c.description || '').toLowerCase().includes(q),
+        )
+        .slice(0, 12)
+        .map((c) => ({ kind: 'command', name: c.name, desc: c.description || '', insert: `#${c.name} ` }))
+    }
     // 文件模式
     const entries = fileCache[fileDir] ?? []
     return entries
@@ -170,16 +194,18 @@ export function ChatComposer() {
   }
 
   function send() {
-    const content = text.trim()
-    if (!content || !client || !activeId) return
+    const raw = text.trim()
+    if (!raw || !client || !activeId) return
+    // 前端命令以 # 触发（/ 已被技能选择占用）；进入后端前统一转成引擎命令前缀 /
+    const content = raw.replace(/(^|\s)#(\S+)/g, (_, pre, word) => pre + '/' + word)
     setText('')
     setMention(null)
-    // 本地即时渲染用户消息
+    // 本地即时渲染用户消息（展示用户实际输入，含 #）
     actions.pushEvent({
       event_id: `u_${Date.now()}`,
       type: 'user_message',
       session_id: activeId,
-      data: { content },
+      data: { content: raw },
       timestamp: Date.now() / 1000,
     })
     client.sendMessage(activeId, content).catch((e) => actions.log('发送失败: ' + e))
@@ -229,27 +255,46 @@ export function ChatComposer() {
       {showPop && (
         <div className="mention-pop">
           <div className="mention-head">
-            {mention!.type === 'skill' ? '选择技能（输入 / 触发）' : '选择文件（输入 @ 触发）'}
+            {mention!.type === 'skill'
+              ? '选择技能（输入 / 触发）'
+              : mention!.type === 'command'
+                ? '选择命令（输入 # 触发，发送时转为 /）'
+                : '选择文件（输入 @ 触发）'}
           </div>
           {loading && <div className="mention-empty">加载中…</div>}
           {empty && (
             <div className="mention-empty">
-              {mention!.type === 'skill' ? '无匹配技能' : '无匹配文件'}
+              {mention!.type === 'skill'
+                ? '无匹配技能'
+                : mention!.type === 'command'
+                  ? '无匹配命令'
+                  : '无匹配文件'}
             </div>
           )}
           {items.map((it, i) => (
             <div
-              key={(it.kind === 'skill' ? 's:' : 'f:') + (it.kind === 'file' ? it.relPath : it.name)}
+              key={
+                (it.kind === 'skill' ? 's:' : it.kind === 'command' ? 'c:' : 'f:') +
+                (it.kind === 'file' ? it.relPath : it.name)
+              }
               className={`mention-item ${i === activeIdx ? 'active' : ''}`}
               onMouseDown={(e) => e.preventDefault()}
               onMouseEnter={() => setActiveIdx(i)}
               onClick={() => applyInsertion(it.insert)}
             >
               <span className="mention-ic">
-                {it.kind === 'skill' ? '🧩' : it.kind === 'file' && it.isDir ? '📁' : '📄'}
+                {it.kind === 'skill'
+                  ? '🧩'
+                  : it.kind === 'command'
+                    ? '⌨️'
+                    : it.kind === 'file' && it.isDir
+                      ? '📁'
+                      : '📄'}
               </span>
-              <span className="mention-label">{it.kind === 'file' ? it.relPath : it.name}</span>
-              {it.kind === 'skill' && it.desc && (
+              <span className="mention-label">
+                {it.kind === 'command' ? `#${it.name}` : it.kind === 'file' ? it.relPath : it.name}
+              </span>
+              {((it.kind === 'skill' || it.kind === 'command') && it.desc) && (
                 <span className="mention-sub">{it.desc}</span>
               )}
             </div>
@@ -260,7 +305,7 @@ export function ChatComposer() {
         <textarea
           ref={taRef}
           rows={1}
-          placeholder="给 AuraCode 下达任务，输入 / 选技能、@ 选文件…"
+          placeholder="给 AuraCode 下达任务，输入 / 选技能、# 选命令、@ 选文件…"
           value={text}
           onChange={(ev) =>
             recompute(ev.target.value, ev.target.selectionStart ?? ev.target.value.length)
@@ -281,7 +326,7 @@ export function ChatComposer() {
       </div>
       <div className="hint">
         <span className="ok">● 当前模式：{mode}</span>
-        <span>/ 选技能 · @ 选文件 · Enter 发送 · Shift+Enter 换行</span>
+        <span>/ 选技能 · # 选命令 · @ 选文件 · Enter 发送 · Shift+Enter 换行</span>
       </div>
     </div>
   )

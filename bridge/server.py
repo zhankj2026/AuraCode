@@ -531,6 +531,28 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
             default=_server_config.default_model if _server_config else "",
         )
 
+    @app.get("/api/commands")
+    async def list_commands(
+        auth: bool = Depends(_auth.verify),
+    ):
+        """列出引擎内置命令（供前端 # 命令自动补全）。"""
+        try:
+            from commands.registry import COMMAND_REGISTRY
+        except Exception:
+            return {"commands": []}
+        cmds = []
+        for name, cmd in COMMAND_REGISTRY.items():
+            cmds.append(
+                {
+                    "name": name,
+                    "description": cmd.get("description", ""),
+                    "category": cmd.get("category", ""),
+                    "args_help": cmd.get("args_help", ""),
+                }
+            )
+        cmds.sort(key=lambda x: x["name"])
+        return {"commands": cmds}
+
     @app.delete("/api/sessions/{session_id}")
     async def delete_session(
         session_id: str,

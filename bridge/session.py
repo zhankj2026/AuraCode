@@ -969,6 +969,13 @@ class BridgeSession:
             data={"content": content},
         ))
 
+        # 命令模式：以 / 开头的消息视为引擎命令。
+        # 桌面端用 # 触发命令（/ 已被技能选择占用），发送前已在前端转换为 /。
+        # 必须早于附件拼接，否则附件内容会被当成命令参数；也早于 title 设置之外无关。
+        if content.startswith('/'):
+            self._process_command(content, writer)
+            return
+
         # 设置标题（取第一条消息的前 50 字符）
         if not self.title:
             self.title = content[:50].strip()
@@ -1090,6 +1097,86 @@ class BridgeSession:
                 session_id=self.session_id,
                 data={"result": "", "success": False, "error": str(e)},
             ))
+
+    def _run_engine_command(self, name: str, args: List[str]) -> Optional[str]:
+        """
+        调用引擎命令注册表里的 handler（逻辑与 cli.CommandExecutor.execute 一致）。
+        不依赖 cli 模块（避免重复加载其 DEBUG 打印），仅依赖 commands.registry。
+        """
+        try:
+            from commands.registry import COMMAND_REGISTRY
+        except Exception as e:
+            return f"❌ 命令系统不可用: {e}"
+        cmd_def = COMMAND_REGISTRY.get(name)
+        if not cmd_def:
+            return f"❌ 未知命令: {name}\n使用 /help 查看可用命令"
+        handler = cmd_def.get("handler")
+        if not callable(handler):
+            return f"❌ 命令处理函数无效: {name}"
+        try:
+            import inspect
+
+            if hasattr(handler, "execute"):
+                # Command 类实例：先注入 loop，再 execute(args)
+                if hasattr(handler, "set_loop") and self._agent_loop:
+                    handler.set_loop(self._agent_loop)
+                return handler.execute(args)
+            sig = inspect.signature(handler)
+            if "loop" in sig.parameters:
+                return handler(args, loop=self._agent_loop)
+            return handler(args)
+        except Exception as e:
+            logger.error(f"Command {name} failed: {e}", exc_info=True)
+            return f"❌ 命令执行失败: {e}"
+
+    def _process_command(self, content: str, writer: "ThreadLocalWriter") -> None:
+        """
+        处理一条以 / 开头的命令消息，结果以 assistant_message 事件回传前端。
+        引擎命令会 print 结果到 stdout（已被 writer 捕获），同时 handler 也可能返回值，
+        二者取其一（优先捕获的 stdout 输出）。
+        """
+        # 分支在调用方 writer.enable_capture() 之前，这里自行开启捕获，
+        # 否则命令的 print 输出会漏到真实 stdout 而拿不到内容。
+        writer.enable_capture()
+        self.state = SessionState.RUNNING
+        body = content[1:].strip()
+        if not body:
+            self._emit(
+                BridgeEvent(
+                    type=BridgeEventType.ASSISTANT_MESSAGE.value,
+                    session_id=self.session_id,
+                    data={"content": "（空命令）"},
+                )
+            )
+            self.state = SessionState.IDLE
+            return
+
+        parts = body.split(None, 1)
+        name = parts[0]
+        args_str = parts[1] if len(parts) > 1 else ""
+        args = args_str.split() if args_str else []
+
+        out: str
+        if self._agent_loop is None:
+            out = "⚠️ 会话尚未就绪（AgentLoop 仍在初始化），请稍候再试"
+        else:
+            result = self._run_engine_command(name, args)
+            # 捕获命令自身的 print 输出（sys.stdout 已被 writer 替换）
+            captured = writer.get_captured()
+            out = (captured or "").strip()
+            if not out and result is not None:
+                out = str(result)
+            if not out:
+                out = f"✅ 命令 /{name} 已执行（无输出）"
+
+        self._emit(
+            BridgeEvent(
+                type=BridgeEventType.ASSISTANT_MESSAGE.value,
+                session_id=self.session_id,
+                data={"content": out},
+            )
+        )
+        self.state = SessionState.IDLE
 
     def _on_agent_event(self, event: Dict[str, Any]):
         """

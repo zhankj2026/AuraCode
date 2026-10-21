@@ -194,3 +194,11 @@ export interface ModelCatalogItem {
   provider: string
   note: string
 }
+
+/** 引擎内置命令（GET /api/commands 返回），供前端 # 命令自动补全 */
+export interface CommandInfo {
+  name: string
+  description: string
+  category: string
+  args_help?: string
+}

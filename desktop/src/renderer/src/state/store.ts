@@ -10,6 +10,7 @@ import type {
   ChatMessage,
   OpenFile,
   ExtensionsData,
+  CommandInfo,
 } from '../api/types'
 
 export interface AppState {
@@ -35,6 +36,8 @@ export interface AppState {
   workspace: string
   tempSession: boolean
   extensions: ExtensionsData | null
+  /** 引擎内置命令清单（GET /api/commands），供 # 命令自动补全 */
+  commands: CommandInfo[]
   /** 顶部轻提示：用于把后台操作（如打开工作区）的真实成败反馈给用户，而不是静默吞掉 */
   toast: { msg: string; kind: 'error' | 'info' | 'ok' } | null
 }
@@ -62,6 +65,7 @@ const initial: AppState = {
   workspace: 'auracode-src',
   tempSession: false,
   extensions: null,
+  commands: [],
   toast: null,
 }
 
@@ -376,6 +380,18 @@ export const actions = {
       const msg = e instanceof Error ? e.message : String(e)
       console.warn('[extensions] 加载失败', e)
       actions.setToast('扩展配置加载失败：' + msg, 'error')
+    }
+  },
+  /** 从后端拉取引擎内置命令清单（供 # 命令自动补全） */
+  async loadCommands() {
+    const c = state.client
+    if (!c) return
+    try {
+      const cmds = await c.listCommands()
+      setState({ commands: cmds })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.warn('[commands] 加载失败', e)
     }
   },
 }

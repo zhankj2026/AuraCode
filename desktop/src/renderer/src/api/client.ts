@@ -11,6 +11,7 @@ import type {
   LlmConfig,
   LlmConfigInput,
   ModelCatalogItem,
+  CommandInfo,
 } from './types'
 
 /**
@@ -202,6 +203,14 @@ export class BridgeClient {
     const r = await fetch(this.url('/api/models'), { headers: this.headers() })
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`)
     return (await r.json()) as { models: ModelCatalogItem[]; default: string }
+  }
+
+  /** 列出引擎内置命令（供 # 命令自动补全） */
+  async listCommands(): Promise<CommandInfo[]> {
+    const r = await fetch(this.url('/api/commands'), { headers: this.headers() })
+    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`)
+    const data = (await r.json()) as { commands: CommandInfo[] }
+    return data.commands ?? []
   }
 
   async deleteSession(sessionId: string) {
