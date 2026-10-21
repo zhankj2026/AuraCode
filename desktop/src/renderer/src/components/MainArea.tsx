@@ -3,6 +3,7 @@ import { actions, useStore } from '../state/store'
 import type { BridgeEvent } from '../api/types'
 import { CodeEditor } from './CodeEditor'
 import { HtmlPreview } from './HtmlPreview'
+import { ChatComposer } from './ChatComposer'
 
 export function MainArea() {
   const activeTab = useStore((s) => s.activeTab)
@@ -50,9 +51,6 @@ export function MainArea() {
 function ChatThread() {
   const activeId = useStore((s) => s.activeSessionId)
   const allEvents = useStore((s) => s.events)
-  const client = useStore((s) => s.client)
-  const mode = useStore((s) => s.mode)
-  const [text, setText] = useState('')
   const stageRef = useRef<HTMLDivElement>(null)
   /** 是否贴底（距底 < 40px）。用户上翻阅读历史时暂停自动跟随，回到底部再恢复 */
   const stickBottomRef = useRef(true)
@@ -127,25 +125,6 @@ function ChatThread() {
     }
   }, [activeId])
 
-  async function send() {
-    const content = text.trim()
-    if (!content || !client || !activeId) return
-    setText('')
-    // 立即在本地渲染用户消息
-    actions.pushEvent({
-      event_id: `u_${Date.now()}`,
-      type: 'user_message',
-      session_id: activeId,
-      data: { content },
-      timestamp: Date.now() / 1000,
-    })
-    try {
-      await client.sendMessage(activeId, content)
-    } catch (e) {
-      actions.log('发送失败: ' + e)
-    }
-  }
-
   return (
     <>
       <div id="stage">
@@ -161,29 +140,7 @@ function ChatThread() {
           ))}
         </div>
       </div>
-      <div className="composer">
-        <div className="cin">
-          <textarea
-            rows={1}
-            placeholder="给 AuraCode 下达任务，例如：给 auth 模块加单元测试…"
-            value={text}
-            onChange={(ev) => setText(ev.target.value)}
-            onKeyDown={(ev) => {
-              if (ev.key === 'Enter' && !ev.shiftKey) {
-                ev.preventDefault()
-                send()
-              }
-            }}
-          />
-          <button className="send" onClick={send}>
-            发送 ▸
-          </button>
-        </div>
-        <div className="hint">
-          <span className="ok">● 当前模式：{mode}</span>
-          <span>Enter 发送 · Shift+Enter 换行</span>
-        </div>
-      </div>
+      <ChatComposer />
     </>
   )
 }
