@@ -969,11 +969,11 @@ class BridgeSession:
             data={"content": content},
         ))
 
-        # 命令模式：以 / 开头的消息视为引擎命令。
+        # 命令模式：以 / 开头的消息优先按引擎命令处理。
         # 桌面端用 # 触发命令（/ 已被技能选择占用），发送前已在前端转换为 /。
-        # 必须早于附件拼接，否则附件内容会被当成命令参数；也早于 title 设置之外无关。
-        if content.startswith('/'):
-            self._process_command(content, writer)
+        # 注意：/ 前缀同时被技能使用（如 /browser-skill，经模型 activate_skill 激活），
+        # 因此未知命令不拦截 —— _process_command 返回 False 时继续走普通对话路径。
+        if content.startswith('/') and self._process_command(content, writer):
             return
 
         # 设置标题（取第一条消息的前 50 字符）
@@ -1129,11 +1129,15 @@ class BridgeSession:
             logger.error(f"Command {name} failed: {e}", exc_info=True)
             return f"❌ 命令执行失败: {e}"
 
-    def _process_command(self, content: str, writer: "ThreadLocalWriter") -> None:
+    def _process_command(self, content: str, writer: "ThreadLocalWriter") -> bool:
         """
         处理一条以 / 开头的命令消息，结果以 assistant_message 事件回传前端。
         引擎命令会 print 结果到 stdout（已被 writer 捕获），同时 handler 也可能返回值，
         二者取其一（优先捕获的 stdout 输出）。
+
+        返回 True 表示已按命令处理（调用方应直接 return）；
+        返回 False 表示命令名不在注册表 —— / 前缀同时被技能使用
+        （如 /browser-skill 经模型 activate_skill 激活），调用方应继续普通对话路径。
         """
         # 分支在调用方 writer.enable_capture() 之前，这里自行开启捕获，
         # 否则命令的 print 输出会漏到真实 stdout 而拿不到内容。
@@ -1149,10 +1153,18 @@ class BridgeSession:
                 )
             )
             self.state = SessionState.IDLE
-            return
+            return True
 
         parts = body.split(None, 1)
         name = parts[0]
+
+        # 未知命令不拦截：技能也以 / 名称触发（不在命令注册表里），
+        # 必须回落到普通对话，由模型识别并调用 activate_skill 激活。
+        from commands.registry import COMMAND_REGISTRY
+
+        if name not in COMMAND_REGISTRY:
+            return False
+
         args_str = parts[1] if len(parts) > 1 else ""
         args = args_str.split() if args_str else []
 
@@ -1177,6 +1189,7 @@ class BridgeSession:
             )
         )
         self.state = SessionState.IDLE
+        return True
 
     def _on_agent_event(self, event: Dict[str, Any]):
         """
