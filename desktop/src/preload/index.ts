@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('auracode', {
     ipcRenderer.invoke('mcp:add', cfg),
   getWorkspace: () => ipcRenderer.invoke('workspace:get'),
   setWorkspace: (dir: string | null) => ipcRenderer.invoke('workspace:set', dir),
+  // 最近打开的工作区历史（最多 10 条，最近优先）
+  getWorkspaceRecent: () => ipcRenderer.invoke('workspace:recent:get'),
   // 整文件读取（无行数截断）。root=工作区绝对路径, rel=相对路径。
   readText: (root: string, rel: string) => ipcRenderer.invoke('fs:readText', root, rel),
 })

@@ -20,6 +20,8 @@ declare global {
       selectDirectory: () => Promise<string | null>
       getWorkspace: () => Promise<string | null>
       setWorkspace: (dir: string | null) => Promise<string | null>
+      /** 最近打开的工作区历史（最多 10 条，最近优先） */
+      getWorkspaceRecent: () => Promise<string[]>
       readText: (
         root: string,
         rel: string,

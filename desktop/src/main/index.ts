@@ -61,32 +61,48 @@ ipcMain.handle('bridge:config', () => backend.getConfig())
 function workspaceConfigPath(): string {
   return path.join(app.getPath('userData'), 'workspace.json')
 }
-function readWorkspace(): string | null {
+function readWorkspace(): { lastWorkspace: string | null; recent: string[] } {
   try {
     const p = workspaceConfigPath()
-    if (!fs.existsSync(p)) return null
+    if (!fs.existsSync(p)) return { lastWorkspace: null, recent: [] }
     const obj = JSON.parse(fs.readFileSync(p, 'utf-8'))
-    return typeof obj.lastWorkspace === 'string' && obj.lastWorkspace ? obj.lastWorkspace : null
+    const recent = Array.isArray(obj.recent) ? obj.recent.filter((x: any) => typeof x === 'string') : []
+    return {
+      lastWorkspace:
+        typeof obj.lastWorkspace === 'string' && obj.lastWorkspace ? obj.lastWorkspace : null,
+      recent: recent.slice(0, 10),
+    }
   } catch {
-    return null
+    return { lastWorkspace: null, recent: [] }
   }
 }
-function writeWorkspace(dir: string | null) {
+function writeWorkspace(lastWorkspace: string | null, recent: string[]) {
   try {
     fs.writeFileSync(
       workspaceConfigPath(),
-      JSON.stringify({ lastWorkspace: dir || null }, null, 2),
+      JSON.stringify({ lastWorkspace: lastWorkspace || null, recent: recent.slice(0, 10) }, null, 2),
       'utf-8',
     )
   } catch (err) {
     console.error('[workspace] 写入失败:', err)
   }
 }
-ipcMain.handle('workspace:get', () => readWorkspace())
+/** 把 dir 记录到「最近打开的工作区」历史：去重、置顶、最多保留 10 条 */
+function pushRecent(dir: string): string[] {
+  if (!dir) return readWorkspace().recent
+  const { lastWorkspace, recent } = readWorkspace()
+  const next = [dir, ...recent.filter((w) => w !== dir)].slice(0, 10)
+  writeWorkspace(lastWorkspace, next)
+  return next
+}
+ipcMain.handle('workspace:get', () => readWorkspace().lastWorkspace)
 ipcMain.handle('workspace:set', (_e, dir: string | null) => {
-  writeWorkspace(dir)
+  // 切换工作区时同步维护「最近打开」历史（置顶 + 去重 + 上限 10）
+  const next = dir ? [dir, ...readWorkspace().recent.filter((w) => w !== dir)].slice(0, 10) : readWorkspace().recent
+  writeWorkspace(dir, next)
   return dir
 })
+ipcMain.handle('workspace:recent:get', () => readWorkspace().recent)
 
 // ── IPC：整文件读取（不做行数截断）────────────────────────────────────
 // 背景：后端 /files/content 默认 max_lines=200（上限 2000），而 demo6 的

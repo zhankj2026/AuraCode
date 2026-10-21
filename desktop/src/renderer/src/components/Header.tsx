@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { actions, useStore } from '../state/store'
 
 export function Header() {
@@ -8,6 +8,14 @@ export function Header() {
   const mode = useStore((s) => s.mode)
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
+  const [recent, setRecent] = useState<string[]>([])
+
+  const loadRecent = useCallback(() => {
+    window.auracode
+      .getWorkspaceRecent()
+      .then(setRecent)
+      .catch(() => setRecent([]))
+  }, [])
 
   const active = sessions.find((s) => s.session_id === activeId)
   const model = active?.model || '未设置'
@@ -15,12 +23,10 @@ export function Header() {
   const ref = useRef<HTMLDivElement>(null)
 
   const current = (active?.work_dir || '').trim()
-  const recent = Array.from(
-    new Set(sessions.map((s) => (s.work_dir || '').trim()).filter(Boolean)),
-  ).filter((w) => w !== current)
+  const shown = recent.filter((w) => w !== current).slice(0, 10)
   const filtered = q
-    ? recent.filter((w) => w.toLowerCase().includes(q.toLowerCase()))
-    : recent
+    ? shown.filter((w) => w.toLowerCase().includes(q.toLowerCase()))
+    : shown
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -30,15 +36,22 @@ export function Header() {
     return () => document.removeEventListener('click', onDoc)
   }, [])
 
+  // 每次打开下拉都重新拉取「最近工作区」历史（含本次会话刚记录的）
+  useEffect(() => {
+    if (open) loadRecent()
+  }, [open, loadRecent])
+
   function pick(dir: string) {
     actions.switchToWorkdir(dir)
     setOpen(false)
     setQ('')
+    loadRecent()
   }
   function openLocal() {
     actions.openWorkspace()
     setOpen(false)
     setQ('')
+    loadRecent()
   }
   function temp() {
     actions.newTempSession()
