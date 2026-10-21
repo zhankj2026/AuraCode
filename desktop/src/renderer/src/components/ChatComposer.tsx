@@ -263,9 +263,12 @@ export function ChatComposer() {
             recompute(ev.target.value, ev.target.selectionStart ?? ev.target.value.length)
           }
           onSelect={(ev) => {
-            const c = ev.currentTarget.selectionStart ?? 0
+            const ta = ev.currentTarget
+            const c = ta.selectionStart ?? 0
             setCursorPos(c)
-            setMention(detectMention(text, c))
+            // 必须用 textarea 的实时值，不能用闭包里的 text（事件触发时可能滞后一帧），
+            // 否则 onChange 刚打开的提及会被这里用旧值算出的 null 覆盖。
+            setMention(detectMention(ta.value, c))
           }}
           onKeyDown={onKeyDown}
         />
