@@ -57,7 +57,11 @@ class Skill:
     user_invocable: bool = True
     prompt_content: Optional[str] = None
     is_active: bool = False
-    
+    # 技能在磁盘上的真实目录。激活时必须用它定位 prompt.md/SKILL.md ——
+    # 不能靠「技能名」反推路径：SkillHub 装在 @namespace/ 下（层级会丢），
+    # 且目录名常与 frontmatter 里的 name 不一致（如 browserskill vs browser-skill）。
+    dir: str = ""
+
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
         return {
@@ -144,13 +148,33 @@ class SkillManager:
         if match:
             frontmatter = match.group(1)
             # 解析 YAML 键值对
-            for line in frontmatter.split('\n'):
-                line = line.strip()
+            fm_lines = frontmatter.split('\n')
+            i = 0
+            while i < len(fm_lines):
+                raw = fm_lines[i]
+                line = raw.strip()
+                i += 1
                 if ':' not in line:
                     continue
                 key, value = line.split(':', 1)
                 key = key.strip()
                 value = value.strip()
+
+                # YAML 块标量（description: | 或 >）：后续缩进行才是真正的值。
+                # 不处理的话 description 会变成 "|"，模型在可用技能列表里看到的是
+                # 一个无意义的竖线，直接影响它是否会选用该技能。
+                if value in ('|', '>', '|-', '>-', '|+', '>+'):
+                    block: List[str] = []
+                    while i < len(fm_lines):
+                        nxt = fm_lines[i]
+                        if not nxt.strip():
+                            i += 1
+                            continue
+                        if not nxt[:1].isspace():
+                            break  # 缩进回到键层级 → 块结束
+                        block.append(nxt.strip())
+                        i += 1
+                    value = ' '.join(block).strip()
 
                 # 列表值: - item1, item2 或 [item1, item2]
                 if value.startswith('[') and value.endswith(']'):
@@ -244,6 +268,8 @@ class SkillManager:
                     user_invocable=metadata.get('user_invocable', True)
                     if isinstance(metadata.get('user_invocable', True), bool)
                     else True,
+                    # 记下真实目录（含 @namespace 层级），激活时用它，而不是按名字拼
+                    dir=skill_path,
                 )
 
                 # 避免重复（内置优先）
@@ -388,13 +414,18 @@ class SkillManager:
             return skill.prompt_content
 
         # 声明式 Skill: 从文件加载
-        source = self._skill_sources.get(name, 'builtin')
-        if source == 'project':
-            skill_dir = os.path.join(self.project_skills_dir, name)
-        elif source == 'user':
-            skill_dir = os.path.join(self.user_skills_dir, name)
-        else:
-            skill_dir = os.path.join(self.builtin_skills_dir, name)
+        # 优先用扫描时记录的真实目录；仅在缺失时回退到旧的「source + 名字」拼法。
+        # 旧拼法对两类技能必然失败：① SkillHub 装在 @namespace/ 下（层级丢失）；
+        # ② 目录名与 frontmatter 的 name 不一致（如 browserskill vs browser-skill）。
+        skill_dir = getattr(skill, 'dir', '') or ''
+        if not skill_dir:
+            source = self._skill_sources.get(name, 'builtin')
+            if source == 'project':
+                skill_dir = os.path.join(self.project_skills_dir, name)
+            elif source == 'user':
+                skill_dir = os.path.join(self.user_skills_dir, name)
+            else:
+                skill_dir = os.path.join(self.builtin_skills_dir, name)
 
         # 加载 prompt.md
         prompt_file = os.path.join(skill_dir, 'prompt.md')
@@ -607,12 +638,13 @@ class SkillManager:
             with open(prompt_file, 'w', encoding='utf-8') as f:
                 f.write(prompt_content)
 
-            # 注册到内存
+            # 注册到内存（带上真实目录，激活时可直接复用已写好的 prompt.md）
             skill = Skill(
                 name=name,
                 description=description,
                 trigger=trigger,
                 prompt_content=prompt_content,
+                dir=skill_dir,
             )
             self.skills[name] = skill
             self._skill_sources[name] = scope

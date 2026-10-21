@@ -1129,6 +1129,36 @@ class BridgeSession:
             logger.error(f"Command {name} failed: {e}", exc_info=True)
             return f"❌ 命令执行失败: {e}"
 
+    def _try_activate_skill(self, name: str, args: str) -> bool:
+        """
+        尝试把 /<name> 解析为技能名并激活。
+
+        返回 True 表示命中并已激活；False 表示不是技能（或技能系统不可用），
+        由调用方继续普通对话路径。
+
+        注意：优先使用本会话自己的 loop.skill_manager，不要用
+        SkillContext 的全局单例 —— 后者在多会话下会被最后初始化的 loop 覆盖。
+        """
+        loop = self._agent_loop
+        if loop is None:
+            return False
+        sm = getattr(loop, "skill_manager", None)
+        if sm is None or getattr(loop, "skills_enabled", True) is False:
+            return False
+        try:
+            # SkillManager.skills 以目录名/别名为键，技能真实名在 Skill.name 上
+            matched = any(
+                getattr(s, "name", None) == name
+                for s in (getattr(sm, "skills", {}) or {}).values()
+            )
+            if not matched:
+                return False
+            sm.activate_skill(name, args=args)
+            return True
+        except Exception as e:
+            logger.warning(f"Skill '{name}' activation failed: {e}")
+            return False
+
     def _process_command(self, content: str, writer: "ThreadLocalWriter") -> bool:
         """
         处理一条以 / 开头的命令消息，结果以 assistant_message 事件回传前端。
@@ -1157,16 +1187,29 @@ class BridgeSession:
 
         parts = body.split(None, 1)
         name = parts[0]
+        args_str = parts[1] if len(parts) > 1 else ""
+        args = args_str.split() if args_str else []
 
-        # 未知命令不拦截：技能也以 / 名称触发（不在命令注册表里），
-        # 必须回落到普通对话，由模型识别并调用 activate_skill 激活。
         from commands.registry import COMMAND_REGISTRY
 
         if name not in COMMAND_REGISTRY:
+            # / 前缀同时承载技能名，但引擎只把 5 个内置技能注册成了命令
+            # （simplify/verify/debug/batch/update-config，见 commands/builtin/skill_commands.py），
+            # 其余技能（含 SkillHub 安装的，如 browser-skill）没有斜杠绑定：
+            # /xxx 只会变成普通文本，系统提示里也从未说明「/名字 = 激活技能」，
+            # 模型不会据此调用 activate_skill —— 这里补上这层解析。
+            if self._try_activate_skill(name, args_str):
+                # 激活后不中断：技能完整内容会由 prompt_builder 在下一轮 run
+                # 注入系统提示，随后带着技能上下文继续执行用户任务。
+                self._emit(
+                    BridgeEvent(
+                        type="status",
+                        session_id=self.session_id,
+                        data={"message": f"✅ 已激活技能 {name}，正在按技能执行…"},
+                    )
+                )
+            # 无论是否命中技能都回落普通对话（未知命令同样不拦截）
             return False
-
-        args_str = parts[1] if len(parts) > 1 else ""
-        args = args_str.split() if args_str else []
 
         out: str
         if self._agent_loop is None:
