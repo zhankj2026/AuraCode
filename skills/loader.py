@@ -362,7 +362,7 @@ class SkillManager:
     def get_available_skills(self) -> List[Dict[str, str]]:
         """
         获取可用 Skill 列表(轻量,只返回元数据)
-        
+
         Returns:
             Skill 元数据列表
         """
@@ -370,7 +370,24 @@ class SkillManager:
             skill.to_dict()
             for skill in self.skills.values()
         ]
-    
+
+    def _resolve_key(self, name: str) -> Optional[str]:
+        """
+        把技能名统一解析为 self.skills 的键。
+
+        skills 字典以「目录名」为键（如 browserskill），而模型/用户通常传
+        frontmatter 里的 name（如 browser-skill），两者可能不一致 ——
+        此前所有按名字查 self.skills 的入口（invoke_skill / deactivate_skill /
+        get_skill_info / get_active_prompts）都会因此误判「Skill 不存在」。
+        先按键精确查，再按 Skill.name 匹配。
+        """
+        if name in self.skills:
+            return name
+        for k, s in self.skills.items():
+            if getattr(s, "name", None) == name:
+                return k
+        return None
+
     def activate_skill(self, name: str, args: str = "") -> str:
         """
         激活 Skill,加载完整提示词
@@ -385,31 +402,28 @@ class SkillManager:
         Raises:
             ValueError: 如果 Skill 不存在
         """
-        # 查找 Skill
-        skill = None
-        for s in self.skills.values():
-            if s.name == name:
-                skill = s
-                break
-        
-        if not skill:
+        # 查找 Skill（统一解析：名字/目录名 → 字典键）
+        key = self._resolve_key(name)
+        if key is None:
             raise ValueError(f"Skill 不存在: {name}")
-        
+        skill = self.skills[key]
+
         # 如果已激活,直接返回（编程式 Skill 每次都重新生成）
-        if skill.is_active and skill.prompt_content and name not in self._prompt_generators:
+        if skill.is_active and skill.prompt_content and key not in self._prompt_generators:
             return skill.prompt_content
 
         # 编程式 Skill: 调用 prompt_fn 动态生成
-        if name in self._prompt_generators:
+        if key in self._prompt_generators:
             try:
-                prompt_fn = self._prompt_generators[name]
+                prompt_fn = self._prompt_generators[key]
                 skill.prompt_content = prompt_fn(args)
             except Exception as e:
                 logger.error(f"编程式 Skill '{name}' prompt 生成失败: {e}")
                 skill.prompt_content = f"Skill '{name}' prompt 生成失败: {e}"
             skill.is_active = True
-            if name not in self.active_skills:
-                self.active_skills.append(name)
+            # active_skills 统一存字典键，保证 get_active_prompts 等按 key 查询不失配
+            if key not in self.active_skills:
+                self.active_skills.append(key)
             logger.info(f"激活编程式 Skill: {skill.name}")
             return skill.prompt_content
 
@@ -419,13 +433,13 @@ class SkillManager:
         # ② 目录名与 frontmatter 的 name 不一致（如 browserskill vs browser-skill）。
         skill_dir = getattr(skill, 'dir', '') or ''
         if not skill_dir:
-            source = self._skill_sources.get(name, 'builtin')
+            source = self._skill_sources.get(key, 'builtin')
             if source == 'project':
-                skill_dir = os.path.join(self.project_skills_dir, name)
+                skill_dir = os.path.join(self.project_skills_dir, key)
             elif source == 'user':
-                skill_dir = os.path.join(self.user_skills_dir, name)
+                skill_dir = os.path.join(self.user_skills_dir, key)
             else:
-                skill_dir = os.path.join(self.builtin_skills_dir, name)
+                skill_dir = os.path.join(self.builtin_skills_dir, key)
 
         # 加载 prompt.md
         prompt_file = os.path.join(skill_dir, 'prompt.md')
@@ -448,11 +462,11 @@ class SkillManager:
             with open(prompt_file, 'r', encoding='utf-8') as f:
                 skill.prompt_content = f.read()
         
-        # 标记为已激活
+        # 标记为已激活（active_skills 统一存字典键）
         skill.is_active = True
-        if name not in self.active_skills:
-            self.active_skills.append(name)
-        
+        if key not in self.active_skills:
+            self.active_skills.append(key)
+
         logger.info(f"激活 Skill: {skill.name}")
         
         return skill.prompt_content
@@ -467,17 +481,21 @@ class SkillManager:
         Returns:
             True 如果成功停用,False 否则
         """
-        if name in self.active_skills:
-            self.active_skills.remove(name)
-            
-            if name in self.skills:
-                self.skills[name].is_active = False
-                # 可选:释放 prompt_content 以节省内存
-                # self.skills[name].prompt_content = None
-            
+        # 统一解析：调用方可能传 frontmatter 名，而 active_skills/skills 以键（目录名）为准
+        key = self._resolve_key(name)
+        if key is None:
+            return False
+
+        if key in self.active_skills:
+            self.active_skills.remove(key)
+
+            self.skills[key].is_active = False
+            # 可选:释放 prompt_content 以节省内存
+            # self.skills[key].prompt_content = None
+
             logger.info(f"停用 Skill: {name}")
             return True
-        
+
         return False
     
     def get_active_skills(self) -> List[str]:
@@ -516,7 +534,8 @@ class SkillManager:
         Returns:
             True 如果已激活,False 否则
         """
-        return name in self.active_skills
+        key = self._resolve_key(name)
+        return key is not None and key in self.active_skills
     
     def list_skills(self, detailed: bool = False) -> str:
         """
@@ -572,13 +591,14 @@ class SkillManager:
         Returns:
             Skill 信息字典,如果不存在返回 None
         """
-        if name not in self.skills:
+        key = self._resolve_key(name)
+        if key is None:
             return None
-        
-        skill = self.skills[name]
+
+        skill = self.skills[key]
         info = skill.to_dict()
-        info['source'] = self._skill_sources.get(name, 'builtin')
-        info['is_programmatic'] = name in self._prompt_generators
+        info['source'] = self._skill_sources.get(key, 'builtin')
+        info['is_programmatic'] = key in self._prompt_generators
         
         if skill.is_active:
             info['prompt_length'] = len(skill.prompt_content) if skill.prompt_content else 0
@@ -812,10 +832,13 @@ class SkillManager:
         Returns:
             skill prompt 内容（已处理 shell 命令和参数替换）
         """
-        if name not in self.skills:
+        # 统一解析：模型常传 frontmatter 的 name（如 browser-skill），
+        # 而 skills 以目录名为键（如 browserskill）——不解析必报「Skill 不存在」。
+        key = self._resolve_key(name)
+        if key is None:
             return f"❌ Skill 不存在: {name}"
 
-        skill = self.skills[name]
+        skill = self.skills[key]
 
         # 激活（加载 prompt）— 编程式 Skill 直接传递 args
         try:
@@ -829,7 +852,7 @@ class SkillManager:
 
         # 编程式 Skill 已在 activate_skill 中生成完整 prompt，
         # 只需执行 shell 命令和参数替换
-        is_programmatic = name in self._prompt_generators
+        is_programmatic = key in self._prompt_generators
 
         # Shell 命令执行
         prompt = self.execute_shell_in_prompt(prompt)
