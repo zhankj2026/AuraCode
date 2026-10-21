@@ -8,6 +8,9 @@ import type {
   FileChange,
   SkillhubSearchResult,
   SkillhubInstallResult,
+  LlmConfig,
+  LlmConfigInput,
+  ModelCatalogItem,
 } from './types'
 
 /**
@@ -176,6 +179,29 @@ export class BridgeClient {
     })
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`)
     return (await r.json()) as SkillhubInstallResult
+  }
+
+  // ── LLM 配置（前端可编辑并持久化到 config.yaml）──────────────────
+  async getLlmConfig(): Promise<LlmConfig> {
+    const r = await fetch(this.url('/api/config/llm'), { headers: this.headers() })
+    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`)
+    return (await r.json()) as LlmConfig
+  }
+
+  async putLlmConfig(patch: Partial<LlmConfigInput>): Promise<LlmConfig> {
+    const r = await fetch(this.url('/api/config/llm'), {
+      method: 'PUT',
+      headers: this.headers(),
+      body: JSON.stringify(patch),
+    })
+    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`)
+    return (await r.json()) as LlmConfig
+  }
+
+  async listModels(): Promise<{ models: ModelCatalogItem[]; default: string }> {
+    const r = await fetch(this.url('/api/models'), { headers: this.headers() })
+    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`)
+    return (await r.json()) as { models: ModelCatalogItem[]; default: string }
   }
 
   async deleteSession(sessionId: string) {

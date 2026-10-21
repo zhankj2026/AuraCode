@@ -14,12 +14,9 @@ const MODE_NOTES: Record<string, string> = {
   绕过: '绕过：跳过所有权限检查。仅调试使用。',
 }
 
-/** 模型下拉选项。按实测可用性标注：
- *  - GLM-4-Flash：免费档，实测可用（也是 bridge 默认 fallback）
- *  - glm-4.7 / glm-4.6 / glm-4.5-air：付费档
- *  - GLM-5.3-Flash / glm-5.3-flashx：实测 429（1113 余额不足），列出但标注
- *  - deepseek-chat：需另配 DEEPSEEK API Key 与 base_url，未配置时不可用 */
-const MODEL_OPTIONS: Array<{ id: string; note?: string }> = [
+/** 模型下拉兜底选项（拉取后端 /api/models 失败时使用）。
+ *  正常情况下下拉由后端返回的模型目录填充。 */
+const MODEL_FALLBACK: Array<{ id: string; note?: string }> = [
   { id: 'GLM-4-Flash', note: '免费 · 实测可用' },
   { id: 'glm-4.7', note: '付费' },
   { id: 'glm-4.6', note: '付费' },
@@ -40,14 +37,46 @@ export function SettingsModal() {
   const [bypass, setBypass] = useState(mode === '绕过')
   const [switching, setSwitching] = useState(false)
   const [modelNote, setModelNote] = useState('')
+  // 后端真实 LLM 配置 + 模型目录（取代硬编码）
+  const [llm, setLlm] = useState<{
+    provider: string; model: string; base_url: string; has_api_key: boolean; default_model: string
+  } | null>(null)
+  const [models, setModels] = useState<Array<{ id: string; provider?: string; note?: string }>>([])
+  const [prov, setProv] = useState('')
+  const [keyInput, setKeyInput] = useState('')
+  const [urlInput, setUrlInput] = useState('')
+  const [cfgSaved, setCfgSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   const active = sessions.find((s) => s.session_id === activeId)
   const currentModel = active?.model || ''
+
+  // 进入模型页时拉取后端配置与模型目录
+  useEffect(() => {
+    if (!open || pane !== 'model' || !client) return
+    let alive = true
+    ;(async () => {
+      try {
+        const [cfg, m] = await Promise.all([client!.getLlmConfig(), client!.listModels()])
+        if (!alive) return
+        setLlm(cfg)
+        setProv(cfg.provider || 'openai')
+        setUrlInput(cfg.base_url || '')
+        setModels(m.models?.length ? m.models : MODEL_FALLBACK)
+      } catch (e: any) {
+        if (!alive) return
+        setModels(MODEL_FALLBACK)
+        setModelNote('拉取后端配置失败：' + String(e?.message || e))
+      }
+    })()
+    return () => { alive = false }
+  }, [open, pane, client])
 
   // 面板打开时监听 model_changed，及时刷新提示（会话侧热切换/fallback 都会触发）
   useEffect(() => {
     if (!open) return
     setModelNote('')
+    setCfgSaved(false)
   }, [open, pane])
 
   async function applyModel(m: string) {
@@ -56,7 +85,7 @@ export function SettingsModal() {
     setModelNote('切换中…')
     try {
       await client.switchModel(activeId, m)
-      const note = MODEL_OPTIONS.find((o) => o.id === m)?.note
+      const note = models.find((o) => o.id === m)?.note
       setModelNote(`已切换到 ${m}${note ? `（${note}）` : ''}`)
       actions.setToast(`已切换模型：${m}`, 'ok')
     } catch (e: any) {
@@ -65,6 +94,38 @@ export function SettingsModal() {
       actions.setToast('切换模型失败：' + msg, 'error')
     } finally {
       setSwitching(false)
+    }
+  }
+
+  /** 保存 LLM 配置到后端（落盘 config.yaml）。空 Key 不发送，避免清空已存密钥。 */
+  async function saveLlmConfig() {
+    if (!client || saving) return
+    setSaving(true)
+    setCfgSaved(false)
+    try {
+      const patch: Record<string, string> = { provider: prov, base_url: urlInput }
+      if (keyInput.trim()) patch.api_key = keyInput.trim()
+      const cfg = await client.putLlmConfig(patch)
+      setLlm(cfg)
+      setKeyInput('')
+      setCfgSaved(true)
+      actions.setToast('LLM 配置已保存（新会话生效）', 'ok')
+    } catch (e: any) {
+      actions.setToast('保存失败：' + String(e?.message || e), 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /** 设为默认模型：持久化到 config.yaml，新建会话自动采用。 */
+  async function setDefaultModel(m: string) {
+    if (!client || !m) return
+    try {
+      const cfg = await client.putLlmConfig({ model: m })
+      setLlm(cfg)
+      actions.setToast(`已设为默认模型：${m}（新建会话生效）`, 'ok')
+    } catch (e: any) {
+      actions.setToast('设置默认失败：' + String(e?.message || e), 'error')
     }
   }
 
@@ -126,27 +187,70 @@ export function SettingsModal() {
             )}
             {pane === 'model' && (
               <>
-                <div className="field"><label>提供商</label><select defaultValue="zhipu"><option value="zhipu">智谱 AI（GLM）</option><option value="deepseek">DeepSeek</option><option value="openai">OpenAI 兼容</option></select></div>
-                <div className="field"><label>API Key</label><input type="password" placeholder="未读取：由后端环境变量/AURACODE 配置提供" disabled /></div>
-                <div className="field"><label>Base URL</label><input placeholder="由后端配置提供（open.bigmodel.cn/api/coding/paas/v4）" disabled /></div>
-                <div className="field" style={{ maxWidth: 320 }}>
+                {/* 当前会话模型：切换即时生效（仅空闲可切） */}
+                <div className="field" style={{ maxWidth: 360 }}>
                   <label>当前会话模型（切换即时生效）</label>
                   <select
                     value={currentModel}
                     disabled={switching}
                     onChange={(e) => applyModel(e.target.value)}
                   >
-                    {currentModel && !MODEL_OPTIONS.some((o) => o.id === currentModel) && (
+                    {currentModel && !models.some((o) => o.id === currentModel) && (
                       <option value={currentModel}>{currentModel}</option>
                     )}
                     {!currentModel && <option value="">（未设置）</option>}
-                    {MODEL_OPTIONS.map((o) => (
+                    {models.map((o) => (
                       <option key={o.id} value={o.id}>{o.id}{o.note ? ` · ${o.note}` : ''}</option>
                     ))}
                   </select>
                 </div>
                 {modelNote && <div className="note">{modelNote}</div>}
-                <div className="note">API Key / Base URL 由引擎 config.yaml 与环境变量管理，此处只读。会话运行中无法切换（先等任务完成）。</div>
+                {llm && llm.default_model && (
+                  <div className="note">默认模型（新建会话采用）：<b>{llm.default_model}</b></div>
+                )}
+                <button
+                  className="btn"
+                  style={{ marginTop: 4 }}
+                  disabled={!currentModel || switching || currentModel === llm?.default_model}
+                  onClick={() => setDefaultModel(currentModel)}
+                >
+                  设为默认（新建会话生效）
+                </button>
+
+                <div style={{ height: 1, background: 'var(--border)', margin: '14px 0' }} />
+
+                {/* 引擎 LLM 配置：前端可编辑并持久化到 config.yaml */}
+                <div style={{ fontSize: 12, fontWeight: 600, margin: '4px 0 2px', color: 'var(--text)' }}>引擎 LLM 配置（保存后新会话生效）</div>
+                <div className="field" style={{ maxWidth: 320 }}>
+                  <label>提供商</label>
+                  <select value={prov} onChange={(e) => setProv(e.target.value)}>
+                    <option value="openai">OpenAI 兼容（智谱/DeepSeek/自建）</option>
+                    <option value="zhipu">智谱 AI（GLM）</option>
+                    <option value="deepseek">DeepSeek</option>
+                  </select>
+                </div>
+                <div className="field" style={{ maxWidth: 460 }}>
+                  <label>API Key{llm?.has_api_key ? '（已设置，留空不改动）' : '（未设置）'}</label>
+                  <input
+                    type="password"
+                    placeholder={llm?.has_api_key ? '已保存，输入新值以更新，留空保持不变' : '在此输入 API Key'}
+                    value={keyInput}
+                    onChange={(e) => setKeyInput(e.target.value)}
+                  />
+                </div>
+                <div className="field" style={{ maxWidth: 460 }}>
+                  <label>Base URL</label>
+                  <input
+                    placeholder="https://open.bigmodel.cn/api/coding/paas/v4"
+                    value={urlInput}
+                    onChange={(e) => setUrlInput(e.target.value)}
+                  />
+                </div>
+                <button className="btn ok" style={{ marginTop: 4 }} disabled={saving} onClick={saveLlmConfig}>
+                  {saving ? '保存中…' : '保存配置'}
+                </button>
+                {cfgSaved && <div className="note" style={{ color: 'var(--ok)' }}>已保存。正在运行的会话不受影响，新建会话生效。</div>}
+                <div className="note">配置保存在引擎 config.yaml 的 llm.* 段，桌面重启后依然有效；运行中的会话需新建才会采用。</div>
                 <Row title="流式输出" desc="逐字显示回复（SSE）。" on />
                 <button className="btn" style={{ marginTop: 4 }} onClick={() => {
                   actions.setToast(currentModel ? `当前模型 ${currentModel}：以最近一次对话为准（成功即连通）` : '无活动会话', 'info')

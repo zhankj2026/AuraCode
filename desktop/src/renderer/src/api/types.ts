@@ -171,3 +171,24 @@ export interface SkillhubInstallResult {
   target_dir: string
   note: string
 }
+
+// ── LLM 配置（前端可编辑并持久化到引擎 config.yaml）──────────────
+export interface LlmConfig {
+  provider: string
+  model: string
+  base_url: string
+  has_api_key: boolean
+  default_model: string
+}
+/** 写入时只发非空字段；api_key 为空串表示清空（前端仅在有输入时发送） */
+export interface LlmConfigInput {
+  provider?: string
+  model?: string
+  base_url?: string
+  api_key?: string
+}
+export interface ModelCatalogItem {
+  id: string
+  provider: string
+  note: string
+}

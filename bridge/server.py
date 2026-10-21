@@ -130,6 +130,48 @@ class ModelSwitchResponse(BaseModel):
     new_model: str
 
 
+class LLMConfigResponse(BaseModel):
+    """当前引擎 LLM 配置（api_key 绝不返回明文，只给是否已设置）"""
+    provider: str = ""
+    model: str = ""
+    base_url: str = ""
+    has_api_key: bool = False
+    default_model: str = ""  # bridge 服务端当前默认模型（新建会话未指定时采用）
+
+
+class LLMConfigUpdate(BaseModel):
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
+
+
+class ModelCatalogItem(BaseModel):
+    id: str
+    provider: str = ""
+    note: str = ""
+
+
+class ModelsResponse(BaseModel):
+    models: List[ModelCatalogItem] = []
+    default: str = ""
+
+
+# 模型目录（前端下拉的真实来源，取代原先硬编码的 MODEL_OPTIONS）。
+# 仅为常用候选；最终可用模型以用户实际配置/填入为准。
+_MODEL_CATALOG = [
+    ModelCatalogItem(id="GLM-4-Flash", provider="zhipu", note="免费 · 实测可用（也是 fallback）"),
+    ModelCatalogItem(id="glm-4.7-flash", provider="zhipu", note="免费档/强健"),
+    ModelCatalogItem(id="glm-4.7", provider="zhipu", note="付费"),
+    ModelCatalogItem(id="glm-4.6", provider="zhipu", note="付费"),
+    ModelCatalogItem(id="glm-4.5-air", provider="zhipu", note="付费"),
+    ModelCatalogItem(id="GLM-5.3-Flash", provider="zhipu", note="注意：当前 Key 余额"),
+    ModelCatalogItem(id="glm-5.3-flashx", provider="zhipu", note="注意：当前 Key 余额"),
+    ModelCatalogItem(id="deepseek-chat", provider="deepseek", note="需另配 Key/BaseURL"),
+    ModelCatalogItem(id="gpt-4o", provider="openai", note="OpenAI 兼容"),
+]
+
+
 # ── 全局状态 ─────────────────────────────────────────────────────────────────
 
 _server_config: Optional[BridgeServerConfig] = None
@@ -324,11 +366,13 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
 
             cfg = SessionConfig(
                 work_dir=req.work_dir,
-                model=req.model or _server_config.default_model,
+                model=req.model or _live_default_model(),
                 permission_mode=req.permission_mode or _server_config.default_permission_mode,
                 max_iterations=req.max_iterations,
-                api_key=req.api_key,
-                base_url=req.base_url,
+                # 前端未显式传 key/url 时，回退到 config.yaml 的 llm.*（由前端配置界面持久化），
+                # 再退到环境变量。这样「前端改配置」对新会话真正生效。
+                api_key=req.api_key or _live_llm_value("api_key") or None,
+                base_url=req.base_url or _live_llm_value("base_url") or None,
                 restore_history=req.restore_history,
             )
             session = _manager.create_session(cfg)
@@ -448,6 +492,43 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
             session_id=session_id,
             old_model=old_model,
             new_model=req.model,
+        )
+
+    @app.get("/api/config/llm", response_model=LLMConfigResponse)
+    async def get_llm_config(
+        auth: bool = Depends(_auth.verify),
+    ):
+        """读取当前引擎 LLM 配置（api_key 不返回明文）。"""
+        info = _read_llm_config()
+        info["default_model"] = _server_config.default_model if _server_config else ""
+        return LLMConfigResponse(**info)
+
+    @app.put("/api/config/llm", response_model=LLMConfigResponse)
+    async def put_llm_config(
+        req: LLMConfigUpdate,
+        auth: bool = Depends(_auth.verify),
+    ):
+        """保存 LLM 配置到 config.yaml 的 llm.* 并热更新。
+
+        仅写入提供的非空字段（null 跳过，不覆盖未改项）；api_key 为空串表示清空。
+        """
+        patch = {k: v for k, v in req.model_dump().items() if v is not None}
+        allowed = {"provider", "model", "base_url", "api_key"}
+        patch = {k: v for k, v in patch.items() if k in allowed}
+        if not patch:
+            raise HTTPException(status_code=400, detail="未提供任何可更新的配置字段")
+        info = _write_llm_config(patch)
+        info["default_model"] = _server_config.default_model if _server_config else ""
+        return LLMConfigResponse(**info)
+
+    @app.get("/api/models", response_model=ModelsResponse)
+    async def list_models(
+        auth: bool = Depends(_auth.verify),
+    ):
+        """返回可选模型目录（前端下拉来源）+ 当前默认模型。"""
+        return ModelsResponse(
+            models=_MODEL_CATALOG,
+            default=_server_config.default_model if _server_config else "",
         )
 
     @app.delete("/api/sessions/{session_id}")
@@ -988,11 +1069,82 @@ def _default_model_from_engine_config() -> str:
     """
     try:
         from config.manager import config_manager
-        config_manager.load("config.yaml")
+        config_manager.load(os.path.abspath("config.yaml"))
         m = config_manager.get("llm.model")
         return m if isinstance(m, str) and m.strip() else "glm-4-flash"
     except Exception:
         return "glm-4-flash"
+
+
+def _read_llm_config() -> Dict[str, Any]:
+    """从引擎 config.yaml 读取 llm 配置（api_key 只返回是否已设置，绝不返回明文）"""
+    info: Dict[str, Any] = {
+        "provider": "",
+        "model": "",
+        "base_url": "",
+        "has_api_key": False,
+    }
+    try:
+        from config.manager import config_manager
+        llm = config_manager.get("llm", {})
+        if not isinstance(llm, dict):
+            llm = {}
+        info["provider"] = llm.get("provider", "") or ""
+        info["model"] = llm.get("model", "") or ""
+        info["base_url"] = llm.get("base_url", "") or ""
+        api_key = llm.get("api_key") or os.environ.get("OPENAI_API_KEY")
+        info["has_api_key"] = bool(api_key and str(api_key).strip())
+    except Exception as e:
+        logger.warning(f"read llm config failed: {e}")
+    return info
+
+
+def _write_llm_config(patch: Dict[str, Any]) -> Dict[str, Any]:
+    """把 llm.* 字段写回 config.yaml 并热更新：保存 + reload +
+    更新 bridge 服务端默认模型（新会话立即生效）。
+
+    patch 中只接受 provider/model/base_url/api_key；null/None 字段跳过（不覆盖）。
+    """
+    from config.manager import config_manager
+
+    # 用已知配置文件路径（绝对化，避免相对路径在 Windows 上 save 时 makedirs('') 报错）
+    cfg_path = getattr(config_manager, "_config_path", None) or "config.yaml"
+    cfg_path = os.path.abspath(cfg_path)
+    config_manager.load(cfg_path)
+    allowed = {"provider", "model", "base_url", "api_key"}
+    for k, v in patch.items():
+        if k not in allowed or v is None:
+            continue
+        # api_key 允许空串（清空），其余字段空串跳过避免写脏值
+        if k != "api_key" and isinstance(v, str) and not v.strip():
+            continue
+        config_manager.set(f"llm.{k}", v)
+    config_manager.save()
+    config_manager.reload()
+    # 热更新 bridge 默认模型，使后续新建会话采用新默认
+    new_model = config_manager.get("llm.model")
+    if isinstance(new_model, str) and new_model.strip() and _server_config is not None:
+        _server_config.default_model = new_model
+    return _read_llm_config()
+
+
+def _live_llm_value(key: str) -> Optional[str]:
+    """建会话时回退读 config.yaml 的 llm.<key>（仅当非空）；
+    用于让前端保存的 provider/key/url 真正被新会话采用。"""
+    try:
+        from config.manager import config_manager
+        v = config_manager.get(f"llm.{key}")
+        if isinstance(v, str) and v.strip():
+            return v
+    except Exception:
+        pass
+    return None
+
+
+def _live_default_model() -> str:
+    return _live_llm_value("model") or (
+        _server_config.default_model if _server_config else "glm-4-flash"
+    )
 
 
 # ── 启动入口 ─────────────────────────────────────────────────────────────────
