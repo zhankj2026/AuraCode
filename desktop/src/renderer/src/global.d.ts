@@ -11,7 +11,7 @@ declare global {
       }>
       restartBackend: () => Promise<unknown>
       getExtensions: (root: string) => Promise<{
-        skills: { name: string; description: string; whenToUse?: string; path: string }[]
+        skills: { name: string; description: string; whenToUse?: string; path: string; source: 'builtin' | 'project' | 'user' }[]
         mcp: { name: string; type: string; command?: string; url?: string; enabled: boolean; scope: 'project' | 'user' | 'enterprise' | 'managed' }[]
         hooks: { event: string; matcher?: string; command: string; enabled: boolean; description?: string; priority: number }[]
         plugins: { name: string; description: string; version?: string; source: 'builtin' | 'project' | 'user'; enabled?: boolean }[]

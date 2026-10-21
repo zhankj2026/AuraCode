@@ -19,6 +19,8 @@ export interface SkillInfo {
   description: string
   whenToUse?: string
   path: string
+  /** 来源：工程内置 skills/ | 项目级 .auracode/skills | 用户级 ~/.auracode/skills（SkillHub 安装目录） */
+  source: 'builtin' | 'project' | 'user'
 }
 
 export interface McpServerInfo {
@@ -104,23 +106,76 @@ function parseFrontmatter(text: string): Record<string, string> {
   return out
 }
 
-function readSkills(root: string): SkillInfo[] {
-  const dir = path.join(root, 'skills')
-  if (!fs.existsSync(dir)) return []
-  const out: SkillInfo[] = []
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue
-    const skillMd = path.join(dir, entry.name, 'SKILL.md')
-    if (!fs.existsSync(skillMd)) continue
-    const fm = parseFrontmatter(fs.readFileSync(skillMd, 'utf-8'))
-    out.push({
-      name: fm.name || entry.name,
-      description: fm.description || '',
-      whenToUse: fm.when_to_use || fm.whenToUse,
-      path: `skills/${entry.name}/SKILL.md`,
-    })
+type SkillSource = SkillInfo['source']
+
+/**
+ * 递归扫描一个技能目录，把发现的技能写入 acc（按目录名去重，先到先得）。
+ *
+ * 支持两种布局（与引擎 skills/loader.py 一致）：
+ *   1. <dir>/<skill>/SKILL.md                      —— 原生一层布局
+ *   2. <dir>/@namespace/<skill>/SKILL.md           —— SkillHub 安装的两层布局
+ *      （skillhub CLI 默认把技能装进 @namespace 命名空间目录，不展开会被漏掉）
+ *
+ * @param baseDir  真实磁盘目录
+ * @param relBase  用于 path 字段的可读相对标识（如 'skills'、'.auracode/skills'、'~/.auracode/skills'）
+ * @param source   来源标记
+ * @param acc      去重累加器
+ */
+function scanSkillDir(
+  baseDir: string,
+  relBase: string,
+  source: SkillSource,
+  acc: Map<string, SkillInfo>,
+) {
+  if (!fs.existsSync(baseDir)) return
+  let entries: fs.Dirent[]
+  try {
+    entries = fs.readdirSync(baseDir, { withFileTypes: true })
+  } catch {
+    return
   }
-  return out.sort((a, b) => a.name.localeCompare(b.name))
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name.startsWith('__')) continue
+    const skillPath = path.join(baseDir, entry.name)
+    const skillMd = path.join(skillPath, 'SKILL.md')
+    if (fs.existsSync(skillMd)) {
+      // 一层布局：该目录本身就是技能
+      const key = entry.name
+      if (acc.has(key)) continue // 去重：内置优先、项目次之、用户最后
+      const fm = parseFrontmatter(fs.readFileSync(skillMd, 'utf-8'))
+      acc.set(key, {
+        name: fm.name || entry.name,
+        description: fm.description || '',
+        whenToUse: fm.when_to_use || fm.whenToUse,
+        path: path.join(relBase, entry.name, 'SKILL.md'),
+        source,
+      })
+    } else if (entry.name.startsWith('@') && fs.statSync(skillPath).isDirectory()) {
+      // 两层布局：@namespace 下钻一层
+      scanSkillDir(skillPath, path.join(relBase, entry.name), source, acc)
+    }
+  }
+}
+
+function readSkills(root: string, userDir: string): SkillInfo[] {
+  const acc = new Map<string, SkillInfo>()
+  // 1. 工程内置技能：<root>/skills（优先级最高）
+  scanSkillDir(path.join(root, 'skills'), 'skills', 'builtin', acc)
+  // 2. 项目级自定义技能：<root>/.auracode/skills
+  scanSkillDir(
+    path.join(root, '.auracode', 'skills'),
+    path.join('.auracode', 'skills'),
+    'project',
+    acc,
+  )
+  // 3. 用户级技能：~/.auracode/skills（SkillHub 默认安装目录，之前被漏掉）
+  scanSkillDir(
+    path.join(userDir, 'skills'),
+    path.join('.auracode', 'skills'),
+    'user',
+    acc,
+  )
+  return [...acc.values()].sort((a, b) => a.name.localeCompare(b.name))
 }
 
 function mcpType(cfg: any): string {
@@ -261,7 +316,7 @@ export function collectExtensions(root: string): ExtensionsData {
   if (!root || !fs.existsSync(root)) return EMPTY
   const userDir = userConfigDir()
   return {
-    skills: readSkills(root),
+    skills: readSkills(root, userDir),
     mcp: readMcp(root, userDir),
     hooks: readHooks(root, userDir),
     plugins: readPlugins(root, userDir),

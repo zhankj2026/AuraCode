@@ -104,6 +104,8 @@ export interface SkillInfo {
   description: string
   whenToUse?: string
   path: string
+  /** 来源：工程内置 skills/ | 项目级 .auracode/skills | 用户级 ~/.auracode/skills */
+  source: 'builtin' | 'project' | 'user'
 }
 export interface McpServerInfo {
   name: string

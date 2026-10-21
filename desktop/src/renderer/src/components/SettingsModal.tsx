@@ -14,6 +14,18 @@ const MODE_NOTES: Record<string, string> = {
   绕过: '绕过：跳过所有权限检查。仅调试使用。',
 }
 
+/** 技能来源标签与配色（对应主进程 readSkills 的 source 字段） */
+const SKILL_SRC_LABEL: Record<'builtin' | 'project' | 'user', string> = {
+  builtin: '内置',
+  project: '项目',
+  user: '用户',
+}
+const SKILL_SRC_COLOR: Record<'builtin' | 'project' | 'user', { bg: string; fg: string }> = {
+  builtin: { bg: 'rgba(88,166,255,.15)', fg: '#58a6ff' },
+  project: { bg: 'rgba(163,113,247,.15)', fg: '#a371f7' },
+  user: { bg: 'rgba(63,185,80,.15)', fg: '#3fb950' },
+}
+
 /** 模型下拉兜底选项（拉取后端 /api/models 失败时使用）。
  *  正常情况下下拉由后端返回的模型目录填充。 */
 const MODEL_FALLBACK: Array<{ id: string; note?: string }> = [
@@ -260,13 +272,32 @@ export function SettingsModal() {
             {pane === 'skills' && (
               <>
                 <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 8 }}>
-                  技能 = 可复用的指令包，来源于工程 skills/ 目录（真实扫描）。
+                  技能 = 可复用的指令包。来源：工程 skills/（内置）、工程 .auracode/skills（项目）、~/.auracode/skills（用户，SkillHub 安装后在此处）。
                 </div>
                 {(ext?.skills?.length ?? 0) === 0 && (
                   <div className="search">未扫描到技能（skills/*/SKILL.md）</div>
                 )}
                 {(ext?.skills ?? []).map((s) => (
-                  <Row key={s.name} title={s.name} desc={s.description || '可复用指令包'} on />
+                  <div key={`${s.source}:${s.name}`} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <Row title={s.name} desc={s.description || '可复用指令包'} on />
+                    </div>
+                    <span
+                      title={`来源：${SKILL_SRC_LABEL[s.source]}`}
+                      style={{
+                        flex: '0 0 auto',
+                        fontSize: 11,
+                        lineHeight: '20px',
+                        padding: '0 8px',
+                        borderRadius: 10,
+                        background: SKILL_SRC_COLOR[s.source].bg,
+                        color: SKILL_SRC_COLOR[s.source].fg,
+                        border: `1px solid ${SKILL_SRC_COLOR[s.source].fg}`,
+                      }}
+                    >
+                      {SKILL_SRC_LABEL[s.source]}
+                    </span>
+                  </div>
                 ))}
               </>
             )}
