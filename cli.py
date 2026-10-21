@@ -237,20 +237,65 @@ class ChatMode:
             self.executor.execute('status', [])
             return True
 
-        # 技能命令
+        # 斜杠命令 / 技能（/ 前缀同时承载两者）
         if user_input.startswith('/'):
             # 解析 /command 格式
             parts = user_input[1:].split()
             if parts:
                 cmd_name = parts[0]
                 cmd_args = parts[1:]
-                # 执行命令，但无论成功失败都继续对话
-                # （未知命令/执行失败不应终止会话）
+
+                # 1) 引擎命令优先（55 个内置命令 + 5 个硬编码技能桥接命令）
+                if cmd_name in COMMAND_REGISTRY:
+                    self.executor.execute(cmd_name, cmd_args)
+                    return True
+
+                # 2) 不是命令 → 尝试按「技能名」激活。
+                #    引擎只把 simplify/verify/debug/batch/update-config 几个内置技能
+                #    注册成了命令，其余技能（含 SkillHub 安装的，如 browser-skill）
+                #    没有斜杠绑定；系统提示里也从未说明「/名字 = 激活技能」，
+                #    所以 /xxx 默认只会变成纯文本，模型不会主动 activate_skill。
+                if self._try_activate_skill(cmd_name, cmd_args):
+                    print(f"✅ 已激活技能 '{cmd_name}'，开始按技能执行…\n")
+                    # 技能内容会由 prompt_builder 在本轮 run 注入系统提示，
+                    # 这里带着技能上下文继续执行用户任务（去掉 /技能名 前缀）。
+                    task = " ".join(cmd_args).strip()
+                    return self.process_round(task or user_input)
+
+                # 3) 既非命令也非技能 → 保持原行为（提示未知命令，不终止会话）
                 self.executor.execute(cmd_name, cmd_args)
                 return True
 
         # 普通对话
         return self.process_round(user_input)
+
+    def _try_activate_skill(self, name: str, args: list) -> bool:
+        """
+        尝试把 /<name> 解析为技能名并激活。
+
+        返回 True 表示命中并已激活；False 表示不是技能（或技能系统不可用）。
+        使用本会话自己的 loop.skill_manager，不用 SkillContext 的全局单例 ——
+        后者在多会话下会被最后初始化的 loop 覆盖。
+        """
+        loop = getattr(self, "loop", None)
+        if loop is None:
+            return False
+        sm = getattr(loop, "skill_manager", None)
+        if sm is None or getattr(loop, "skills_enabled", True) is False:
+            return False
+        try:
+            # SkillManager.skills 以目录名为键，技能真实名在 Skill.name 上
+            matched = any(
+                getattr(s, "name", None) == name
+                for s in (getattr(sm, "skills", {}) or {}).values()
+            )
+            if not matched:
+                return False
+            sm.activate_skill(name, args=" ".join(args))
+            return True
+        except Exception as e:
+            logger.warning(f"技能 '{name}' 激活失败: {e}")
+            return False
 
     def show_help(self):
         """显示帮助"""
