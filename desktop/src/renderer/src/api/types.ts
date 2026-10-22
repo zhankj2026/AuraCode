@@ -203,12 +203,12 @@ export interface CommandInfo {
   args_help?: string
 }
 
-/** 自定义模型：用户在「设置 → 自定义模型」里添加的大模型接入点，落盘 ~/.auracode/models.json */
+/** 自定义模型：用户在「模型」面板里添加的大模型接入点，落盘 ~/.auracode/models.json */
 export interface CustomModel {
   id: string
   name: string
-  /** 供应商：openai = OpenAI 兼容协议；custom = 自定义协议 */
-  provider: 'openai' | 'custom'
+  /** 供应商标识（openai / zhipu / deepseek / moonshot / qwen / siliconflow / volcano / custom …），仅用于展示与预设端点 */
+  provider: string
   /** 接口地址（完整 chat/completions 端点） */
   base_url: string
   api_key: string

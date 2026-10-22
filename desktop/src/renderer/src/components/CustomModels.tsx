@@ -5,7 +5,7 @@ import type { CustomModel } from '../api/types'
 type FormState = {
   id: string | null
   name: string
-  provider: 'openai' | 'custom'
+  provider: string
   base_url: string
   api_key: string
   model: string
@@ -14,6 +14,18 @@ type FormState = {
   thinking: boolean
   supplement: string
 }
+
+/** 常用供应商：选中的同时预填接口地址（自定义除外）。 */
+const PROVIDERS: Array<{ id: string; name: string; icon: string; url: string }> = [
+  { id: 'openai', name: 'OpenAI', icon: '🟢', url: 'https://api.openai.com/v1/chat/completions' },
+  { id: 'zhipu', name: '智谱 AI（GLM）', icon: '🔷', url: 'https://open.bigmodel.cn/api/paas/v4/chat/completions' },
+  { id: 'deepseek', name: 'DeepSeek', icon: '🔶', url: 'https://api.deepseek.com/v1/chat/completions' },
+  { id: 'moonshot', name: 'Moonshot（Kimi）', icon: '🌙', url: 'https://api.moonshot.cn/v1/chat/completions' },
+  { id: 'qwen', name: '通义千问（DashScope）', icon: '🟠', url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions' },
+  { id: 'siliconflow', name: '硅基流动（SiliconFlow）', icon: '💎', url: 'https://api.siliconflow.cn/v1/chat/completions' },
+  { id: 'volcano', name: '火山方舟（Volcano）', icon: '🌋', url: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions' },
+  { id: 'custom', name: '自定义（手动填写）', icon: '◇', url: '' },
+]
 
 const EMPTY: FormState = {
   id: null,
@@ -214,10 +226,14 @@ function ModelDialog({
         </div>
         <div className="setbody" style={{ maxHeight: '64vh', overflowY: 'auto' }}>
           <div className="field" style={{ maxWidth: 360 }}>
-            <label>供应商（仅支持 OpenAI 兼容协议 API）</label>
-            <select value={f.provider} onChange={(e) => patch({ provider: e.target.value as 'openai' | 'custom' })}>
-              <option value="openai">◇ OpenAI 兼容</option>
-              <option value="custom">◇ 自定义</option>
+            <label>供应商（OpenAI 兼容协议，选常用供应商可自动填接口地址）</label>
+            <select value={f.provider} onChange={(e) => {
+              const p = PROVIDERS.find((x) => x.id === e.target.value)
+              patch({ provider: e.target.value, ...(p && p.url ? { base_url: p.url } : {}) })
+            }}>
+              {PROVIDERS.map((p) => (
+                <option key={p.id} value={p.id}>{p.icon} {p.name}</option>
+              ))}
             </select>
           </div>
           <div className="field" style={{ maxWidth: 520 }}>

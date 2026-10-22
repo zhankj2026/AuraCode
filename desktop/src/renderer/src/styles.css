@@ -81,6 +81,9 @@ header {
   padding: 8px; display: none; z-index: 30;
 }
 .wsmenu.show { display: block }
+/* 顶栏模型下拉：右对齐，可滚动 */
+.modelmenu { left: auto; right: 0; top: 34px; width: 320px; max-height: 440px; overflow-y: auto; }
+.modelmenu .mi-ic { flex: 0 0 18px; text-align: center; font-size: 15px; line-height: 1 }
 .wsearch { background: var(--bg3); border: 1px solid var(--line); border-radius: 7px; padding: 7px 9px; color: var(--muted); font-size: 12px; margin-bottom: 6px }
 .wsmenu .wi { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 7px; font-size: 12.5px; cursor: pointer; color: var(--text) }
 .wsmenu .wi:hover { background: var(--bg3) }
