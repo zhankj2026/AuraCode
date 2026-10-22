@@ -9,10 +9,6 @@ type FormState = {
   base_url: string
   api_key: string
   model: string
-  tools: boolean
-  image: boolean
-  thinking: boolean
-  supplement: string
 }
 
 /** 常用供应商：选中的同时预填接口地址（自定义除外）。 */
@@ -34,10 +30,6 @@ const EMPTY: FormState = {
   base_url: '',
   api_key: '',
   model: '',
-  tools: false,
-  image: false,
-  thinking: false,
-  supplement: '',
 }
 
 function uid(): string {
@@ -66,10 +58,6 @@ export function CustomModels() {
       base_url: m.base_url,
       api_key: m.api_key,
       model: m.model,
-      tools: !!m.capabilities?.tools,
-      image: !!m.capabilities?.image,
-      thinking: !!m.capabilities?.thinking,
-      supplement: m.supplement || '',
     })
   }
 
@@ -92,8 +80,6 @@ export function CustomModels() {
       base_url: f.base_url.trim(),
       api_key: f.api_key.trim(),
       model: f.model.trim(),
-      capabilities: { tools: f.tools, image: f.image, thinking: f.thinking },
-      supplement: f.supplement.trim() || undefined,
     }
     const exists = models.some((x) => x.id === entry.id)
     const next = exists ? models.map((x) => (x.id === entry.id ? entry : x)) : [...models, entry]
@@ -270,25 +256,6 @@ function ModelDialog({
               placeholder="输入模型参数值，例如 gpt-4o 或 openai/gpt-4o"
               value={f.model}
               onChange={(e) => patch({ model: e.target.value })}
-            />
-          </div>
-
-          <div style={{ height: 1, background: 'var(--border)', margin: '14px 0' }} />
-          <div style={{ fontSize: 12, fontWeight: 600, margin: '4px 0 8px', color: 'var(--text)' }}>
-            高级配置
-          </div>
-          <div className="cm-caps">
-            <label className="cap"><input type="checkbox" checked={f.tools} onChange={(e) => patch({ tools: e.target.checked })} /> 工具调用</label>
-            <label className="cap"><input type="checkbox" checked={f.image} onChange={(e) => patch({ image: e.target.checked })} /> 图片输入</label>
-            <label className="cap"><input type="checkbox" checked={f.thinking} onChange={(e) => patch({ thinking: e.target.checked })} /> 思考模式</label>
-          </div>
-          <div className="field" style={{ maxWidth: 520, marginTop: 10 }}>
-            <label>自定义补充</label>
-            <textarea
-              rows={2}
-              placeholder="可选，自由文本，原样透传备用"
-              value={f.supplement}
-              onChange={(e) => patch({ supplement: e.target.value })}
             />
           </div>
         </div>

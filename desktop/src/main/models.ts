@@ -12,21 +12,13 @@ import * as os from 'os'
 export interface CustomModel {
   id: string
   name: string
-  /** 供应商：'openai' = OpenAI 兼容协议；'custom' = 自定义协议 */
-  provider: 'openai' | 'custom'
+  /** 供应商标识（openai / zhipu / deepseek / moonshot / qwen / siliconflow / volcano / custom …），仅用于展示与预设端点 */
+  provider: string
   /** 接口地址（完整 chat/completions 端点，如 https://api.example.com/v1/chat/completions） */
   base_url: string
   api_key: string
   /** 模型名称（如 gpt-4o / glm-4.6） */
   model: string
-  /** 高级配置：工具调用 / 图片输入 / 思考模式 */
-  capabilities?: {
-    tools?: boolean
-    image?: boolean
-    thinking?: boolean
-  }
-  /** 自定义补充（自由文本，原样透传给引擎备用） */
-  supplement?: string
 }
 
 function modelsPath(): string {

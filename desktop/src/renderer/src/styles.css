@@ -415,8 +415,5 @@ header {
 .keyrow input { flex: 1; }
 .eye { cursor: pointer; padding: 0 7px; color: var(--muted); user-select: none; font-size: 14px; }
 .eye:hover { color: var(--text); }
-.cm-caps { display: flex; gap: 18px; flex-wrap: wrap; }
-.cap { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text); cursor: pointer; }
-.cap input { width: auto; margin: 0; }
 .note.ok { background: #103024; border-color: #1c5b3e; color: var(--ok); }
 .note.err { background: #3a1414; border-color: #5a2222; color: #ff9a9a; }

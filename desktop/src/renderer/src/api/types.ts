@@ -214,8 +214,4 @@ export interface CustomModel {
   api_key: string
   /** 模型名称（如 gpt-4o / glm-4.6） */
   model: string
-  /** 高级配置：工具调用 / 图片输入 / 思考模式 */
-  capabilities?: { tools?: boolean; image?: boolean; thinking?: boolean }
-  /** 自定义补充（自由文本，原样透传备用） */
-  supplement?: string
 }
