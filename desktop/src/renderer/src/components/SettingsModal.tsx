@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { actions, useStore } from '../state/store'
 
 const NAV = [
   { sec: '通用', items: [['general', '🔄 通用'], ['appearance', '🎨 外观'], ['keys', '⌨️ 快捷键']] },
-  { sec: '功能', items: [['skills', '🧩 技能'], ['mcp', '🔌 MCP'], ['perm', '🛡️ 权限']] },
+  { sec: '功能', items: [['model', '🔧 引擎'], ['skills', '🧩 技能'], ['mcp', '🔌 MCP'], ['perm', '🛡️ 权限']] },
   { sec: '数据与安全', items: [['data', '💾 数据管理']] },
 ]
 
@@ -26,14 +26,134 @@ const SKILL_SRC_COLOR: Record<'builtin' | 'project' | 'user', { bg: string; fg: 
   user: { bg: 'rgba(63,185,80,.15)', fg: '#3fb950' },
 }
 
-/** 模型配置已统一收归左侧「模型」面板（自定义模型 + 会话/引擎配置），设置内不再重复。 */
+/** 模型下拉兜底选项（拉取后端 /api/models 失败时使用）。
+ *  正常情况下下拉由后端返回的模型目录填充。 */
+const MODEL_FALLBACK: Array<{ id: string; note?: string }> = [
+  { id: 'GLM-4-Flash', note: '免费 · 实测可用' },
+  { id: 'glm-4.7', note: '付费' },
+  { id: 'glm-4.6', note: '付费' },
+  { id: 'glm-4.5-air', note: '付费' },
+  { id: 'GLM-5.3-Flash', note: '当前 Key 已欠费' },
+  { id: 'glm-5.3-flashx', note: '当前 Key 已欠费' },
+  { id: 'deepseek-chat', note: '需另配 Key' },
+]
 
 export function SettingsModal() {
   const open = useStore((s) => s.settingsOpen)
   const mode = useStore((s) => s.mode)
   const ext = useStore((s) => s.extensions)
+  const client = useStore((s) => s.client)
+  const activeId = useStore((s) => s.activeSessionId)
+  const sessions = useStore((s) => s.sessions)
+  // 自定义模型（前台「模型」视图添加），可一并出现在会话模型下拉里
+  const customModels = useStore((s) => s.customModels)
   const [pane, setPane] = useState('general')
   const [bypass, setBypass] = useState(mode === '绕过')
+  const [switching, setSwitching] = useState(false)
+  const [modelNote, setModelNote] = useState('')
+  // 后端真实 LLM 配置 + 模型目录（取代硬编码）
+  const [llm, setLlm] = useState<{
+    provider: string; model: string; base_url: string; has_api_key: boolean; default_model: string
+  } | null>(null)
+  const [models, setModels] = useState<Array<{ id: string; provider?: string; note?: string }>>([])
+  const [prov, setProv] = useState('')
+  const [keyInput, setKeyInput] = useState('')
+  const [urlInput, setUrlInput] = useState('')
+  const [cfgSaved, setCfgSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const active = sessions.find((s) => s.session_id === activeId)
+  const currentModel = active?.model || ''
+
+  // 进入模型页时拉取后端配置与模型目录
+  useEffect(() => {
+    if (!open || pane !== 'model' || !client) return
+    let alive = true
+    ;(async () => {
+      try {
+        const [cfg, m] = await Promise.all([client!.getLlmConfig(), client!.listModels()])
+        if (!alive) return
+        setLlm(cfg)
+        setProv(cfg.provider || 'openai')
+        setUrlInput(cfg.base_url || '')
+        setModels(m.models?.length ? m.models : MODEL_FALLBACK)
+      } catch (e: any) {
+        if (!alive) return
+        setModels(MODEL_FALLBACK)
+        setModelNote('拉取后端配置失败：' + String(e?.message || e))
+      }
+    })()
+    return () => { alive = false }
+  }, [open, pane, client])
+
+  // 面板打开时监听 model_changed，及时刷新提示（会话侧热切换/fallback 都会触发）
+  useEffect(() => {
+    if (!open) return
+    setModelNote('')
+    setCfgSaved(false)
+  }, [open, pane])
+
+  async function applyModel(model: string, baseUrl?: string, apiKey?: string) {
+    if (!client || !activeId || switching) return
+    setSwitching(true)
+    setModelNote('切换中…')
+    try {
+      // 自定义模型携带独立的 base_url/api_key，切换时一并交给后端重建 LLM 客户端
+      await client.switchModel(activeId, model, baseUrl, apiKey)
+      // 立即同步本地会话模型（后端也会推 model_changed 事件，双保险）
+      actions.updateSessionModel(activeId, model)
+      setModelNote(`已切换到 ${model}`)
+      actions.setToast(`已切换模型：${model}`, 'ok')
+    } catch (e: any) {
+      const msg = String(e?.message || e)
+      setModelNote('切换失败：' + msg)
+      actions.setToast('切换模型失败：' + msg, 'error')
+    } finally {
+      setSwitching(false)
+    }
+  }
+
+  /** 下拉选中：内置模型直接切；自定义模型（value 以 custom: 前缀）带全量配置切换 */
+  function onPickModel(value: string) {
+    if (value.startsWith('custom:')) {
+      const cm = customModels.find((c) => `custom:${c.id}` === value)
+      if (cm) applyModel(cm.model, cm.base_url, cm.api_key)
+      return
+    }
+    applyModel(value)
+  }
+
+  /** 保存 LLM 配置到后端（落盘 config.yaml）。空 Key 不发送，避免清空已存密钥。 */
+  async function saveLlmConfig() {
+    if (!client || saving) return
+    setSaving(true)
+    setCfgSaved(false)
+    try {
+      const patch: Record<string, string> = { provider: prov, base_url: urlInput }
+      if (keyInput.trim()) patch.api_key = keyInput.trim()
+      const cfg = await client.putLlmConfig(patch)
+      setLlm(cfg)
+      setKeyInput('')
+      setCfgSaved(true)
+      actions.setToast('LLM 配置已保存（新会话生效）', 'ok')
+    } catch (e: any) {
+      actions.setToast('保存失败：' + String(e?.message || e), 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /** 设为默认模型：持久化到 config.yaml，新建会话自动采用。 */
+  async function setDefaultModel(m: string) {
+    if (!client || !m) return
+    try {
+      const cfg = await client.putLlmConfig({ model: m })
+      setLlm(cfg)
+      actions.setToast(`已设为默认模型：${m}（新建会话生效）`, 'ok')
+    } catch (e: any) {
+      actions.setToast('设置默认失败：' + String(e?.message || e), 'error')
+    }
+  }
 
   if (!open) return null
 
@@ -89,6 +209,87 @@ export function SettingsModal() {
                 <KeyRow title="切换会话" kbd="Ctrl + K" />
                 <KeyRow title="命令面板" kbd="Ctrl + P" />
                 <KeyRow title="停止当前任务" kbd="Esc" />
+              </>
+            )}
+            {pane === 'model' && (
+              <>
+                {/* 当前会话模型：切换即时生效（仅空闲可切）。
+                    下拉合并内置模型目录与自定义模型；自定义模型以 custom: 前缀区分，
+                    选中时连同 base_url/api_key 一起切给后端。 */}
+                <div className="field" style={{ maxWidth: 360 }}>
+                  <label>当前会话模型（切换即时生效）</label>
+                  <select
+                    value={currentModel}
+                    disabled={switching}
+                    onChange={(e) => onPickModel(e.target.value)}
+                  >
+                    {currentModel && !models.some((o) => o.id === currentModel) && !customModels.some((c) => c.model === currentModel) && (
+                      <option value={currentModel}>{currentModel}（自定义）</option>
+                    )}
+                    {!currentModel && <option value="">（未设置）</option>}
+                    {models.map((o) => (
+                      <option key={o.id} value={o.id}>{o.id}{o.note ? ` · ${o.note}` : ''}</option>
+                    ))}
+                    {customModels.length > 0 && (
+                      <optgroup label="自定义模型">
+                        {customModels.map((c) => (
+                          <option key={c.id} value={`custom:${c.id}`}>{c.name} · {c.model}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                </div>
+                {modelNote && <div className="note">{modelNote}</div>}
+                {llm && llm.default_model && (
+                  <div className="note">默认模型（新建会话采用）：<b>{llm.default_model}</b></div>
+                )}
+                <button
+                  className="btn"
+                  style={{ marginTop: 4 }}
+                  disabled={!currentModel || switching || currentModel === llm?.default_model}
+                  onClick={() => setDefaultModel(currentModel)}
+                >
+                  设为默认（新建会话生效）
+                </button>
+
+                <div style={{ height: 1, background: 'var(--border)', margin: '14px 0' }} />
+
+                {/* 引擎 LLM 配置：前端可编辑并持久化到 config.yaml */}
+                <div style={{ fontSize: 12, fontWeight: 600, margin: '4px 0 2px', color: 'var(--text)' }}>引擎 LLM 配置（保存后新会话生效）</div>
+                <div className="field" style={{ maxWidth: 320 }}>
+                  <label>提供商</label>
+                  <select value={prov} onChange={(e) => setProv(e.target.value)}>
+                    <option value="openai">OpenAI 兼容（智谱/DeepSeek/自建）</option>
+                    <option value="zhipu">智谱 AI（GLM）</option>
+                    <option value="deepseek">DeepSeek</option>
+                  </select>
+                </div>
+                <div className="field" style={{ maxWidth: 460 }}>
+                  <label>API Key{llm?.has_api_key ? '（已设置，留空不改动）' : '（未设置）'}</label>
+                  <input
+                    type="password"
+                    placeholder={llm?.has_api_key ? '已保存，输入新值以更新，留空保持不变' : '在此输入 API Key'}
+                    value={keyInput}
+                    onChange={(e) => setKeyInput(e.target.value)}
+                  />
+                </div>
+                <div className="field" style={{ maxWidth: 460 }}>
+                  <label>Base URL</label>
+                  <input
+                    placeholder="https://open.bigmodel.cn/api/coding/paas/v4"
+                    value={urlInput}
+                    onChange={(e) => setUrlInput(e.target.value)}
+                  />
+                </div>
+                <button className="btn ok" style={{ marginTop: 4 }} disabled={saving} onClick={saveLlmConfig}>
+                  {saving ? '保存中…' : '保存配置'}
+                </button>
+                {cfgSaved && <div className="note" style={{ color: 'var(--ok)' }}>已保存。正在运行的会话不受影响，新建会话生效。</div>}
+                <div className="note">配置保存在引擎 config.yaml 的 llm.* 段，桌面重启后依然有效；运行中的会话需新建才会采用。</div>
+                <Row title="流式输出" desc="逐字显示回复（SSE）。" on />
+                <button className="btn" style={{ marginTop: 4 }} onClick={() => {
+                  actions.setToast(currentModel ? `当前模型 ${currentModel}：以最近一次对话为准（成功即连通）` : '无活动会话', 'info')
+                }}>测试连接</button>
               </>
             )}
             {pane === 'skills' && (
