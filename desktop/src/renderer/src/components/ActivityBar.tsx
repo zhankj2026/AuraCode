@@ -6,7 +6,7 @@ const ITEMS: { key: Activity; icon: string; label: string }[] = [
   { key: 'files', icon: '🗂️', label: '文件' },
   { key: 'ext', icon: '🧩', label: '扩展' },
   { key: 'audit', icon: '🛡️', label: '审计' },
-  { key: 'tasks', icon: '⚙️', label: '任务' },
+  { key: 'tasks', icon: '📋', label: '任务' },
   { key: 'models', icon: '🧠', label: '模型' },
 ]
 
