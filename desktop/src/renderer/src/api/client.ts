@@ -159,6 +159,16 @@ export class BridgeClient {
       headers: this.headers(),
       body: JSON.stringify({ model }),
     })
+    // 非 2xx 必须抛错：否则 409「会话运行中」的响应体会被当成功解析，
+    // UI 误报「已切换」，实际后端什么都没改。
+    if (!r.ok) {
+      let detail = `HTTP ${r.status}`
+      try {
+        const body = await r.json()
+        if (body?.detail) detail = String(body.detail)
+      } catch { /* 保留 HTTP 状态码兜底 */ }
+      throw new Error(detail)
+    }
     return r.json()
   }
 

@@ -126,6 +126,12 @@ export default function App() {
       return
     }
 
+    // 会话模型热切换/回落：只同步侧栏与设置面板的模型显示，不入事件流
+    if (e.type === 'model_changed') {
+      actions.updateSessionModel(e.session_id, String(e.data?.new_model || ''))
+      return
+    }
+
     // 实时打字机：text_chunk 累积到当前 assistant 气泡，最终由 assistant_message 定稿。
     // 注意：后端 text_chunk 的载荷字段是 data.content（不是 data.delta），且没有 message_id。
     if (e.type === 'text_chunk') {

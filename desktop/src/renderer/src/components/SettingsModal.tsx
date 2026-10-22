@@ -97,12 +97,14 @@ export function SettingsModal() {
     setModelNote('切换中…')
     try {
       await client.switchModel(activeId, m)
+      // 立即同步本地会话模型（后端也会推 model_changed 事件，双保险）
+      actions.updateSessionModel(activeId, m)
       const note = models.find((o) => o.id === m)?.note
       setModelNote(`已切换到 ${m}${note ? `（${note}）` : ''}`)
       actions.setToast(`已切换模型：${m}`, 'ok')
     } catch (e: any) {
       const msg = String(e?.message || e)
-      setModelNote(/409/.test(msg) ? '切换被拒：会话正在运行或模型未变化' : '切换失败：' + msg)
+      setModelNote('切换失败：' + msg)
       actions.setToast('切换模型失败：' + msg, 'error')
     } finally {
       setSwitching(false)

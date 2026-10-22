@@ -432,7 +432,15 @@ class BridgeSession:
             return False  # 正在运行中不能切换
         old_model = self.config.model
         if old_model == new_model:
-            return False
+            # 幂等处理：目标模型与当前一致视为成功（补发 MODEL_CHANGED 让前端同步显示）。
+            # 此前这里返回 False → 409，而前端下拉显示的模型名来自 listSessions 快照，
+            # 热切换/fallback 后从不同步，用户按显示值切换极易撞上 409「模型未变化」报错。
+            self._emit(BridgeEvent(
+                type=BridgeEventType.MODEL_CHANGED.value,
+                session_id=self.session_id,
+                data={"old_model": old_model, "new_model": new_model, "unchanged": True},
+            ))
+            return True
         # AgentLoop 在后台线程异步初始化（加载工具/模型需 1-3s），
         # 此刻可能仍为 None。先把 config 改了，loop 就绪后 _sync_model_to_loop
         # 会补上——否则用户在会话刚建好就切模型会得到 409"不生效"。

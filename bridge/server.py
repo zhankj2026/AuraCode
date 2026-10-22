@@ -483,9 +483,10 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
         old_model = session.config.model
         ok = _manager.switch_model(session_id, req.model)
         if not ok:
+            # switch_model 仅在会话非空闲时返回 False（模型未变化已按幂等成功处理）
             raise HTTPException(
                 status_code=409,
-                detail="Cannot switch model: session is running or model unchanged",
+                detail="会话正在执行任务，请等当前任务完成（或先停止）后再切换模型",
             )
         return ModelSwitchResponse(
             status="switched",

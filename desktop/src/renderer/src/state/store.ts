@@ -117,6 +117,18 @@ export const actions = {
   setSessions(sessions: SessionInfo[]) {
     setState({ sessions })
   },
+  /** 会话模型变更后同步本地状态（热切换成功 / model_changed 事件）。
+   *  此前 model 只在 listSessions 快照里，热切换后下拉框仍显示旧值，
+   *  用户再次切换极易触发后端 409「模型未变化」。 */
+  updateSessionModel(sessionId: string, model: string) {
+    if (!sessionId || !model) return
+    if (!state.sessions.some((s) => s.session_id === sessionId)) return
+    setState({
+      sessions: state.sessions.map((s) =>
+        s.session_id === sessionId ? { ...s, model } : s,
+      ),
+    })
+  },
   selectSession(id: string | null) {
     const sess = id ? state.sessions.find((s) => s.session_id === id) : null
     const wd = sess?.work_dir || ''
