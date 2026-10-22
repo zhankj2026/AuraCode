@@ -11,6 +11,7 @@ import type {
   OpenFile,
   ExtensionsData,
   CommandInfo,
+  CustomModel,
 } from '../api/types'
 
 export interface AppState {
@@ -38,6 +39,8 @@ export interface AppState {
   extensions: ExtensionsData | null
   /** 引擎内置命令清单（GET /api/commands），供 # 命令自动补全 */
   commands: CommandInfo[]
+  /** 自定义模型清单（前台「设置 → 自定义模型」添加，落盘 ~/.auracode/models.json） */
+  customModels: CustomModel[]
   /** 顶部轻提示：用于把后台操作（如打开工作区）的真实成败反馈给用户，而不是静默吞掉 */
   toast: { msg: string; kind: 'error' | 'info' | 'ok' } | null
 }
@@ -66,6 +69,7 @@ const initial: AppState = {
   tempSession: false,
   extensions: null,
   commands: [],
+  customModels: [],
   toast: null,
 }
 
@@ -404,6 +408,32 @@ export const actions = {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       console.warn('[commands] 加载失败', e)
+    }
+  },
+  /** 从主进程读取自定义模型清单（~/.auracode/models.json） */
+  async loadCustomModels() {
+    try {
+      const res = await window.auracode.getCustomModels()
+      if (res?.ok && Array.isArray(res.models)) {
+        setState({ customModels: res.models })
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.warn('[customModels] 加载失败', e)
+    }
+  },
+  /** 持久化自定义模型清单（整表写入）；写后刷新本地状态 */
+  async saveCustomModels(models: CustomModel[]) {
+    try {
+      const res = await window.auracode.setCustomModels(models)
+      if (res?.ok) {
+        setState({ customModels: models })
+      } else if (res?.message) {
+        actions.setToast('保存自定义模型失败：' + res.message, 'error')
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      actions.setToast('保存自定义模型失败：' + msg, 'error')
     }
   },
 }

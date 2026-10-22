@@ -45,6 +45,8 @@ export function SettingsModal() {
   const client = useStore((s) => s.client)
   const activeId = useStore((s) => s.activeSessionId)
   const sessions = useStore((s) => s.sessions)
+  // 自定义模型（前台「模型」视图添加），可一并出现在会话模型下拉里
+  const customModels = useStore((s) => s.customModels)
   const [pane, setPane] = useState('general')
   const [bypass, setBypass] = useState(mode === '绕过')
   const [switching, setSwitching] = useState(false)
@@ -91,17 +93,17 @@ export function SettingsModal() {
     setCfgSaved(false)
   }, [open, pane])
 
-  async function applyModel(m: string) {
+  async function applyModel(model: string, baseUrl?: string, apiKey?: string) {
     if (!client || !activeId || switching) return
     setSwitching(true)
     setModelNote('切换中…')
     try {
-      await client.switchModel(activeId, m)
+      // 自定义模型携带独立的 base_url/api_key，切换时一并交给后端重建 LLM 客户端
+      await client.switchModel(activeId, model, baseUrl, apiKey)
       // 立即同步本地会话模型（后端也会推 model_changed 事件，双保险）
-      actions.updateSessionModel(activeId, m)
-      const note = models.find((o) => o.id === m)?.note
-      setModelNote(`已切换到 ${m}${note ? `（${note}）` : ''}`)
-      actions.setToast(`已切换模型：${m}`, 'ok')
+      actions.updateSessionModel(activeId, model)
+      setModelNote(`已切换到 ${model}`)
+      actions.setToast(`已切换模型：${model}`, 'ok')
     } catch (e: any) {
       const msg = String(e?.message || e)
       setModelNote('切换失败：' + msg)
@@ -109,6 +111,16 @@ export function SettingsModal() {
     } finally {
       setSwitching(false)
     }
+  }
+
+  /** 下拉选中：内置模型直接切；自定义模型（value 以 custom: 前缀）带全量配置切换 */
+  function onPickModel(value: string) {
+    if (value.startsWith('custom:')) {
+      const cm = customModels.find((c) => `custom:${c.id}` === value)
+      if (cm) applyModel(cm.model, cm.base_url, cm.api_key)
+      return
+    }
+    applyModel(value)
   }
 
   /** 保存 LLM 配置到后端（落盘 config.yaml）。空 Key 不发送，避免清空已存密钥。 */
@@ -201,21 +213,30 @@ export function SettingsModal() {
             )}
             {pane === 'model' && (
               <>
-                {/* 当前会话模型：切换即时生效（仅空闲可切） */}
+                {/* 当前会话模型：切换即时生效（仅空闲可切）。
+                    下拉合并内置模型目录与自定义模型；自定义模型以 custom: 前缀区分，
+                    选中时连同 base_url/api_key 一起切给后端。 */}
                 <div className="field" style={{ maxWidth: 360 }}>
                   <label>当前会话模型（切换即时生效）</label>
                   <select
                     value={currentModel}
                     disabled={switching}
-                    onChange={(e) => applyModel(e.target.value)}
+                    onChange={(e) => onPickModel(e.target.value)}
                   >
-                    {currentModel && !models.some((o) => o.id === currentModel) && (
-                      <option value={currentModel}>{currentModel}</option>
+                    {currentModel && !models.some((o) => o.id === currentModel) && !customModels.some((c) => c.model === currentModel) && (
+                      <option value={currentModel}>{currentModel}（自定义）</option>
                     )}
                     {!currentModel && <option value="">（未设置）</option>}
                     {models.map((o) => (
                       <option key={o.id} value={o.id}>{o.id}{o.note ? ` · ${o.note}` : ''}</option>
                     ))}
+                    {customModels.length > 0 && (
+                      <optgroup label="自定义模型">
+                        {customModels.map((c) => (
+                          <option key={c.id} value={`custom:${c.id}`}>{c.name} · {c.model}</option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
                 {modelNote && <div className="note">{modelNote}</div>}

@@ -34,6 +34,9 @@ declare global {
         args?: string
         url?: string
       }) => Promise<{ ok: boolean; message: string }>
+      /** 自定义模型：读取/写入 ~/.auracode/models.json */
+      getCustomModels: () => Promise<{ ok: boolean; models: import('./api/types').CustomModel[]; error?: string }>
+      setCustomModels: (models: import('./api/types').CustomModel[]) => Promise<{ ok: boolean; message: string }>
     }
   }
 }

@@ -3,6 +3,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { createBackend } from './backend'
 import { collectExtensions } from './extensions'
+import { readCustomModels, writeCustomModels, CustomModel } from './models'
 
 const backend = createBackend()
 let mainWindow: BrowserWindow | null = null
@@ -148,6 +149,24 @@ ipcMain.handle('extensions:list', (_e, root: string) => {
   } catch (err) {
     console.error('[extensions] 读取失败:', err)
     return { skills: [], mcp: [], hooks: [], plugins: [], tasks: [] }
+  }
+})
+
+// ── IPC：自定义模型（前台「设置 → 自定义模型」增删改，落盘 ~/.auracode/models.json）──
+ipcMain.handle('models:list', () => {
+  try {
+    return { ok: true, models: readCustomModels() }
+  } catch (err) {
+    return { ok: false, models: [], error: String(err) }
+  }
+})
+ipcMain.handle('models:save', (_e, models: CustomModel[]) => {
+  try {
+    if (!Array.isArray(models)) return { ok: false, message: '参数不是数组' }
+    writeCustomModels(models)
+    return { ok: true, message: `已保存 ${models.length} 个自定义模型` }
+  } catch (err) {
+    return { ok: false, message: '保存失败：' + (err instanceof Error ? err.message : String(err)) }
   }
 })
 

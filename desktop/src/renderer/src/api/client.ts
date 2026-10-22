@@ -153,11 +153,20 @@ export class BridgeClient {
     return r.json()
   }
 
-  async switchModel(sessionId: string, model: string) {
+  async switchModel(
+    sessionId: string,
+    model: string,
+    baseUrl?: string,
+    apiKey?: string,
+  ) {
     const r = await fetch(this.url(`/api/sessions/${sessionId}/model`), {
       method: 'POST',
       headers: this.headers(),
-      body: JSON.stringify({ model }),
+      body: JSON.stringify({
+        model,
+        ...(baseUrl ? { base_url: baseUrl } : {}),
+        ...(apiKey ? { api_key: apiKey } : {}),
+      }),
     })
     // 非 2xx 必须抛错：否则 409「会话运行中」的响应体会被当成功解析，
     // UI 误报「已切换」，实际后端什么都没改。

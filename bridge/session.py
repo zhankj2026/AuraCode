@@ -422,11 +422,18 @@ class BridgeSession:
             return True
         return False
 
-    def switch_model(self, new_model: str) -> bool:
+    def switch_model(
+        self,
+        new_model: str,
+        base_url: Optional[str] = None,
+        api_key: Optional[str] = None,
+    ) -> bool:
         """
         热切换模型（仅在会话空闲时生效）。
 
         参考标准实现 set_model control_request。
+        base_url / api_key 为可选：自定义模型可携带独立的接口地址与密钥，
+        loop 就绪时一并重建 LLM 客户端（见 AgentLoop.reconfigure_llm）。
         """
         if self.state != SessionState.IDLE:
             return False  # 正在运行中不能切换
@@ -444,7 +451,13 @@ class BridgeSession:
         # AgentLoop 在后台线程异步初始化（加载工具/模型需 1-3s），
         # 此刻可能仍为 None。先把 config 改了，loop 就绪后 _sync_model_to_loop
         # 会补上——否则用户在会话刚建好就切模型会得到 409"不生效"。
+        # 自定义模型的 base_url/api_key 也先落到 config，loop 就绪后随 _init 生效；
+        # 若 loop 已就绪则立即重建客户端。
         self.config.model = new_model
+        if base_url:
+            self.config.base_url = base_url
+        if api_key:
+            self.config.api_key = api_key
         if self._agent_loop is None:
             self._pending_model = new_model
             logger.info(f"Model switch queued (loop not ready): {old_model} → {new_model}")
@@ -454,14 +467,25 @@ class BridgeSession:
                 data={"old_model": old_model, "new_model": new_model, "pending": True},
             ))
             return True
-        self._sync_model_to_loop(old_model, new_model)
+        self._sync_model_to_loop(old_model, new_model, base_url=base_url, api_key=api_key)
         return True
 
-    def _sync_model_to_loop(self, old_model: str, new_model: str):
-        """把 config.model 同步进 AgentLoop（含自动记忆提取器，否则它还用旧模型）"""
+    def _sync_model_to_loop(self, old_model: str, new_model: str, base_url: Optional[str] = None, api_key: Optional[str] = None):
+        """把 config 的模型配置同步进 AgentLoop（含自定义模型的 base_url/api_key 重建）"""
         if not self._agent_loop:
             return
-        self._agent_loop.model = new_model
+        if base_url or api_key:
+            # 自定义模型：重建 LLM 客户端，让会话真正路由到其独立接口/密钥
+            try:
+                ok = self._agent_loop.reconfigure_llm(new_model, base_url=base_url, api_key=api_key)
+                if not ok:
+                    logger.warning("reconfigure_llm 失败，仅更新 model 名")
+                    self._agent_loop.model = new_model
+            except Exception as e:
+                logger.error(f"reconfigure_llm 异常（已降级为仅切换 model）：{e}")
+                self._agent_loop.model = new_model
+        else:
+            self._agent_loop.model = new_model
         # 自动记忆提取器持有独立的模型名，热切换时一并更新
         extractor = getattr(self._agent_loop, "auto_memory_extractor", None)
         if extractor is not None:

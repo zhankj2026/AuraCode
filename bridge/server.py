@@ -116,6 +116,9 @@ class EventResponse(BaseModel):
 
 class ModelSwitchRequest(BaseModel):
     model: str
+    # 自定义模型可携带独立的接口地址与密钥；省略则沿用会话既有的引擎配置。
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
 
 
 class InterruptResponse(BaseModel):
@@ -481,7 +484,12 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
         old_model = session.config.model
-        ok = _manager.switch_model(session_id, req.model)
+        ok = _manager.switch_model(
+            session_id,
+            req.model,
+            base_url=req.base_url,
+            api_key=req.api_key,
+        )
         if not ok:
             # switch_model 仅在会话非空闲时返回 False（模型未变化已按幂等成功处理）
             raise HTTPException(

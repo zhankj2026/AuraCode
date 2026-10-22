@@ -11,6 +11,7 @@ export function Sidebar() {
   if (activity === 'files') return <FilesSidebar />
   if (activity === 'ext') return <ExtSidebar />
   if (activity === 'audit') return <AuditSidebar />
+  if (activity === 'models') return null
   return <TasksSidebar />
 }
 

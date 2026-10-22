@@ -243,6 +243,69 @@ class AgentLoop:
                    f"fallback_model={self.state.fallback_model}, "
                    f"max_budget_usd={self.state.max_budget_usd}")
 
+    # ========== 运行时 LLM 重配置（自定义模型热切换用）==========
+
+    def reconfigure_llm(
+        self,
+        model: str,
+        base_url: Optional[str] = None,
+        api_key: Optional[str] = None,
+    ) -> bool:
+        """
+        运行时重建 LLM 客户端，使会话在不重启的情况下切换到自定义模型
+        （含独立的 base_url / api_key）。供 BridgeSession.switch_model 在用户选定
+        一个自定义模型时调用。
+
+        成功返回 True；任何一步失败都回退到「仅更新 model」并告警，绝不抛异常，
+        避免把一次模型切换变成会话崩溃。
+        """
+        # 1) 先把 base_url / api_key 同步到环境变量（与 __init__ 一致，
+        #    AgentLoop 内部记忆提取器/记忆管理器会回退读环境变量）。
+        if base_url:
+            os.environ["OPENAI_BASE_URL"] = base_url
+        if api_key:
+            os.environ["OPENAI_API_KEY"] = api_key
+
+        # 2) 重建 OpenAI 客户端（沿用 __init__ 的超时/重试策略）
+        eff_key = api_key or os.environ.get("OPENAI_API_KEY")
+        eff_url = base_url or os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
+        if not eff_key:
+            logger.warning("reconfigure_llm 跳过客户端重建：缺少 API Key")
+        else:
+            env_timeout = os.environ.get("API_TIMEOUT_MS")
+            api_timeout = float(env_timeout) / 1000.0 if env_timeout else 300.0
+            try:
+                self.client = OpenAI(
+                    api_key=eff_key,
+                    base_url=eff_url,
+                    timeout=api_timeout,
+                    max_retries=0,
+                )
+            except Exception as e:
+                logger.error(f"reconfigure_llm 客户端重建失败：{e}")
+                return False
+
+        # 3) 更新模型名与记忆提取器引用的模型（记忆管理器/提取器持有的 client
+        #    引用在 build 时已指向 self.client，仅 model 名需同步）。
+        self.model = model
+        try:
+            if self.memory_manager:
+                self.memory_manager.llm_client = self.client
+                self.memory_manager.llm_model = model
+            if self.auto_memory_extractor:
+                self.auto_memory_extractor.llm_client = self.client
+                self.auto_memory_extractor.llm_model = model
+        except Exception as e:
+            logger.warning(f"reconfigure_llm 记忆引用同步失败：{e}")
+
+        # 4) 兜底模型：若尚未设置且当前模型非免费档，补一个 GLM-4-Flash 备用，
+        #    与 __init__ 的默认逻辑保持一致（已设置则不动）。
+        if not self.state.fallback_model and model.lower() not in ("glm-4-flash", "glm-4.7-flash"):
+            self.state.fallback_model = "GLM-4-Flash"
+
+        logger.info(f"reconfigure_llm 完成：model={model}, base_url={eff_url}")
+        return True
+
     # ========== 消息历史兼容属性 ==========
 
     @property

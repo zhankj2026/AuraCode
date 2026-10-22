@@ -214,16 +214,23 @@ class BridgeSessionManager:
 
     # ── 模型热切换 ─────────────────────────────────────────────
 
-    def switch_model(self, session_id: str, new_model: str) -> bool:
+    def switch_model(
+        self,
+        session_id: str,
+        new_model: str,
+        base_url: Optional[str] = None,
+        api_key: Optional[str] = None,
+    ) -> bool:
         """
         热切换会话模型（仅在空闲时生效）。
 
         参考标准实现 set_model control_request。
+        base_url / api_key 为可选：自定义模型可携带独立接口地址与密钥。
         """
         with self._lock:
             session = self._sessions.get(session_id)
         if session:
-            return session.switch_model(new_model)
+            return session.switch_model(new_model, base_url=base_url, api_key=api_key)
         return False
 
     # ── 过期会话清理 ─────────────────────────────────────────────

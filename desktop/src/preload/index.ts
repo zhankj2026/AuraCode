@@ -19,4 +19,7 @@ contextBridge.exposeInMainWorld('auracode', {
   getWorkspaceRecent: () => ipcRenderer.invoke('workspace:recent:get'),
   // 整文件读取（无行数截断）。root=工作区绝对路径, rel=相对路径。
   readText: (root: string, rel: string) => ipcRenderer.invoke('fs:readText', root, rel),
+  // 自定义模型：读写 ~/.auracode/models.json
+  getCustomModels: () => ipcRenderer.invoke('models:list'),
+  setCustomModels: (models: any[]) => ipcRenderer.invoke('models:save', models),
 })

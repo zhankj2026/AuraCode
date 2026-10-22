@@ -4,6 +4,7 @@ import type { BridgeEvent } from '../api/types'
 import { CodeEditor } from './CodeEditor'
 import { HtmlPreview } from './HtmlPreview'
 import { ChatComposer } from './ChatComposer'
+import { CustomModels } from './CustomModels'
 
 export function MainArea() {
   const activeTab = useStore((s) => s.activeTab)
@@ -15,6 +16,15 @@ export function MainArea() {
   const chatTitle = useStore(
     (s) => s.sessions.find((x) => x.session_id === s.activeSessionId)?.title || '对话',
   )
+
+  // 自定义模型管理是独立全屏面板，不套用对话/文件 Tab
+  if (activity === 'models') {
+    return (
+      <div className="main">
+        <CustomModels />
+      </div>
+    )
+  }
 
   return (
     <div className="main">

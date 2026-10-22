@@ -81,7 +81,7 @@ export interface FileChange {
 }
 
 export type PermissionMode = '普通' | '自动' | '计划' | '绕过'
-export type Activity = 'chat' | 'files' | 'ext' | 'audit' | 'tasks'
+export type Activity = 'chat' | 'files' | 'ext' | 'audit' | 'tasks' | 'models'
 export type InspectorTab = '改动' | '上下文' | '用量'
 
 export interface ChatMessage {
@@ -201,4 +201,21 @@ export interface CommandInfo {
   description: string
   category: string
   args_help?: string
+}
+
+/** 自定义模型：用户在「设置 → 自定义模型」里添加的大模型接入点，落盘 ~/.auracode/models.json */
+export interface CustomModel {
+  id: string
+  name: string
+  /** 供应商：openai = OpenAI 兼容协议；custom = 自定义协议 */
+  provider: 'openai' | 'custom'
+  /** 接口地址（完整 chat/completions 端点） */
+  base_url: string
+  api_key: string
+  /** 模型名称（如 gpt-4o / glm-4.6） */
+  model: string
+  /** 高级配置：工具调用 / 图片输入 / 思考模式 */
+  capabilities?: { tools?: boolean; image?: boolean; thinking?: boolean }
+  /** 自定义补充（自由文本，原样透传备用） */
+  supplement?: string
 }
