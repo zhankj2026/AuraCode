@@ -580,7 +580,10 @@ def convert_docx(path: str) -> str:
                 elif child.tag == f'{W}tbl':
                     parts.append(_docx_tbl_html(child, styles))
                 elif child.tag == f'{W}sectPr':
-                    # 页面版式：pgSz/pgMar → 容器宽度与页边距
+                    # 页面版式：pgSz/pgMar → 卡片=整页宽，padding=页边距。
+                    # 注意不要把边距从宽度里再扣一次——旧实现 width=正文宽
+                    # 又叠 padding，border-box 下文字列被挤成 314px（A4 应 554px），
+                    # 加上卡片外居中留白，两侧空白巨宽。
                     pgsz = child.find(f'{W}pgSz')
                     pgmar = child.find(f'{W}pgMar')
                     if pgsz is not None:
@@ -590,18 +593,23 @@ def convert_docx(path: str) -> str:
                         mt = int(pgmar.get(f'{W}top', '0') or 0) if pgmar is not None else 0
                         mb = int(pgmar.get(f'{W}bottom', '0') or 0) if pgmar is not None else 0
                         if w_tw:
-                            page_w = (w_tw - ml - mr) / 15.0
+                            page_w = w_tw / 15.0  # 整页宽（twips→px）
                             pad = (f'padding:{mt / 15:.0f}px {mr / 15:.0f}px '
                                    f'{mb / 15:.0f}px {ml / 15:.0f}px;')
-        # sectPr 也可出现在段内（节属性），上面只兜 body 级；无则用默认 A4 纵向近似
+        # sectPr 也可出现在段内（节属性），上面只兜 body 级；无则用默认 820px 流式
         body_html = '\n'.join(parts) or '<p>(空文档)</p>'
         doc_style = ''
+        body_style = ''
         if page_w:
-            doc_style = f' style="width:{page_w:.0f}px;max-width:none;{pad}"'
+            # 卡片=整页宽，max-width:100% 窄预览区自适应收缩；
+            # body padding 归零——iframe 内不需要额外留白，最大化正文区
+            doc_style = (f' style="width:{page_w:.0f}px;max-width:100%;'
+                         f'margin:12px auto;{pad}"')
+            body_style = ' style="padding:0"'
         elif pad:
             doc_style = f' style="{pad}"'
     return (f'<!DOCTYPE html><html><head><meta charset="utf-8">{CSS}</head>'
-            f'<body><div class="doc"{doc_style}>{body_html}</div></body></html>')
+            f'<body{body_style}><div class="doc"{doc_style}>{body_html}</div></body></html>')
 
 
 # ═════════════════════════ PPTX v3（绝对定位画布 + 渐变 + 自适应缩放） ═════════════════════════
