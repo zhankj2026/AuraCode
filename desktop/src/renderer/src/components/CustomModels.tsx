@@ -70,7 +70,7 @@ export function CustomModels() {
 
   async function onSave(f: FormState) {
     if (!f.name.trim() || !f.base_url.trim() || !f.model.trim()) {
-      actions.setToast('请填写模型名称、接口地址和模型名称', 'error')
+      actions.setToast('请填写名称、接口地址和模型名称', 'error')
       return
     }
     const entry: CustomModel = {
@@ -211,6 +211,14 @@ function ModelDialog({
           <div className="ti">{f.id ? '编辑模型' : '添加模型'}</div>
         </div>
         <div className="setbody" style={{ maxHeight: '64vh', overflowY: 'auto' }}>
+          <div className="field" style={{ maxWidth: 360 }}>
+            <label>名称（显示名，用于列表与模型下拉，便于区分）</label>
+            <input
+              placeholder="例如：本地 DeepSeek / 我的硅基流动"
+              value={f.name}
+              onChange={(e) => patch({ name: e.target.value })}
+            />
+          </div>
           <div className="field" style={{ maxWidth: 360 }}>
             <label>供应商（OpenAI 兼容协议，选常用供应商可自动填接口地址）</label>
             <select value={f.provider} onChange={(e) => {
