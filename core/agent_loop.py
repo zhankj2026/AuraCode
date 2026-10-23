@@ -57,6 +57,34 @@ from core.loop.orchestrator import LoopOrchestrator
 
 logger = logging.getLogger(__name__)
 
+
+def _normalize_base_url(url: Optional[str]) -> Optional[str]:
+    """
+    OpenAI SDK 会在 base_url 之后自动拼接 ``/chat/completions``。
+
+    用户在「自定义模型」里填的接口地址常是完整端点
+    （如 ``http://127.0.0.1:8787/v1/chat/completions``），若原样作为
+    base_url 传入，SDK 会再拼一次 ``/chat/completions``，导致请求变成
+    ``.../chat/completions/chat/completions`` 而 404。
+
+    这里剥掉已存在的 ``/chat/completions`` 后缀以及尾部多余的斜杠，
+    让 SDK 拼出的路径恰好正确。仅剥一次，避免误伤 ``https://`` 之类的双斜杠。
+    """
+    if not url:
+        return url
+    u = url.strip()
+    # 先去掉尾部斜杠（兼容用户误输的 ``.../chat/completions/``）
+    if u.endswith("/"):
+        u = u[:-1]
+    suffix = "/chat/completions"
+    if u.lower().endswith(suffix):
+        u = u[: -len(suffix)]
+    # 后缀剥离后可能残留一个斜杠
+    if u.endswith("/"):
+        u = u[:-1]
+    return u
+
+
 class AgentLoop:
     """
     AI 编程助手核心引擎
@@ -86,7 +114,9 @@ class AgentLoop:
         """
         # 1. 初始化 LLM 客户端
         api_key = config.get("api_key") or os.environ.get("OPENAI_API_KEY")
-        base_url = config.get("base_url") or os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
+        base_url = _normalize_base_url(
+            config.get("base_url") or os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
+        )
 
         if not api_key:
             raise ValueError("未设置 API Key,请设置 OPENAI_API_KEY 环境变量")
@@ -109,8 +139,16 @@ class AgentLoop:
             max_retries=0,  # 禁用 SDK 内置重试，由外层控制
         )
 
+        # 记录引擎默认 LLM 客户端/端点/模型，供自定义模型失败时 fallback 恢复
+        # （自定义模型是独立端点，fallback 的备用模型应回到引擎默认端点，
+        #  不能沿用自定义端点，否则备用模型会被打到错误地址而 404）。
+        self._default_client = self.client
+        self._default_base_url = base_url
+        self._default_api_key = api_key
+
         # 2. 配置参数
         self.model = config.get("model", "glm-4.7")
+        self._default_model = self.model
         self.max_iterations = config.get("max_iterations")  # None 表示无限制
 
         # ⚠️ max_tokens 命名陷阱（配置键名与属性名语义相反，极易混淆）:
@@ -259,6 +297,10 @@ class AgentLoop:
         成功返回 True；任何一步失败都回退到「仅更新 model」并告警，绝不抛异常，
         避免把一次模型切换变成会话崩溃。
         """
+        # 0) 规范化 base_url：OpenAI SDK 会自动拼接 /chat/completions，
+        #    若用户填的是完整端点（含该后缀）需先剥掉，否则路径重复导致 404。
+        base_url = _normalize_base_url(base_url) if base_url else base_url
+
         # 1) 先把 base_url / api_key 同步到环境变量（与 __init__ 一致，
         #    AgentLoop 内部记忆提取器/记忆管理器会回退读环境变量）。
         if base_url:
@@ -304,6 +346,31 @@ class AgentLoop:
             self.state.fallback_model = "GLM-4-Flash"
 
         logger.info(f"reconfigure_llm 完成：model={model}, base_url={eff_url}")
+        return True
+
+    def _restore_default_llm(self) -> bool:
+        """
+        fallback 时把 LLM 客户端恢复到引擎默认端点。
+
+        自定义模型拥有独立端点；当主模型调用失败触发 fallback，备用模型
+        （如 GLM-4-Flash）属于引擎默认端点。若继续沿用自定义客户端，请求会被
+        打到错误的地址而 404。这里把客户端（及记忆系统的引用）切回初始化时的
+        默认客户端。正常会话（未切换过自定义模型）本就是默认客户端，调用为幂等空操作。
+        """
+        default_client = getattr(self, "_default_client", None)
+        if default_client is None or self.client is default_client:
+            return False
+        logger.info("fallback: 恢复默认 LLM 客户端（默认端点）")
+        self.client = default_client
+        try:
+            if self.memory_manager:
+                self.memory_manager.llm_client = default_client
+            if self.auto_memory_extractor:
+                self.auto_memory_extractor.llm_client = default_client
+                if getattr(self, "_default_model", None):
+                    self.auto_memory_extractor.llm_model = self._default_model
+        except Exception as e:
+            logger.warning(f"_restore_default_llm 记忆引用同步失败：{e}")
         return True
 
     # ========== 消息历史兼容属性 ==========

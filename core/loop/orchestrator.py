@@ -416,6 +416,8 @@ class LoopOrchestrator:
                     # 先保存计数用于显示，再归零（否则日志/事件永远显示 0 次）
                     error_count = self._consecutive_server_errors
                     self._consecutive_server_errors = 0
+                    # 自定义模型失败时应切回引擎默认端点，避免备用模型打到错误地址
+                    loop._restore_default_llm()
                     loop.events.status(
                         f"\n⚠️ 主模型连续 {error_count} 次服务器错误，"
                         f"已切换到备用模型: {activated}",
@@ -434,6 +436,8 @@ class LoopOrchestrator:
         if loop.state.fallback_model and not loop.state._active_model_override:
             activated = loop.state.activate_fallback()
             if activated:
+                # 自定义模型失败时应切回引擎默认端点，避免备用模型打到错误地址
+                loop._restore_default_llm()
                 loop.events.status(
                     f"\n⚠️ 主模型不可用，已切换到备用模型: {activated}",
                     kind="warning",
