@@ -21,13 +21,21 @@ Agent 可调用的工具，让「技能不足 → 搜索 → 安装 → 立即�
 - 纯新增文件，只依赖 tools.registry 的注册机制，不改 skill_tools.py / loader.py。
 - 安装后调用 SkillManager.reload_skills() 使新技能立即可路由/调用。
 - CLI 缺失时优雅降级（返回安装指引），不抛异常阻断 Agent 循环。
+
+编排机制（skill_acquire）：
+- 一步完成 本地路由 → 商店搜索 → 排序选择 → 安装 → 热重载。
+- 排序 = 相关度(0.55) + 下载量对数归一(0.45)：下载量来自 `skill rankings`
+  六榜（hot/featured/newest/recommended/trending/paid），带 TTL 缓存；
+  榜单获取失败时退化为纯相关度排序（优雅降级）。
 """
 
 import json
 import logging
+import math
 import os
 import subprocess
 import sys
+import time
 
 from tools.registry import register_tool
 
@@ -223,6 +231,263 @@ def skillhub_install_handler(slug: str, namespace: str = "") -> str:
     )
 
 
+# ── 下载量榜单（带 TTL 缓存，用于技能选择排序）─────────────────
+
+_RANKINGS_CACHE = {"data": None, "fetched_at": 0.0}
+_RANKINGS_TTL = 3600.0  # 1 小时
+
+
+def _fetch_rankings(force: bool = False) -> dict:
+    """
+    获取 SkillHub 六榜（hot/featured/newest/recommended/trending/paid），
+    返回 {canonical_slug: downloads} 映射。带 1h TTL 缓存。
+
+    失败返回空 dict（调用方退化为纯相关度排序，不阻断）。
+    """
+    now = time.time()
+    if (not force and _RANKINGS_CACHE["data"] is not None
+            and now - _RANKINGS_CACHE["fetched_at"] < _RANKINGS_TTL):
+        return _RANKINGS_CACHE["data"]
+
+    code, out, err = _run_skillhub("skill", "rankings", timeout=30)
+    mapping: dict = {}
+    if code == 0:
+        try:
+            idx = out.find("{")
+            data = json.loads(out[idx:]) if idx >= 0 else {}
+            for block in (data.get("rankings") or {}).values():
+                for s in block.get("skills", []) or []:
+                    # rankings 条目：namespace.canonicalName 形如 "@ake/dev-god"；
+                    # 退化路径 handle + slug（注意 rankings 用 slug，搜索用 publicSlug）
+                    ns = s.get("namespace") or {}
+                    canonical = ns.get("canonicalName") or ""
+                    if not canonical:
+                        handle = ns.get("handle", "")
+                        slug = s.get("slug") or s.get("publicSlug") or ""
+                        canonical = f"@{handle}/{slug}" if handle and slug else ""
+                    if not canonical:
+                        continue
+                    try:
+                        dl = int(s.get("downloads", 0) or 0)
+                    except (TypeError, ValueError):
+                        dl = 0
+                    # 同一技能可能进多个榜，取最大值
+                    if dl > mapping.get(canonical, -1):
+                        mapping[canonical] = dl
+        except (json.JSONDecodeError, AttributeError) as e:
+            logger.warning(f"rankings 解析失败（退化为纯相关度排序）: {e}")
+    else:
+        logger.warning(f"rankings 获取失败（退化为纯相关度排序）: {err[:100]}")
+
+    _RANKINGS_CACHE["data"] = mapping
+    _RANKINGS_CACHE["fetched_at"] = now
+    return mapping
+
+
+def _rank_candidates(results: list, intent: str) -> list:
+    """
+    对搜索结果做「相关度 × 下载量」混合排序。
+
+    score = 0.55 × rel + 0.45 × log10(1+downloads)/log10(1+max_dl)
+    - rel: 名称/描述/关键词与意图的粗相关度（0~1）
+    - 下载量取对数归一（避免 800 万下载的弱相关技能碾压精准小众技能）
+    榜单缺数据时 rel=1.0 兜底（纯下载量排序）。
+    """
+    if not results:
+        return []
+    downloads = _fetch_rankings()
+    il = intent.lower()
+
+    # 用全量榜单最大下载量归一（而非候选集内最大），保证跨意图可比；
+    # 榜单为空时 norm=1.0，dl_score=0，退化为纯相关度。
+    max_dl = max(downloads.values(), default=0)
+    norm = math.log10(1 + max_dl) if max_dl > 0 else 1.0
+
+    ranked = []
+    for r in results:
+        # ── 相关度（粗粒度，0~1；名称/slug 命中 > 子词命中 > 描述命中）──
+        name = (r.get("name") or r.get("publicSlug") or "").lower()
+        desc = (r.get("description") or "").lower()
+        slug = (r.get("publicSlug") or "").lower()
+        import re as _re
+        segs = [s for s in _re.split(r"[^一-鿿a-z0-9]+", il) if len(s) > 1]
+        if segs:
+            # 命中 name/slug 记 1.0，中文子词(bigram)命中 name 记 0.8，
+            # 命中 desc 记 0.5、子词命中 desc 记 0.4，产生区分度
+            weights = []
+            for s in segs:
+                bigrams = [s[i:i+2] for i in range(len(s) - 1)] \
+                    if _re.fullmatch(r"[一-鿿]+", s) and len(s) > 2 else []
+                if s in name or s in slug:
+                    weights.append(1.0)
+                elif any(b in name or b in slug for b in bigrams):
+                    weights.append(0.8)
+                elif s in desc:
+                    weights.append(0.5)
+                elif any(b in desc for b in bigrams):
+                    weights.append(0.4)
+            rel = (sum(weights) / len(segs)) if weights else 0.0
+        else:
+            rel = 0.0
+        # 相关度太低的直接淘汰（避免下载量大但完全跑题的技能入选）
+        if rel < 0.15:
+            continue
+
+        dl = downloads.get(_canonical_of(r), 0)
+        dl_score = math.log10(1 + dl) / norm if norm > 0 else 0.0
+        final = round(0.55 * rel + 0.45 * dl_score, 4)
+        ranked.append((final, rel, dl, r))
+
+    ranked.sort(key=lambda t: t[0], reverse=True)
+    return ranked
+
+
+def _canonical_of(result: dict) -> str:
+    """搜索结果 → rankings 的 canonical slug（@handle/slug）。"""
+    ns = (result.get("namespace") or {}).get("handle", "")
+    slug = result.get("publicSlug") or ""
+    return f"@{ns}/{slug}" if ns and slug else ""
+
+
+def _search_query_from_intent(intent: str) -> str:
+    """
+    从意图文本提取商店搜索词。整句直接当查询会跑题（返回通用榜单），
+    策略：英文/数字词（如 excel/ppt/pdf）> 最长中文字段。
+    """
+    import re as _re
+    segs = [s for s in _re.split(r"[^一-鿿a-z0-9]+", (intent or "").lower()) if s]
+    if not segs:
+        return (intent or "").strip()
+    # 英文/数字词优先（excel、ppt、pdf、3d……信息量最高）
+    latin = [s for s in segs if _re.fullmatch(r"[a-z0-9][a-z0-9\-\+\.]*", s)]
+    if latin:
+        return max(latin, key=len)
+    # 纯中文：取最长字段（「数据分析」优于「做」「一份」）
+    return max(segs, key=len)
+
+
+# ── skill_acquire：编排机制（本地路由 → 搜索 → 排序 → 安装 → 热重载）──
+
+
+def skill_acquire_handler(intent: str, auto_install: bool = True,
+                          limit: int = 10, dry_run: bool = False) -> str:
+    """
+    编排机制：确保「能处理该意图的技能」可用，一步到位。
+
+    流程：
+    1. 本地路由（IntentRouter）：命中 → 直接返回技能名（本地候选也参与后续排序）
+    2. 本地无匹配 → skillhub 搜索
+    3. 混合排序（相关度 0.55 + 下载量对数 0.45），取最高分
+    4. auto_install=True 时安装最高分技能并热重载
+    5. 返回可直接 invoke_skill 的技能名
+
+    Args:
+        intent: 用户意图/任务描述（中英文）
+        auto_install: 自动安装最高分技能（默认 True）
+        limit: 搜索候选上限
+        dry_run: 只看排序不安装
+    """
+    from skills.context import SkillContext
+
+    sm = SkillContext._skill_manager
+    router = getattr(sm, "router", None) if sm else None
+
+    local_lines: list = []
+    installed_names: set = set()
+    if sm is not None:
+        for m in getattr(sm, "registry", None)._skills_with_meta() if sm.registry else []:
+            installed_names.add(m["name"])
+            installed_names.add(m["key"])
+
+    # ① 本地路由：命中即无需下载（强匹配：关键词/名称命中才算，避免描述弱相关误报）
+    local_best = None
+    if router is not None:
+        from skills.registry import _tokenize
+        il = (intent or "").lower()
+        for m in router.route(intent, top_k=3):
+            strong = False
+            name_l = (m.get("name") or "").lower()
+            for kw in [name_l] + [k.lower() for k in (m.get("keywords") or [])]:
+                if kw and kw in il:
+                    strong = True
+                    break
+            if strong:
+                local_best = m
+                break
+    if local_best:
+        local_lines.append(
+            f"✅ 本地已有匹配技能: **{local_best['name']}** "
+            f"({local_best['ecosystem']}/{local_best['category']})，无需下载。\n"
+            f"直接 invoke_skill(skill_name=\"{local_best['name']}\") 使用。"
+        )
+
+    # ② 商店搜索（无论本地是否命中，都给出可对比的商店候选）
+    q = _search_query_from_intent(intent)
+    if not q:
+        return "❌ 请提供意图描述"
+
+    code, out, err = _run_skillhub("search", q, "--json", timeout=30)
+    results: list = []
+    if code == 0:
+        try:
+            idx = out.find("{")
+            data = json.loads(out[idx:]) if idx >= 0 else {}
+            results = data.get("results", [])[: max(1, min(limit, 20))]
+        except json.JSONDecodeError:
+            pass
+
+    header = [f"意图 {intent!r} 的技能获取编排:", ""]
+    if local_lines:
+        header += local_lines + [""]
+
+    if not results:
+        if local_best:
+            return "\n".join(header) + "\n(商店无额外候选，本地技能已够用)"
+        return "\n".join(header) + "商店搜索无结果，建议换个关键词。"
+
+    # ③ 混合排序（相关度按完整意图计算，而非提取后的搜索词）
+    ranked = _rank_candidates(results, (intent or "").lower() or q)
+    if not ranked and local_best:
+        return "\n".join(header) + "\n(商店候选与意图相关度均过低，本地技能已够用)"
+    if not ranked:
+        return "\n".join(header) + "\n商店候选与意图相关度均过低（<0.15），未选取。"
+
+    header.append("商店候选（相关度 0.55 + 下载量 0.45 混合排序）:")
+    for i, (final, rel, dl, r) in enumerate(ranked[:5], 1):
+        ns = (r.get("namespace") or {}).get("handle", "")
+        name = r.get("name") or r.get("publicSlug")
+        slug = r.get("publicSlug", "")
+        tag = " [已安装]" if (slug in installed_names or name in installed_names) else ""
+        header.append(
+            f"  {i}. **{name}** @{ns}{tag} — 综合 {final} | 相关度 {rel:.2f} | 下载 {dl:,}"
+        )
+    header.append("")
+
+    if dry_run:
+        header.append("（dry_run=True，未安装。需安装用 skillhub_install。）")
+        return "\n".join(header)
+
+    top_final, top_rel, top_dl, top = ranked[0]
+    if not (auto_install and ranked):
+        header.append("（auto_install=False，未安装。用 skillhub_install 安装任意候选。）")
+        return "\n".join(header)
+
+    top_slug = top.get("publicSlug", "")
+    top_ns = (top.get("namespace") or {}).get("handle", "")
+    top_name = top.get("name") or top_slug
+
+    # 已安装则直接返回（幂等，不重复装）
+    if top_slug in installed_names or top_name in installed_names:
+        header.append(f"✅ 最高分候选 **{top_name}** 已安装，直接 invoke_skill 使用。")
+        return "\n".join(header)
+
+    # ④ 安装最高分
+    install_out = skillhub_install_handler(slug=top_slug, namespace=top_ns)
+    header.append(f"安装最高分候选: {top_name}（综合 {top_final}，下载 {top_dl:,}）")
+    header.append(install_out)
+    return "\n".join(header)
+
+
 # ── 注册工具 ──────────────────────────────────────────────
 
 register_tool("skillhub_search", {
@@ -275,5 +540,49 @@ register_tool("skillhub_install", {
         "required": ["slug"]
     },
     "handler": skillhub_install_handler,
+    "permission_level": "write"
+})
+
+register_tool("skill_acquire", {
+    "description": """编排机制：一步确保「能处理该意图的技能」可用（本地路由→商店搜索→排序→安装→热重载）。
+
+优先级:
+1. 本地技能已匹配 → 直接返回技能名，不下载
+2. 本地无匹配 → 搜索 SkillHub，按「相关度0.55 + 下载量0.45」混合排序，
+   自动安装最高分技能并热重载（下载量来自官方六榜，1h 缓存）
+
+使用时机:
+- 遇到非研发任务（PPT/Excel/文档/图像等）且不确定有无技能时
+- 想让系统自动选「最匹配或下载量最高」的技能时
+
+示例:
+- skill_acquire(intent="生成一份项目汇报PPT")
+- skill_acquire(intent="excel 数据分析", dry_run=true)  # 只看排序不安装""",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "intent": {
+                "type": "string",
+                "description": "用户意图或任务描述（中英文均可）"
+            },
+            "auto_install": {
+                "type": "boolean",
+                "description": "自动安装最高分技能（默认 true）",
+                "default": True
+            },
+            "limit": {
+                "type": "integer",
+                "description": "搜索候选上限（默认 10）",
+                "default": 10
+            },
+            "dry_run": {
+                "type": "boolean",
+                "description": "只返回排序结果，不安装（默认 false）",
+                "default": False
+            }
+        },
+        "required": ["intent"]
+    },
+    "handler": skill_acquire_handler,
     "permission_level": "write"
 })
