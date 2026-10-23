@@ -147,6 +147,13 @@ def theme_colors(zf) -> dict:
             break
     out.setdefault('dk1', '#000000')
     out.setdefault('lt1', '#FFFFFF')
+    # Office 系统色别名归一（clrScheme 中可能为 window/windowText 等词而非 hex）
+    _SYS = {'window': '#FFFFFF', 'windowText': '#000000',
+            'windowFrame': '#D4D0C8', 'menu': '#FFFFFF', 'menuText': '#000000',
+            'menuBar': '#FFFFFF', 'activeBorder': '#D4D0C8', 'inactiveBorder': '#D4D0C8'}
+    for k, v in list(out.items()):
+        if v and not (len(v) == 7 and all(c in '0123456789ABCDEFabcdef' for c in v[1:])):
+            out[k] = _SYS.get(v[1:] if v.startswith('#') else v, v)
     # 主题别名
     out['tx1'] = out.get('dk1')
     out['bg1'] = out.get('lt1')
@@ -155,20 +162,40 @@ def theme_colors(zf) -> dict:
     return out
 
 
+def _resolve_rel_target(part_dir: str, target: str) -> str:
+    """将 .rels 中的 Target 解析为归档内绝对路径。
+    target 相对「part 所在目录」（即 _rels 的上级目录），需正确折叠 '../'。
+    例：part_dir='ppt/slides', target='../media/image7.png' → 'ppt/media/image7.png'。"""
+    if not target:
+        return ''
+    if target.startswith('/'):
+        return target.lstrip('/')
+    path = part_dir.rstrip('/') + '/' + target
+    stack = []
+    for seg in path.split('/'):
+        if seg == '' or seg == '.':
+            continue
+        if seg == '..':
+            if stack:
+                stack.pop()
+        else:
+            stack.append(seg)
+    return '/'.join(stack)
+
+
 def parse_rels(zf, rel_name: str) -> dict:
-    """{'rId1': ('slideLayout', 'slideLayouts/slideLayout1.xml')} 按 type 后缀分类"""
+    """{'rId1': ('slideLayout', 'ppt/slideLayouts/slideLayout1.xml')} 按 type 后缀分类。
+    Target 已解析为归档内绝对路径。"""
     out = {}
     if rel_name not in zf.namelist():
         return out
+    # part 所在目录 = .rels 路径去掉 '/_rels/...' 后缀
+    part_dir = rel_name.rsplit('/_rels/', 1)[0]
     root = ET.fromstring(zf.read(rel_name))
     for rel in root.iter(f'{PR}Relationship'):
         rtype = (rel.get('Type') or '').rsplit('/', 1)[-1]
         target = rel.get('Target') or ''
-        if target.startswith('../'):
-            target = target[3:]
-        elif target.startswith('/'):
-            target = target.lstrip('/')
-        out[rel.get('Id')] = (rtype, target)
+        out[rel.get('Id')] = (rtype, _resolve_rel_target(part_dir, target))
     return out
 
 
@@ -587,7 +614,7 @@ def render_pic(el, tf: Transform, rels, zf) -> str:
     target = dict(rels).get(rid, ('', ''))[1] if rid in rels else ''
     if not target:
         return ''
-    mpath = target if target.startswith('ppt/') else 'ppt/' + target
+    mpath = target.lstrip('/')  # parse_rels 已剥 '../'，此处为归档内相对路径
     b64 = media_b64(zf, mpath)
     if not b64:
         return ''
@@ -632,10 +659,18 @@ def bg_css_of(zf, theme, slide_rels, depth=0) -> str:
                     rid = blip.get(f'{R}embed') or ''
                     target = rels.get(rid, ('', ''))[1] if rid in rels else ''
                     if target:
-                        mpath = target if target.startswith('ppt/') else 'ppt/' + target
+                        mpath = target.lstrip('/')
                         b64 = media_b64(zf, mpath)
                         if b64:
                             return f'background:url({b64}) center/cover no-repeat;'
+            # 背景引用：<p:bgRef><a:schemeClr val="bg1"/> → 主题色
+            bgRef = bg.find(f'{P}bgRef')
+            if bgRef is not None:
+                sch = bgRef.find(f'{A}schemeClr')
+                if sch is not None:
+                    base = theme.get(sch.get('val', ''))
+                    if base:
+                        return f'background:{base};'
         # 本级无背景 → 沿 rels 找 layout / master 链
         for rid, (rtype, target) in rels.items():
             if rtype in ('slideLayout', 'slideMaster') and target:
