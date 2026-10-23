@@ -4,6 +4,9 @@ description: 将当前会话的可重复过程捕获为可复用 Skill
 trigger: 用户主动调用 /skillify
 when_to_use: 当用户完成了一个有价值的工作流程并希望将其保存为可复用 Skill 时主动激活
 argument_hint: "[process description]"
+ecosystem: dev
+category: meta
+keywords: 技能, 技能化, 固化, 沉淀, 复用流程, skillify, skill
 ---
 
 # Skillify: 会话过程捕获为可复用 Skill

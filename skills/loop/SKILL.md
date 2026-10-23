@@ -5,6 +5,9 @@ trigger: 用户主动调用 /loop
 when_to_use: 当用户想设置周期性任务、轮询状态、或按间隔重复执行某操作时主动激活（如 "每5分钟检查部署"、"持续运行 /babysit-prs"）。不要用于一次性任务。
 argument_hint: "[interval] <prompt>"
 allowed_tools: cron_create, cron_delete, cron_list, run_command
+ecosystem: dev
+category: automation
+keywords: 定时, 周期, 轮询, 循环, 周期性, 轮巡, loop, cron, interval
 ---
 
 # Loop: 周期性任务编排

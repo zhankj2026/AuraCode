@@ -3,6 +3,9 @@ name: verify
 description: 验证代码变更是否按预期工作，通过运行应用/测试来确认
 trigger: 当完成代码修改需要验证正确性时激活，或用户主动调用 /verify
 when_to_use: 当完成代码修改后，需要验证变更是否正确工作时主动激活（运行测试、构建、手动验证）
+ecosystem: dev
+category: quality
+keywords: 验证, 确认, 测试, 运行, 校验, verify, test, 检查
 ---
 
 # Verify: 验证代码变更

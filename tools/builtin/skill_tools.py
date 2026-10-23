@@ -279,6 +279,78 @@ register_tool("get_active_skills", {
     "permission_level": "read"
 })
 
+def route_skill_handler(intent: str, top_k: int = 3) -> str:
+    """
+    意图路由：把自然语言意图映射到最匹配的本地技能。
+
+    读取 SkillManager.router（阶段0 解耦路由层）做确定性打分；
+    无匹配时提示转 SkillHub 搜索，形成「本地路由 → 商店下载」闭环。
+
+    Args:
+        intent: 用户意图或任务描述（中英文均可）
+        top_k: 返回候选数（默认 3）
+    """
+    try:
+        from skills.context import SkillContext
+        sm = SkillContext._skill_manager
+        if sm is None:
+            return "❌ 技能系统未初始化"
+        router = getattr(sm, "router", None)
+        if router is None:
+            return "❌ 路由层不可用（构建失败）"
+
+        results = router.route(intent or "", top_k=max(1, min(top_k, 10)))
+        if not results:
+            return (
+                f"本地无匹配 {intent!r} 的技能。\n"
+                "建议: 用 skillhub_search(query=...) 去 SkillHub 技能商店搜索，"
+                "安装后即可 invoke_skill 使用。"
+            )
+
+        lines = [f"意图 {intent!r} 的候选技能（按相关度降序）:", ""]
+        for i, r in enumerate(results, 1):
+            eco = {"dev": "研发", "office": "办公", "design": "设计"}.get(r["ecosystem"], r["ecosystem"])
+            lines.append(
+                f"{i}. **{r['name']}** (相关度 {r['score']}, {eco}/{r['category']})"
+            )
+            if r.get("description"):
+                lines.append(f"   {r['description'][:100]}")
+        lines.append("")
+        lines.append("调用 invoke_skill(skill_name=...) 使用对应技能。")
+        return "\n".join(lines)
+
+    except Exception as e:
+        return f"路由失败: {str(e)}"
+
+
+register_tool("route_skill", {
+    "description": """意图路由：根据自然语言意图找到最匹配的本地技能（不打扰用户）。
+
+使用时机:
+- 不确定哪个技能适合当前任务时
+- 用户用中文描述需求（如"帮我调试报错"、"生成PPT"）而技能名是英文时
+
+返回按相关度排序的候选技能；无匹配时会建议转 skillhub_search 去商店搜索。
+示例: route_skill(intent="调试这个报错")""",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "intent": {
+                "type": "string",
+                "description": "用户意图或任务描述（中英文均可）"
+            },
+            "top_k": {
+                "type": "integer",
+                "description": "返回候选数（默认 3）",
+                "default": 3
+            }
+        },
+        "required": ["intent"]
+    },
+    "handler": route_skill_handler,
+    "permission_level": "read"
+})
+
 register_tool("invoke_skill", {
     "description": """主动调用技能。当系统提示中的 when_to_use 条件满足时，使用此工具激活并执行技能。
 
@@ -310,3 +382,4 @@ register_tool("invoke_skill", {
     "handler": invoke_skill_handler,
     "permission_level": "read"
 })
+

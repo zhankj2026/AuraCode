@@ -4,6 +4,9 @@ description: 大规模并行变更编排，将大型任务分解为多个独立�
 trigger: 当需要跨多文件进行大规模重构、迁移或批量修改时激活，或用户主动调用 /batch
 when_to_use: 当需要跨多个文件进行大规模重构、迁移或批量修改时主动激活
 argument_hint: "<task description>"
+ecosystem: dev
+category: orchestration
+keywords: 批量, 重构, 迁移, 并行, 多文件, batch, refactor
 ---
 
 # Batch: 大规模并行变更编排

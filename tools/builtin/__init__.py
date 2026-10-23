@@ -103,3 +103,6 @@ from . import cron_tool
 # ── 扩展体系对话管理（技能/MCP/钩子/插件的创建与删除）──
 from . import extension_tools
 
+# ── SkillHub 技能商店（执行中按需搜索/安装技能，不预装）──
+from . import skillhub_tool
+

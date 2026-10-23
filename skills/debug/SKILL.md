@@ -4,6 +4,9 @@ description: 调试和诊断当前会话中的问题，分析错误日志和异�
 trigger: 当用户遇到错误、异常行为或需要诊断问题时激活，或用户主动调用 /debug
 when_to_use: 当遇到错误、异常行为或需要诊断问题时主动激活
 argument_hint: "[error description or log content]"
+ecosystem: dev
+category: quality
+keywords: 调试, 排查, 报错, 错误, 异常, 诊断, 日志, debug, error
 ---
 
 # Debug: 会话问题诊断

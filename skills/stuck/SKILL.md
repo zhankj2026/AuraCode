@@ -4,6 +4,9 @@ description: 诊断卡死、缓慢或无响应的 auracode 会话，分析进程
 trigger: 用户主动调用 /stuck
 when_to_use: 当用户感觉 auracode 会话卡住、无响应或运行缓慢时主动激活
 argument_hint: "[PID or symptom description]"
+ecosystem: dev
+category: diagnostics
+keywords: 卡死, 卡住, 无响应, 假死, 挂起, 慢, 性能, stuck, hang
 ---
 
 # Stuck: 诊断卡死/缓慢的 auracode 会话

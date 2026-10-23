@@ -4,6 +4,9 @@ description: 审查 auto-memory 条目并提出提升/清理建议，跨记忆�
 trigger: 用户主动调用 /remember
 when_to_use: 当用户想要审查、整理或清理记忆条目时主动激活。也适用于检测过时或冲突的跨层记忆。
 argument_hint: "[specific topic to review]"
+ecosystem: dev
+category: memory
+keywords: 记忆, 记住, 回忆, 整理, 清理, memory, remember
 ---
 
 # Remember: 记忆审查与整理

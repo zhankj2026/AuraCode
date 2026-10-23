@@ -3,6 +3,9 @@ name: python-standards
 description: Python 编码规范和最佳实践
 trigger: 当编写或修改 Python 代码时激活
 when_to_use: 当编写或修改 Python 代码时主动激活，确保遵循 PEP8 和最佳实践
+ecosystem: dev
+category: coding-standards
+keywords: python, pep8, 编码规范, 代码风格, 最佳实践, 规范
 ---
 
 # Python 编码规范
