@@ -43,15 +43,35 @@ DEFAULT_ECOSYSTEM = "dev"
 
 def _tokenize(text: str) -> List[str]:
     """
-    极简分词：按非「中文/英文/数字」切分，保留中文词与英文单词。
+    极简分词：按非「中文/英文/数字」切分，保留中文词与英文单词；
+    连续中文段额外产出二元组合（bigram），缓解无分词库时的子串匹配问题
+    （如「做幻灯片」→ 幻灯 / 灯片 / 幻灯片 三种粒度都可命中）。
 
     不引入第三方分词库，足够支撑意图→关键词的粗匹配。
     """
     if not text:
         return []
+    text = text.lower()
     # \u4e00-\u9fff 覆盖常用汉字；与 a-z0-9 一起作为保留字符
-    parts = re.split(r"[^一-鿿a-z0-9]+", text.lower())
-    return [p for p in parts if p]
+    parts = re.split(r"[^一-鿿a-z0-9]+", text)
+    tokens: List[str] = []
+    for p in parts:
+        if not p:
+            continue
+        if re.fullmatch(r"[一-鿿]+", p):
+            tokens.append(p)                # 整段（最长粒度）
+            if len(p) >= 2:
+                tokens.extend(p[i:i+2] for i in range(len(p) - 1))  # bigram
+        else:
+            tokens.append(p)
+    # 去重保持顺序
+    seen = set()
+    out = []
+    for t in tokens:
+        if t not in seen:
+            seen.add(t)
+            out.append(t)
+    return out
 
 
 class SkillRegistry:

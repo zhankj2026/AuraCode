@@ -161,6 +161,28 @@ def skillhub_install_handler(slug: str, namespace: str = "") -> str:
     if not slug:
         return "❌ 请提供技能 slug"
     target_dir = _skillhub_user_skills_dir()
+
+    # 幂等：已安装则直接热重载并返回成功（CLI 会报 Target exists 错误）
+    ns_dir = os.path.join(target_dir, f"@{namespace}") if namespace else None
+    search_dir = ns_dir if ns_dir and os.path.isdir(ns_dir) else target_dir
+    already = os.path.isdir(os.path.join(search_dir, slug))
+    if not already and os.path.isdir(search_dir):
+        # 目录名与 slug 可能略有出入（如带版本后缀），前缀兜底再查一次
+        try:
+            already = any(e == slug or e.startswith(slug)
+                          for e in os.listdir(search_dir)
+                          if os.path.isdir(os.path.join(search_dir, e)))
+        except OSError:
+            pass
+    if already:
+        count = _reload_skills()
+        reload_note = f"已热重载，当前共 {count} 个技能可用" if count >= 0 else "热重载跳过（技能系统未初始化）"
+        return (
+            f"✅ 技能 {slug} 此前已安装，无需重复安装。\n"
+            f"{reload_note}\n"
+            f"下一步: 用 invoke_skill(skill_name=\"{slug}\") 直接使用。"
+        )
+
     args = ["install", slug, "--dir", target_dir, "--json"]
     if namespace:
         args += ["--namespace", namespace]
