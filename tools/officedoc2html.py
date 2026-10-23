@@ -61,6 +61,7 @@ body{font-family:'Microsoft YaHei','Microsoft YaHei UI','PingFang SC','Hiragino 
 .slide-wrap{position:relative;margin:16px auto;overflow:hidden;border-radius:6px;box-shadow:0 2px 14px rgba(0,0,0,.18);}
 .slide{position:relative;background:#fff;transform-origin:top left;}
 .slide .sp{position:absolute;box-sizing:border-box;overflow:hidden;display:flex;}
+.slide .sp p{margin:0;}
 .slide .no{position:absolute;top:8px;right:12px;color:rgba(0,0,0,.28);font-size:12px;z-index:99;}
 .footer{max-width:1280px;margin:8px auto;color:#9aa0a6;font-size:12px;text-align:center;}
 </style>
@@ -790,11 +791,14 @@ def run_html(r, theme, scale: float = 1.0) -> str:
 
 
 def para_html(p, theme, scale: float = 1.0) -> str:
-    """a:p → <p style=align>，含项目符号近似"""
+    """a:p → <p style=align>，含项目符号/段前段后距近似"""
     pPr = p.find(f'{A}pPr')
     align = 'left'
     indent_bullet = False
     num_bullet = False
+    line_pct = None
+    spc_bef = 0.0
+    spc_aft = 0.0
     if pPr is not None:
         algn = pPr.get('algn', '')
         align = {'l': 'left', 'ctr': 'center', 'r': 'right', 'just': 'justify'}.get(algn, 'left')
@@ -805,14 +809,27 @@ def para_html(p, theme, scale: float = 1.0) -> str:
         lnSpc = pPr.find(f'{A}lnSpc/{A}spcPct')
         if lnSpc is not None and lnSpc.get('val'):
             try:
-                pct = int(lnSpc.get('val')) / 1000
-                return _para_runs(p, theme, align, indent_bullet, num_bullet, pct, scale)
+                line_pct = int(lnSpc.get('val')) / 1000
             except (TypeError, ValueError):
                 pass
-    return _para_runs(p, theme, align, indent_bullet, num_bullet, None, scale)
+        # 段前/段后距：spcPts（百分之一磅）→ px
+        for tag, store in (('spcBef', 'bef'), ('spcAft', 'aft')):
+            el = pPr.find(f'{A}{tag}/{A}spcPts')
+            if el is not None and el.get('val'):
+                try:
+                    v = int(el.get('val')) / 100 * PT2PX
+                    if store == 'bef':
+                        spc_bef = v
+                    else:
+                        spc_aft = v
+                except (TypeError, ValueError):
+                    pass
+    return _para_runs(p, theme, align, indent_bullet, num_bullet,
+                      line_pct, spc_bef, spc_aft, scale)
 
 
-def _para_runs(p, theme, align, bullet, num, line_pct, scale: float = 1.0):
+def _para_runs(p, theme, align, bullet, num, line_pct, spc_bef=0.0, spc_aft=0.0,
+               scale: float = 1.0):
     runs = [run_html(r, theme, scale) for r in p.findall(f'{A}r')]
     # br 换行
     brs = p.findall(f'{A}br')
@@ -827,12 +844,20 @@ def _para_runs(p, theme, align, bullet, num, line_pct, scale: float = 1.0):
         prefix = '<span style="margin-right:6px">◦</span>'
         ml = '18px'
     style = [f'text-align:{align}']
+    # PowerPoint 段落无 UA 外边距——显式归零，否则浏览器默认 margin:1em 0
+    # 会把每个文本框的文字整体往下顶（中文 16px），主副标题重叠的根因。
+    style.append('margin:0')
     if ml != '0':
         style.append(f'margin-left:{ml}')
+    if spc_bef:
+        style.append(f'padding-top:{spc_bef:.1f}px')
+    if spc_aft:
+        style.append(f'padding-bottom:{spc_aft:.1f}px')
     if line_pct:
-        style.append(f'line-height:{line_pct:.0f}%')
+        # 无单位倍数（按自身字号算），百分比按 <p> 继承字号算是错的
+        style.append(f'line-height:{line_pct / 100:.2f}')
     if not runs and not brs:
-        return f'<p style="height:.6em"></p>'
+        return f'<p style="height:.6em;margin:0"></p>'
     return f'<p style="{";".join(style)}">{prefix}{content}</p>'
 
 
