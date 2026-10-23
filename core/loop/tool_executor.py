@@ -381,6 +381,19 @@ class ToolExecutor:
                 error_msg = f"工具执行失败: {str(e)}"
                 logger.error(error_msg, exc_info=True)
 
+                # 缺参 TypeError（如 "missing 1 required positional argument:
+                # 'path'"）是 LLM 输出的参数不完整——自动重试同样的坏参数没意义，
+                # 追加 schema 提示让模型立即补参重发（实测此类错误曾让 agent
+                # 在文档任务里反复碰壁）。
+                if isinstance(e, TypeError) and "required positional argument" in str(e):
+                    schema = tool.get("parameters") or {}
+                    error_msg += (
+                        f"\n提示: 参数不完整。工具 {tool_name} 需要 "
+                        f"{list(schema.get('properties', {}).keys())}，"
+                        f"实际收到 {list(arguments.keys())}。"
+                        f"请带上缺失参数重新调用。"
+                    )
+
                 # ToolEnhancer: 幂等工具自动重试
                 attempt += 1
                 if attempt <= max_retries and loop.tool_enhancer.should_retry(tool_name, str(e), attempt):

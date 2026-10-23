@@ -161,8 +161,8 @@ def run_powershell_handler(
         if stderr.strip():
             output_parts.append(f"--- STDERR ---\n{stderr.rstrip()}")
 
-        if result.returncode != 0:
-            output_parts.append(f"--- EXIT CODE: {result.returncode} ---")
+        if _rc != 0:
+            output_parts.append(f"--- EXIT CODE: {_rc} ---")
 
         if not output_parts:
             output_parts.append("(命令执行成功，无输出)")
