@@ -80,8 +80,29 @@ class LoopOrchestrator:
         # 触发 UserMessage 钩子
         loop.events.fire_lifecycle_hook("UserMessage", {"user_input": user_input[:500]})
 
+        # 0. 意图路由前置门：用户消息先自动路由技能（本地强匹配→自动激活；
+        #    miss 且带领域信号→skill_acquire 联网获取）。任何异常不阻断主循环。
+        skill_hint = None
+        try:
+            from core.loop.intent_gate import route_intent
+            skill_hint = route_intent(loop, user_input)
+        except Exception as _gate_err:  # pragma: no cover - 防御性兜底
+            logger.debug(f"意图路由前置门不可用: {_gate_err}")
+            skill_hint = None
+
         # 1. 初始化消息（系统提示词 + 用户输入）
         loop.prompt_builder.init_messages(user_input)
+
+        # 1.5 技能路由提示注入（若有）：追加一条 system 说明消息，
+        #     不改写用户原话，避免污染对话历史。
+        if skill_hint:
+            try:
+                loop.messages.append(
+                    {"role": "system", "content": f"[技能路由提示]\n{skill_hint}"}
+                )
+                logger.info(f"意图路由注入: {str(skill_hint)[:60]}...")
+            except Exception as _inj_err:
+                logger.debug(f"技能路由提示注入失败（忽略）: {_inj_err}")
 
         last_assistant_text = ""
 
