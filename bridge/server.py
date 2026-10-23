@@ -121,6 +121,11 @@ class ModelSwitchRequest(BaseModel):
     api_key: Optional[str] = None
 
 
+class ModeSwitchRequest(BaseModel):
+    # 运行时切换会话权限模式：normal / auto / plan / bypass
+    permission_mode: str
+
+
 class InterruptResponse(BaseModel):
     status: str
     session_id: str
@@ -502,6 +507,34 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
             old_model=old_model,
             new_model=req.model,
         )
+
+    @app.post("/api/sessions/{session_id}/mode")
+    async def set_mode(
+        session_id: str,
+        req: ModeSwitchRequest,
+        auth: bool = Depends(_auth.verify),
+    ):
+        """
+        运行时切换会话权限模式（normal/auto/plan/bypass）。
+
+        解决：顶部「绕过/自动/计划」选择器此前只影响新建会话，已运行的会话
+        仍用建会话时的模式，导致切到「绕过」后 run_command 仍弹权限窗。
+        这里把新模式实时下发到正在运行的会话。
+        """
+        mode = req.permission_mode
+        if mode not in ("normal", "auto", "plan", "bypass"):
+            raise HTTPException(status_code=400, detail="invalid permission_mode")
+        session = _manager.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        old_mode = session.config.permission_mode
+        session.set_permission_mode(mode)
+        return {
+            "status": "switched",
+            "session_id": session_id,
+            "old_mode": old_mode,
+            "new_mode": mode,
+        }
 
     @app.get("/api/config/llm", response_model=LLMConfigResponse)
     async def get_llm_config(

@@ -233,6 +233,19 @@ class BridgeSessionManager:
             return session.switch_model(new_model, base_url=base_url, api_key=api_key)
         return False
 
+    def set_permission_mode(self, session_id: str, mode: str) -> bool:
+        """
+        运行时切换会话的权限模式（normal/auto/plan/bypass）。
+
+        让顶部模式选择器对「已运行」的会话即时生效，而非仅作用于新建会话。
+        """
+        with self._lock:
+            session = self._sessions.get(session_id)
+        if session:
+            session.set_permission_mode(mode)
+            return True
+        return False
+
     # ── 过期会话清理 ─────────────────────────────────────────────
 
     def cleanup_stale_sessions(self, max_idle_seconds: int = 7200) -> int:

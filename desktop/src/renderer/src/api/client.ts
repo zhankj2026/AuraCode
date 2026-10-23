@@ -137,6 +137,15 @@ export class BridgeClient {
     return r.json()
   }
 
+  async setPermissionMode(sessionId: string, permission_mode: string) {
+    const r = await fetch(this.url(`/api/sessions/${sessionId}/mode`), {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({ permission_mode }),
+    })
+    return r.json()
+  }
+
   async stopSession(sessionId: string) {
     const r = await fetch(this.url(`/api/sessions/${sessionId}/stop`), {
       method: 'POST',

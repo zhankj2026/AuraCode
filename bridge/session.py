@@ -384,6 +384,20 @@ class BridgeSession:
             return self._perm_manager.respond(request_id, behavior, message)
         return False
 
+    def set_permission_mode(self, mode: str) -> None:
+        """
+        运行时切换权限模式（normal/auto/plan/bypass）。
+
+        顶部模式选择器切到「绕过」等时实时生效：同步更新会话配置的
+        permission_mode 与权限管理器的 mode（check_permission 据此即时放行，
+        不再弹远程授权）。AgentLoop 持有的是同一 _perm_manager 实例，无需重建。
+        """
+        old = self.config.permission_mode
+        self.config.permission_mode = mode
+        if self._perm_manager:
+            self._perm_manager.mode = mode
+        logger.info(f"会话 {self.session_id} 权限模式: {old} → {mode}")
+
     def stop(self, timeout: float = 5.0):
         """停止会话"""
         self._stop_flag.set()

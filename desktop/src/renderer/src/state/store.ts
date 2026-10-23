@@ -222,6 +222,16 @@ export const actions = {
   },
   setMode(m: string) {
     setState({ mode: m })
+    // 顶部模式选择器（普通/自动/计划/绕过）需实时作用于「正在运行」的会话，
+    // 否则仅影响新建会话 —— 表现为切到「绕过」后仍弹 run_command 权限窗。
+    const c = state.client
+    const sid = state.activeSessionId
+    if (c && sid) {
+      const mode = actions.currentPermissionMode()
+      c.setPermissionMode(sid, mode).catch((e) => {
+        console.warn('[setMode] 推送权限模式失败', e)
+      })
+    }
   },
   openSettings() {
     setState({ settingsOpen: true })
