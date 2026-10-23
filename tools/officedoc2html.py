@@ -39,7 +39,7 @@ PT2PX = 4.0 / 3.0
 
 CSS = """
 <style>
-body{font-family:'Microsoft YaHei',system-ui,sans-serif;margin:0;padding:20px;background:#e8eaed;color:#1f2329;}
+body{font-family:'Microsoft YaHei','Microsoft YaHei UI','PingFang SC','Hiragino Sans GB','Heiti SC','SimHei','Source Han Sans SC','Noto Sans CJK SC','WenQuanYi Micro Hei',system-ui,-apple-system,sans-serif;margin:0;padding:20px;background:#e8eaed;color:#1f2329;}
 .doc{max-width:820px;margin:0 auto;background:#fff;padding:48px 56px;box-shadow:0 2px 12px rgba(0,0,0,.08);border-radius:8px;}
 .doc h1{font-size:1.7em;border-bottom:2px solid #e8eaed;padding-bottom:8px;}
 .doc h2{font-size:1.35em;margin-top:1.4em;}

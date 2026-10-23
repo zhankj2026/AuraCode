@@ -104,12 +104,16 @@ export function OfficePreview({ path }: { path: string }) {
         </div>
       </div>
     )
+  // 注意：officePreview 的 HTML 完全由我们自己的 Python 转换器生成——
+  // 无 <script>、无外链资源、图片均为内联 data URL，内容可信。
+  // 原先带 sandbox="allow-same-origin"，会让子帧落入沙箱渲染上下文，
+  // 无法回退到系统 CJK 字体（微软雅黑等），导致中文显示为豆腐块（tofu）。
+  // 去掉 sandbox 使其与宿主窗口共用同一渲染进程与字体集，中文即可正常显示。
   return (
     <iframe
       className="fp-office"
       title={path}
       srcDoc={html}
-      sandbox="allow-same-origin"
       style={{ width: '100%', flex: 1, border: 'none', background: '#fff' }}
     />
   )
