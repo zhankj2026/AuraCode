@@ -5,6 +5,8 @@ import { CodeEditor } from './CodeEditor'
 import { HtmlPreview } from './HtmlPreview'
 import { ChatComposer } from './ChatComposer'
 import { CustomModels } from './CustomModels'
+import { ImagePreview, MarkdownPreview, OfficePreview } from './FilePreview'
+import { renderMarkdown } from '../lib/md'
 
 export function MainArea() {
   const activeTab = useStore((s) => s.activeTab)
@@ -188,7 +190,11 @@ function EventView({ e }: { e: BridgeEvent }) {
     return (
       <div className="msg ai">
         <div className="who">AuraCode</div>
-        <div className="bubble">{String(d.content ?? '')}</div>
+        {/* 助手消息按 Markdown 格式化渲染（安全：lib/md 先 escape 再替换） */}
+        <div
+          className="bubble md-body"
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(String(d.content ?? '')) }}
+        />
       </div>
     )
   }
@@ -312,9 +318,11 @@ function FileEditor({ path }: { path: string }) {
   const client = useStore((s) => s.client)
   const activeId = useStore((s) => s.activeSessionId)
   const file = useStore((s) => s.openFiles.find((f) => f.path === path))
-  const isHtml = /\.html?$/i.test(path)
-  // HTML 文件默认直接进预览（用户诉求：index.html 打开就能看效果），需要改代码再切「代码」
-  const [tab, setTab] = useState<'code' | 'preview'>(isHtml ? 'preview' : 'code')
+  const kind = fileKind(path)
+  // 图片/Office 不可编辑只有预览；MD/HTML 默认预览可切代码；其余进编辑器
+  const [tab, setTab] = useState<'code' | 'preview'>(
+    kind === 'code' ? 'code' : 'preview',
+  )
 
   if (!file) return <div id="stage"><div className="overlay">文件不存在</div></div>
 
@@ -328,6 +336,9 @@ function FileEditor({ path }: { path: string }) {
     actions.markDirty(path, false)
   }
 
+  const showSeg = kind === 'md' || kind === 'html' // 可在 代码/预览 间切换
+  const inPreview = tab === 'preview'
+
   return (
     <div id="stage">
       <div className="editor">
@@ -335,22 +346,40 @@ function FileEditor({ path }: { path: string }) {
           <span className="fn">{path}</span>
           {file.dirty && <span className="dirty">● 未保存</span>}
           <span className="sp" />
-          {isHtml && (
+          {showSeg && (
             <div className="seg mini">
               <button className={tab === 'code' ? 'on' : ''} onClick={() => setTab('code')}>代码</button>
               <button className={tab === 'preview' ? 'on' : ''} onClick={() => setTab('preview')}>预览</button>
             </div>
           )}
-          <button className="save" onClick={save}>
-            保存
-          </button>
+          {kind !== 'image' && kind !== 'office' && (
+            <button className="save" onClick={save}>
+              保存
+            </button>
+          )}
         </div>
-        {isHtml && tab === 'preview' ? (
+        {kind === 'image' ? (
+          <ImagePreview path={path} />
+        ) : kind === 'office' ? (
+          <OfficePreview path={path} />
+        ) : kind === 'html' && inPreview ? (
           <HtmlPreview path={path} />
+        ) : kind === 'md' && inPreview ? (
+          <MarkdownPreview path={path} />
         ) : (
           <CodeEditor path={path} value={file.content} onChange={onChange} />
         )}
       </div>
     </div>
   )
+}
+
+/** 按扩展名分类文件 → 决定预览器 */
+function fileKind(path: string): 'image' | 'md' | 'html' | 'office' | 'code' {
+  const p = path.toLowerCase()
+  if (/\.(png|jpe?g|gif|webp|bmp|svg|ico)$/.test(p)) return 'image'
+  if (/\.md$/.test(p) || /\.markdown$/.test(p)) return 'md'
+  if (/\.html?$/.test(p)) return 'html'
+  if (/\.(docx|pptx)$/.test(p)) return 'office'
+  return 'code'
 }

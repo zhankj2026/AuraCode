@@ -19,6 +19,10 @@ contextBridge.exposeInMainWorld('auracode', {
   getWorkspaceRecent: () => ipcRenderer.invoke('workspace:recent:get'),
   // 整文件读取（无行数截断）。root=工作区绝对路径, rel=相对路径。
   readText: (root: string, rel: string) => ipcRenderer.invoke('fs:readText', root, rel),
+  // 图片二进制读取 → data URL（预览用）
+  readDataUrl: (root: string, rel: string) => ipcRenderer.invoke('fs:readDataUrl', root, rel),
+  // Office 文档（docx/pptx）→ HTML 预览（内置 Python 纯 stdlib 转换）
+  officePreview: (root: string, rel: string) => ipcRenderer.invoke('fs:officePreview', root, rel),
   // 自定义模型：读写 ~/.auracode/models.json
   getCustomModels: () => ipcRenderer.invoke('models:list'),
   setCustomModels: (models: any[]) => ipcRenderer.invoke('models:save', models),

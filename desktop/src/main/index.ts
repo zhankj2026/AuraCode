@@ -142,6 +142,93 @@ ipcMain.handle('backend:restart', async () => {
   return await backend.start((line) => console.log('[bridge]', line))
 })
 
+// ── IPC：二进制文件读取（转 data URL）── 供图片预览。同样做越界/大小校验。
+ipcMain.handle('fs:readDataUrl', (_e, root: string, rel: string) => {
+  try {
+    if (!root || !rel) return { ok: false, error: '缺少参数' }
+    const rootAbs = path.resolve(root)
+    const target = path.resolve(rootAbs, rel)
+    const relCheck = path.relative(rootAbs, target)
+    if (relCheck.startsWith('..') || path.isAbsolute(relCheck)) {
+      return { ok: false, error: '路径越界' }
+    }
+    const st = fs.statSync(target)
+    if (!st.isFile()) return { ok: false, error: '不是文件' }
+    if (st.size > 24 * 1024 * 1024) {
+      return { ok: false, error: `文件过大（${(st.size / 1048576).toFixed(1)}MB）` }
+    }
+    const buf = fs.readFileSync(target)
+    const ext = path.extname(target).toLowerCase().replace('.', '')
+    const mimes: Record<string, string> = {
+      png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+      webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml', ico: 'image/x-icon',
+    }
+    const mime = mimes[ext] || 'application/octet-stream'
+    return { ok: true, dataUrl: `data:${mime};base64,${buf.toString('base64')}`, size: st.size }
+  } catch (err: any) {
+    return { ok: false, error: String(err?.message || err) }
+  }
+})
+
+// ── IPC：Office 文档 → HTML 预览（docx/pptx → 纯 stdlib Python 转换）──
+// 用内置 Python 跑 desktop/resources/engine/tools/officedoc2html.py（零三方依赖，
+// zipfile+ElementTree 解包 OOXML）。失败时返回错误，前端展示降级提示。
+ipcMain.handle('fs:officePreview', async (_e, root: string, rel: string) => {
+  try {
+    if (!root || !rel) return { ok: false, error: '缺少参数' }
+    const rootAbs = path.resolve(root)
+    const target = path.resolve(rootAbs, rel)
+    const relCheck = path.relative(rootAbs, target)
+    if (relCheck.startsWith('..') || path.isAbsolute(relCheck)) {
+      return { ok: false, error: '路径越界' }
+    }
+    const st = fs.statSync(target)
+    if (!st.isFile()) return { ok: false, error: '不是文件' }
+    if (st.size > 40 * 1024 * 1024) {
+      return { ok: false, error: `文件过大（${(st.size / 1048576).toFixed(1)}MB）` }
+    }
+
+    // 定位内置 Python 与转换脚本（兼容 dev 与打包后资源布局）
+    const pyCandidates = [
+      path.join(process.resourcesPath || '', 'python', 'python.exe'),
+      path.join(__dirname, '../../resources/python/python.exe'),
+    ]
+    const scriptCandidates = [
+      path.join(process.resourcesPath || '', 'engine', 'tools', 'officedoc2html.py'),
+      path.join(__dirname, '../../resources/engine/tools/officedoc2html.py'),
+    ]
+    let py = ''
+    for (const c of pyCandidates) {
+      if (c && fs.existsSync(c)) { py = c; break }
+    }
+    let script = ''
+    for (const c of scriptCandidates) {
+      if (c && fs.existsSync(c)) { script = c; break }
+    }
+    if (!py || !script) {
+      return { ok: false, error: '内置 Python 或转换脚本缺失' }
+    }
+
+    const { execFile } = require('child_process')
+    const result = await new Promise<{ ok: boolean; html?: string; error?: string }>((resolve) => {
+      execFile(
+        py, [script, target],
+        { timeout: 30_000, maxBuffer: 64 * 1024 * 1024, windowsHide: true },
+        (err: any, stdout: string, stderr: string) => {
+          if (err) {
+            resolve({ ok: false, error: `${String(err?.message || err)}${stderr ? ' / ' + stderr.slice(0, 200) : ''}` })
+          } else {
+            resolve({ ok: true, html: stdout })
+          }
+        },
+      )
+    })
+    return result
+  } catch (err: any) {
+    return { ok: false, error: String(err?.message || err) }
+  }
+})
+
 // ── IPC：读取真实扩展配置（技能/MCP/钩子/插件/定时任务），供「扩展/任务」面板使用 ──
 ipcMain.handle('extensions:list', (_e, root: string) => {
   try {
