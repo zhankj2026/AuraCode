@@ -398,6 +398,19 @@ class BridgeSession:
             self._perm_manager.mode = mode
         logger.info(f"会话 {self.session_id} 权限模式: {old} → {mode}")
 
+    def clear_context(self) -> bool:
+        """
+        清空当前会话的对话上下文（消息历史），保留 token/cost 累计。
+
+        供前端「清空上下文」按钮调用。下一轮对话会因 messages 为空自动
+        重新初始化系统提示（prompt_builder 已兼容 /clear 后的空历史）。
+        """
+        if self._agent_loop and getattr(self._agent_loop, "state", None):
+            self._agent_loop.state.reset_messages()
+            logger.info(f"会话 {self.session_id} 上下文已清空")
+            return True
+        return False
+
     def stop(self, timeout: float = 5.0):
         """停止会话"""
         self._stop_flag.set()

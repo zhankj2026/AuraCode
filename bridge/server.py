@@ -536,6 +536,26 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
             "new_mode": mode,
         }
 
+    @app.post("/api/sessions/{session_id}/clear")
+    async def clear_context(
+        session_id: str,
+        auth: bool = Depends(_auth.verify),
+    ):
+        """
+        清空会话对话上下文（消息历史），保留 token/cost 累计。
+
+        供前端「清空上下文」按钮调用：让当前会话从空白历史重新开始，
+        下一轮对话自动重新初始化系统提示。
+        """
+        session = _manager.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        ok = _manager.clear_context(session_id)
+        return {
+            "status": "cleared" if ok else "no_op",
+            "session_id": session_id,
+        }
+
     @app.get("/api/config/llm", response_model=LLMConfigResponse)
     async def get_llm_config(
         auth: bool = Depends(_auth.verify),

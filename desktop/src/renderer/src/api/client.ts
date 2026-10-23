@@ -146,6 +146,14 @@ export class BridgeClient {
     return r.json()
   }
 
+  async clearContext(sessionId: string) {
+    const r = await fetch(this.url(`/api/sessions/${sessionId}/clear`), {
+      method: 'POST',
+      headers: this.headers(),
+    })
+    return r.json()
+  }
+
   async stopSession(sessionId: string) {
     const r = await fetch(this.url(`/api/sessions/${sessionId}/stop`), {
       method: 'POST',

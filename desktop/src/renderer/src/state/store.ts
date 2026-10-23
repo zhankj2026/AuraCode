@@ -233,6 +233,20 @@ export const actions = {
       })
     }
   },
+  /** 清空当前会话的对话上下文（消息历史），保留 token/cost 累计。
+   *  后端清空会话内存历史，前端同步移除本地事件与消息，界面立即回到空白。 */
+  clearContext() {
+    const c = state.client
+    const sid = state.activeSessionId
+    if (c && sid) {
+      c.clearContext(sid).catch((e) => console.warn('[clearContext] 失败', e))
+    }
+    if (!sid) return
+    const events = state.events.filter((e) => e.session_id !== sid)
+    const messages = { ...state.messages }
+    delete messages[sid]
+    setState({ events, messages })
+  },
   openSettings() {
     setState({ settingsOpen: true })
   },

@@ -137,6 +137,22 @@ function ChatThread() {
 
   return (
     <>
+      <div className="ctoolbar">
+        <span className="muted">{events.length} 条消息</span>
+        <span className="sp" />
+        <button
+          className="tbtn"
+          title="清空当前会话的对话上下文（保留 token/费用统计），下一轮对话从空白历史重新开始"
+          onClick={() => {
+            if (confirm('确定清空当前会话的对话上下文？该操作不可撤销。')) {
+              actions.clearContext()
+              actions.setToast('已清空上下文', 'ok')
+            }
+          }}
+        >
+          🧹 清空上下文
+        </button>
+      </div>
       <div id="stage">
         <div className="thread" ref={stageRef}>
           {events.length === 0 && (

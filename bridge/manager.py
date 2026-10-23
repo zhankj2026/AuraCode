@@ -246,6 +246,14 @@ class BridgeSessionManager:
             return True
         return False
 
+    def clear_context(self, session_id: str) -> bool:
+        """清空指定会话的对话上下文（消息历史）。"""
+        with self._lock:
+            session = self._sessions.get(session_id)
+        if session:
+            return session.clear_context()
+        return False
+
     # ── 过期会话清理 ─────────────────────────────────────────────
 
     def cleanup_stale_sessions(self, max_idle_seconds: int = 7200) -> int:
