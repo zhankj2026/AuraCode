@@ -25,6 +25,9 @@ from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
+# 阶段0：解耦的技能路由层（只读索引，不依赖 loader 内部实现，避免循环导入）
+from .registry import build_router  # noqa: E402
+
 
 @dataclass
 class Skill:
@@ -61,6 +64,15 @@ class Skill:
     # 不能靠「技能名」反推路径：SkillHub 装在 @namespace/ 下（层级会丢），
     # 且目录名常与 frontmatter 里的 name 不一致（如 browserskill vs browser-skill）。
     dir: str = ""
+    # ---- 阶段0：生态/分类/依赖/关键词（默认研发，向后兼容） ----
+    # ecosystem: dev(研发) | office(办公) | design(设计)，对应「三大生态」
+    # category: 生态内的细分分类，如 dev 下的 api/debug/git
+    # dependencies: 该技能依赖的其他技能名（用于跨生态链路编排，阶段4）
+    # keywords: 路由关键词，IntentRouter 用于意图匹配
+    ecosystem: str = "dev"
+    category: str = "general"
+    dependencies: List[str] = field(default_factory=list)
+    keywords: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
@@ -75,6 +87,10 @@ class Skill:
             'context': self.context,
             'user_invocable': self.user_invocable,
             'is_active': self.is_active,
+            'ecosystem': self.ecosystem,
+            'category': self.category,
+            'dependencies': self.dependencies,
+            'keywords': self.keywords,
         }
 
 
@@ -116,9 +132,18 @@ class SkillManager:
         self.active_skills: List[str] = []
         self._skill_sources: Dict[str, str] = {}  # name -> source_dir 映射
         self._prompt_generators: Dict[str, Callable] = {}  # name -> prompt_fn 映射（编程式 skill）
-        
+
         # 加载所有 Skill 元数据（多源）
         self._load_all_skills()
+
+        # 阶段0：构建解耦的路由层（只读索引，不改执行链路）。
+        # 失败不应影响核心加载，因此兜底为 None。
+        try:
+            self.registry, self.router = build_router(self)
+        except Exception as e:  # pragma: no cover - 增量能力，失败需可降级
+            logger.warning(f"构建技能路由层失败（已跳过）: {e}")
+            self.registry = None
+            self.router = None
     
     def _parse_frontmatter(self, content: str) -> Dict[str, Any]:
         """
@@ -180,7 +205,8 @@ class SkillManager:
                 if value.startswith('[') and value.endswith(']'):
                     value = [v.strip().strip('"').strip("'")
                              for v in value[1:-1].split(',') if v.strip()]
-                elif key in ('allowed-tools', 'allowed_tools', 'arguments'):
+                elif key in ('allowed-tools', 'allowed_tools', 'arguments',
+                             'dependencies', 'keywords'):
                     # 逗号分隔的列表
                     value = [v.strip() for v in value.split(',') if v.strip()]
 
@@ -270,6 +296,11 @@ class SkillManager:
                     else True,
                     # 记下真实目录（含 @namespace 层级），激活时用它，而不是按名字拼
                     dir=skill_path,
+                    # 阶段0：生态/分类/依赖/关键词（缺省归研发，向后兼容）
+                    ecosystem=metadata.get('ecosystem', 'dev') or 'dev',
+                    category=metadata.get('category', 'general') or 'general',
+                    dependencies=metadata.get('dependencies', []) or [],
+                    keywords=metadata.get('keywords', []) or [],
                 )
 
                 # 避免重复（内置优先）
@@ -298,6 +329,10 @@ class SkillManager:
         user_invocable: bool = True,
         context: str = "inline",
         is_enabled_fn: Callable[[], bool] = None,
+        ecosystem: str = "dev",
+        category: str = "general",
+        dependencies: List[str] = None,
+        keywords: List[str] = None,
     ) -> str:
         """
         注册编程式 Skill（Python 函数动态生成 prompt）。
@@ -316,6 +351,10 @@ class SkillManager:
             user_invocable: 用户可调用性
             context: 执行上下文 'inline' | 'fork'
             is_enabled_fn: 启用条件函数（返回 False 则不注册）
+            ecosystem: 生态归属 dev(研发) | office(办公) | design(设计)
+            category: 生态内的细分分类
+            dependencies: 依赖的其他技能名列表
+            keywords: 路由关键词列表
 
         Returns:
             注册结果信息
@@ -333,6 +372,10 @@ class SkillManager:
             argument_hint=argument_hint,
             context=context,
             user_invocable=user_invocable,
+            ecosystem=ecosystem or "dev",
+            category=category or "general",
+            dependencies=dependencies or [],
+            keywords=keywords or [],
         )
 
         self.skills[name] = skill
@@ -614,6 +657,8 @@ class SkillManager:
         trigger: str,
         prompt_content: str,
         scope: str = "project",
+        ecosystem: str = "dev",
+        category: str = "general",
     ) -> str:
         """
         创建用户自定义 Skill
@@ -624,6 +669,8 @@ class SkillManager:
             trigger: 触发条件
             prompt_content: 提示词内容
             scope: 'project' (项目级) 或 'user' (用户级)
+            ecosystem: 生态归属 dev(研发) | office(办公) | design(设计)
+            category: 生态内的细分分类
 
         Returns:
             创建结果信息
@@ -649,6 +696,8 @@ class SkillManager:
                 f.write(f"name: {name}\n")
                 f.write(f"description: {description}\n")
                 f.write(f"trigger: {trigger}\n")
+                f.write(f"ecosystem: {ecosystem or 'dev'}\n")
+                f.write(f"category: {category or 'general'}\n")
                 f.write("---\n\n")
                 f.write(f"# {name}\n\n")
                 f.write(description)
