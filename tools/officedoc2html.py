@@ -172,8 +172,19 @@ def parse_rels(zf, rel_name: str) -> dict:
     return out
 
 
+def _apply_lum(hex6: str, lum_mod: float, lum_off: float) -> str:
+    """lumMod/lumOff 明度调整：HSL 的 L' = L*lumMod + lumOff/100000。
+    近似实现：RGB 线性缩放 + 偏移（视觉足够接近）。"""
+    r = int(hex6[0:2], 16); g = int(hex6[2:4], 16); b = int(hex6[4:6], 16)
+    off = lum_off * 255.0
+    r = max(0, min(255, int(r * lum_mod + off)))
+    g = max(0, min(255, int(g * lum_mod + off)))
+    b = max(0, min(255, int(b * lum_mod + off)))
+    return f'#{r:02X}{g:02X}{b:02X}'
+
+
 def color_of(parent_el, theme: dict):
-    """取 solidFill 子元素颜色（srgbClr / schemeClr）。parent_el 是 rPr/ln/bgPr/spPr。"""
+    """取 solidFill 子元素颜色（srgbClr / schemeClr 含 lumMod/lumOff 变体）。"""
     if parent_el is None:
         return None
     sf = parent_el.find(f'{A}solidFill')
@@ -184,8 +195,63 @@ def color_of(parent_el, theme: dict):
         return '#' + srgb.get('val')
     sch = sf.find(f'{A}schemeClr')
     if sch is not None:
-        return theme.get(sch.get('val', ''))
+        base = theme.get(sch.get('val', ''))
+        if not base:
+            return None
+        base = base.lstrip('#')
+        lum_mod, lum_off = 1.0, 0.0
+        for mod in sch:
+            tag = mod.tag.split('}')[-1]
+            try:
+                v = int(mod.get('val', '0'))
+            except (TypeError, ValueError):
+                continue
+            if tag == 'lumMod':
+                lum_mod = v / 100000.0
+            elif tag == 'lumOff':
+                lum_off = v / 100000.0
+        if lum_mod != 1.0 or lum_off != 0.0:
+            return _apply_lum(base, lum_mod, lum_off)
+        return '#' + base
     return None
+
+
+def style_fill_of(sp, theme: dict):
+    """shapeStyle 主题填充：fillRef idx>1 时用 accent 色的 lumMod 变体近似。
+    spPr 无显式填充时兜底（否则形状变透明——v2 已知「颜色不对」根因之一）。"""
+    style = sp.find(f'{P}style')
+    if style is None:
+        return None
+    fr = style.find(f'{A}fillRef')
+    if fr is None:
+        return None
+    try:
+        idx = int(fr.get('idx', '1'))
+    except (TypeError, ValueError):
+        idx = 1
+    if idx < 1:
+        return None
+    sf = fr.find(f'{A}schemeClr')
+    if sf is None:
+        return None
+    base = theme.get(sf.get('val', ''))
+    if not base:
+        return None
+    base = base.lstrip('#')
+    lum_mod, lum_off = 1.0, 0.0
+    for mod in sf:
+        tag = mod.tag.split('}')[-1]
+        try:
+            v = int(mod.get('val', '0'))
+        except (TypeError, ValueError):
+            continue
+        if tag == 'lumMod':
+            lum_mod = v / 100000.0
+        elif tag == 'lumOff':
+            lum_off = v / 100000.0
+    if lum_mod != 1.0 or lum_off != 0.0:
+        return _apply_lum(base, lum_mod, lum_off)
+    return '#' + base
 
 
 def xfrm_of(spPr):
@@ -239,8 +305,8 @@ def line_css(spPr, theme) -> str:
     return f'border:{max(1, w / EMU_PER_PX):.2f}px solid #d0d3d9;'
 
 
-def run_html(r, theme) -> str:
-    """a:r → 带 span 样式的 HTML"""
+def run_html(r, theme, scale: float = 1.0) -> str:
+    """a:r → 带 span 样式的 HTML（scale 为 normAutofit 缩字系数）"""
     t_el = r.find(f'{A}t')
     text = esc(t_el.text or '') if t_el is not None else ''
     rPr = r.find(f'{A}rPr')
@@ -252,7 +318,9 @@ def run_html(r, theme) -> str:
         except (TypeError, ValueError):
             sz = 0
         if sz:
-            style.append(f'font-size:{sz / 100 * PT2PX:.1f}px')
+            style.append(f'font-size:{sz / 100 * PT2PX * scale:.1f}px')
+        elif scale != 1.0:
+            style.append(f'font-size:{18 * scale:.1f}px')
         if rPr.get('b') == '1':
             style.append('font-weight:700')
         if rPr.get('i') == '1':
@@ -266,17 +334,17 @@ def run_html(r, theme) -> str:
         if latin is not None and latin.get('typeface'):
             font = latin.get('typeface')
         # 默认字号兜底：标题占位等无显式 sz 时用 18px
-        if not sz:
+        if not sz and scale == 1.0:
             style.append('font-size:18px')
     else:
-        style.append('font-size:18px')
+        style.append('font-size:18px' if scale == 1.0 else f'font-size:{18 * scale:.1f}px')
     s = f'style="{";".join(style)}"' if style else ''
     ff = f' data-ff="{esc(font)}"' if font else ''
     cls = ' class="ff"' if font else ''
     return f'<span{cls}{ff} {s}>{text}</span>'
 
 
-def para_html(p, theme) -> str:
+def para_html(p, theme, scale: float = 1.0) -> str:
     """a:p → <p style=align>，含项目符号近似"""
     pPr = p.find(f'{A}pPr')
     align = 'left'
@@ -293,14 +361,14 @@ def para_html(p, theme) -> str:
         if lnSpc is not None and lnSpc.get('val'):
             try:
                 pct = int(lnSpc.get('val')) / 1000
-                return _para_runs(p, theme, align, indent_bullet, num_bullet, pct)
+                return _para_runs(p, theme, align, indent_bullet, num_bullet, pct, scale)
             except (TypeError, ValueError):
                 pass
-    return _para_runs(p, theme, align, indent_bullet, num_bullet, None)
+    return _para_runs(p, theme, align, indent_bullet, num_bullet, None, scale)
 
 
-def _para_runs(p, theme, align, bullet, num, line_pct):
-    runs = [run_html(r, theme) for r in p.findall(f'{A}r')]
+def _para_runs(p, theme, align, bullet, num, line_pct, scale: float = 1.0):
+    runs = [run_html(r, theme, scale) for r in p.findall(f'{A}r')]
     # br 换行
     brs = p.findall(f'{A}br')
     content = ('<br/>'.join(runs) if not brs else
@@ -323,11 +391,44 @@ def _para_runs(p, theme, align, bullet, num, line_pct):
     return f'<p style="{";".join(style)}">{prefix}{content}</p>'
 
 
-def txBody_html(txBody, theme) -> str:
+def txBody_html(txBody, theme, scale: float = 1.0) -> str:
     if txBody is None:
         return ''
-    paras = ''.join(para_html(p, theme) for p in txBody.findall(f'{A}p'))
+    paras = ''.join(para_html(p, theme, scale) for p in txBody.findall(f'{A}p'))
     return f'<div class="tx" style="width:100%">{paras}</div>'
+
+
+def body_pad_css(txBody) -> str:
+    """bodyPr 内边距：显式 lIns/rIns/tIns/bIns（EMU→px），缺省用 PowerPoint 默认。"""
+    if txBody is None:
+        return 'padding:4.8px 7.2px;'
+    bp = txBody.find(f'{A}bodyPr')
+    if bp is None:
+        return 'padding:4.8px 7.2px;'
+    try:
+        l = int(bp.get('lIns', 91440)) / EMU_PER_PX
+        r = int(bp.get('rIns', 91440)) / EMU_PER_PX
+        t = int(bp.get('tIns', 45720)) / EMU_PER_PX
+        b = int(bp.get('bIns', 45720)) / EMU_PER_PX
+    except (TypeError, ValueError):
+        return 'padding:4.8px 7.2px;'
+    return f'padding:{t:.1f}px {r:.1f}px {b:.1f}px {l:.1f}px;'
+
+
+def autofit_scale(txBody) -> float:
+    """normAutofit fontScale（千分比）→ 缩放系数。PowerPoint 溢出缩字近似。"""
+    if txBody is None:
+        return 1.0
+    bp = txBody.find(f'{A}bodyPr')
+    if bp is None:
+        return 1.0
+    na = bp.find(f'{A}normAutofit')
+    if na is not None and na.get('fontScale'):
+        try:
+            return int(na.get('fontScale')) / 100000.0
+        except (TypeError, ValueError):
+            return 1.0
+    return 1.0
 
 
 def body_anchor_css(txBody) -> str:
@@ -376,11 +477,62 @@ def make_group_transform(grpSpPr) -> Transform:
     return t
 
 
-def render_shape(el, tf: Transform, theme, rels, zf) -> str:
+def _rels_name_for(part: str) -> str:
+    """'ppt/slides/slide1.xml' → 'ppt/slides/_rels/slide1.xml.rels'"""
+    d, f = part.rsplit('/', 1)
+    return f'{d}/_rels/{f}.rels'
+
+
+def ph_of(sp):
+    """(type, idx) 或 None。占位符标识，用于跨 slide/layout/master 继承。"""
+    ph = sp.find(f'{P}nvSpPr/{P}nvPr/{P}ph')
+    if ph is None:
+        return None
+    return (ph.get('type', 'body') or 'body', ph.get('idx', '') or '')
+
+
+def ph_xfrm_table(zf, part: str, depth=0) -> dict:
+    """收集 layout（及其 master）占位符坐标 {(type,idx): box}。
+    本级覆盖上级（layout 定位优先于 master）。"""
+    table = {}
+    if depth > 2 or part not in zf.namelist():
+        return table
+    # 先递归上级（低优先）
+    try:
+        rels = parse_rels(zf, _rels_name_for(part))
+    except ET.ParseError:
+        rels = {}
+    for rid, (rtype, target) in rels.items():
+        if rtype == 'slideMaster' and target:
+            t2 = target if target.startswith('ppt/') else 'ppt/' + target
+            table.update(ph_xfrm_table(zf, t2, depth + 1))
+    # 本级覆盖
+    try:
+        root = ET.fromstring(zf.read(part))
+    except ET.ParseError:
+        return table
+    spTree = root.find(f'{P}cSld/{P}spTree')
+    if spTree is None:
+        return table
+    for sp in spTree.iter(f'{P}sp'):
+        ph = ph_of(sp)
+        if ph is None:
+            continue
+        box = xfrm_of(sp.find(f'{P}spPr'))
+        if box:
+            table[ph] = box
+    return table
+
+
+def render_shape(el, tf: Transform, theme, rels, zf, ph_table=None) -> str:
     spPr = el.find(f'{P}spPr')
     box = xfrm_of(spPr)
     if box is None:
-        # 无坐标（如占位在 spTree 根）→ 退化成占满整页
+        # 占位符无坐标 → 继承版式/母版同 (type,idx) 坐标；仍无 → 跳过
+        ph = ph_of(el)
+        if ph and ph_table and ph in ph_table:
+            box = ph_table[ph]
+    if box is None:
         box = (0, 0, 0, 0)
     x, y, cx, cy = tf.apply(*box)
     if cx <= 0 or cy <= 0:
@@ -389,9 +541,13 @@ def render_shape(el, tf: Transform, theme, rels, zf) -> str:
     pw = cx / EMU_PER_PX; ph = cy / EMU_PER_PX
 
     fill = color_of(spPr, theme)
+    if fill is None:
+        # 无显式填充 → 查 shapeStyle 主题填充（fillRef），否则透明
+        fill = style_fill_of(el, theme)
     has_nofill = spPr is not None and spPr.find(f'{A}noFill') is not None
-    bg_css = f'background:{fill};' if fill else (
-        'background:transparent;' if has_nofill else 'background:transparent;')
+    if has_nofill:
+        fill = None
+    bg_css = f'background:{fill};' if fill else 'background:transparent;'
 
     g = spPr.find(f'{A}prstGeom') if spPr is not None else None
     prst = (g.get('prst', 'rect') if g is not None else 'rect')
@@ -411,8 +567,10 @@ def render_shape(el, tf: Transform, theme, rels, zf) -> str:
     txBody = el.find(f'{P}txBody')
     anchor = body_anchor_css(txBody)
     pos = (f'left:{px:.1f}px;top:{py:.1f}px;width:{pw:.1f}px;height:{ph:.1f}px;')
-    style = pos + bg_css + geom_css(spPr) + line_css(spPr, theme)
-    tx = txBody_html(txBody, theme)
+    # PowerPoint 默认文本内边距：lIns/rIns=91440EMU(7.2px)、tIns/bIns=45720EMU(4.8px)
+    pad = body_pad_css(txBody)
+    style = pos + bg_css + geom_css(spPr) + line_css(spPr, theme) + pad
+    tx = txBody_html(txBody, theme, autofit_scale(txBody))
     return f'<div class="sp" style="{style}{anchor}">{tx}</div>'
 
 
@@ -522,13 +680,22 @@ def convert_pptx(path: str) -> str:
             rels = parse_rels(zf, rel_name)
             bg = bg_css_of(zf, theme, [(sname, rels)])
 
+            # 本页 layout（及其 master）的占位符坐标表——slide 中
+            # 无 xfrm 的占位符（标题/正文框）从这里继承坐标，否则整块丢失
+            ph_table = {}
+            for rid, (rtype, target) in rels.items():
+                if rtype == 'slideLayout' and target:
+                    layout_part = target if target.startswith('ppt/') else 'ppt/' + target
+                    ph_table = ph_xfrm_table(zf, layout_part)
+                    break
+
             root = ET.fromstring(zf.read(sname))
             spTree = root.find(f'{P}cSld/{P}spTree')
             shapes: list = []
             if spTree is not None:
                 walk_tree(spTree, IDENT, shapes)
             inner = ''.join(
-                render_shape(el, tf, theme, rels, zf) if kind == 'sp'
+                render_shape(el, tf, theme, rels, zf, ph_table) if kind == 'sp'
                 else render_pic(el, tf, rels, zf)
                 for kind, el, tf in shapes
             )
