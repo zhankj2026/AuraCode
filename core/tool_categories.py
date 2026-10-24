@@ -52,7 +52,7 @@ SEARCH_TOOLS = frozenset({
 WORKSPACE_BOUND_TOOLS = frozenset({
     "read_file", "write_file", "replace_in_file",
     "list_directory", "glob", "grep", "find",
-    "analyze_file", "lint",
+    "analyze_file", "lint", "word_measure",
 })
 
 # 上述工具中承载文件/目录路径的参数键(越界检查读取这些参数)

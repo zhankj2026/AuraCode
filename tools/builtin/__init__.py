@@ -106,3 +106,6 @@ from . import extension_tools
 # ── SkillHub 技能商店（执行中按需搜索/安装技能，不预装）──
 from . import skillhub_tool
 
+# ── Office 排版测量（Word/WPS 渲染器反馈闭环，只读）──
+from . import word_measure
+
