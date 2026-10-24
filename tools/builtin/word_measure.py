@@ -13,15 +13,18 @@ word_measure — 用真实 Word/WPS 渲染引擎测量 docx 排版（页数/段�
 2. WPS COM（KWPS.Application）——国产环境备选
 3. python-docx 字符估算——无 COM 环境兜底，结果显式标注"估算值"
 
-三种模式：
+三种模式（+ 诊断模式）：
 - pages:    总页数 + 版心尺寸（探版心用）
 - outline:  每段落的文本摘要 + 所在页码（断言"标题与正文同页"等用）
 - overflow: 跨页段落检测（哪些段落被分页从中间切开）
+- diagnose: 排版异常一键定位——空白页（尾部/中间）+ pageBreakBefore 数量与位置。
+            出现空白页/异常分页时优先用此模式，不要在对话里手写脚本拆 XML。
 
 用法（agent 视角）:
   word_measure(path="报告.docx", mode="pages")
   word_measure(path="报告.docx", mode="outline", max_paragraphs=80)
   word_measure(path="报告.docx", mode="overflow")
+  word_measure(path="报告.docx", mode="diagnose")   # 空白页/多余分页一键定位
 
 COM 安全设计：
 - 全程 try/finally 保证 doc.Close + app.Quit（上次日志事故正是 agent
@@ -167,6 +170,60 @@ def _measure_with_com(path: str, mode: str, max_paragraphs: int, progids):
                 "engine": progid,
             }, None
 
+        if mode == "diagnose":
+            paras = doc.Paragraphs
+            n = paras.Count
+            page_break_paras = []
+            page_has_text = {}
+            for i in range(1, n + 1):
+                p = paras(i)
+                txt = p.Range.Text.replace("\r", "").replace("\x07", "").strip()
+                try:
+                    pbreak = bool(p.Range.ParagraphFormat.PageBreakBefore)
+                except Exception:
+                    pbreak = False
+                if pbreak:
+                    page_break_paras.append(i)
+                try:
+                    pg = p.Range.Information(WD_PAGE)
+                except Exception:
+                    pg = -1
+                if txt and pg > 0:
+                    page_has_text[pg] = True
+            blank_pages = [pg for pg in range(1, total + 1)
+                           if not page_has_text.get(pg, False)]
+            text_pages = sorted(page_has_text.keys())
+            max_text_page = max(text_pages) if text_pages else 0
+            trailing_blank = [pg for pg in blank_pages if pg > max_text_page]
+            internal_blank = [pg for pg in blank_pages if pg <= max_text_page]
+            reasons = []
+            if trailing_blank:
+                reasons.append(
+                    f"尾部空白页 {len(trailing_blank)} 个（页 {trailing_blank[0]}–{trailing_blank[-1]}）")
+            if internal_blank:
+                reasons.append(f"中间空白页 {len(internal_blank)} 个（页 {internal_blank}）")
+            if page_break_paras:
+                shown = page_break_paras[:10]
+                more = "..." if len(page_break_paras) > 10 else ""
+                reasons.append(
+                    f"{len(page_break_paras)} 个段落设了 pageBreakBefore（索引 {shown}{more}）")
+            if trailing_blank and page_break_paras:
+                reasons.append(
+                    "常见根因：每节/每首诗都强制 pageBreakBefore，内容短时被推到新页留白；"
+                    "或正文末段之后多出一个多余分页")
+            if not reasons:
+                reasons.append("未发现空白页或多余分页 ✅")
+            return {
+                "total_pages": total,
+                "paragraph_count": n,
+                "page_break_before_count": len(page_break_paras),
+                "page_break_before_paras": page_break_paras,
+                "blank_pages": blank_pages,
+                "trailing_blank_pages": trailing_blank,
+                "summary": "；".join(reasons),
+                "engine": progid,
+            }, None
+
         return None, f"未知模式: {mode}"
 
     finally:
@@ -236,6 +293,24 @@ def _estimate_with_python_docx(path: str, mode: str, max_paragraphs: int):
             "engine": "estimate",
         }, None
 
+    if mode == "diagnose":
+        try:
+            from docx.oxml.ns import qn
+        except ImportError:
+            return None, "python-docx 未安装，无法统计 pageBreakBefore"
+        pb_paras = []
+        for idx, p in enumerate(doc.paragraphs, 1):
+            if p._p.find('.//' + qn('w:pageBreakBefore')) is not None:
+                pb_paras.append(idx)
+        return {
+            "paragraph_count": len(doc.paragraphs),
+            "page_break_before_count": len(pb_paras),
+            "page_break_before_paras": pb_paras,
+            "note": ("⚠️ 估算模式无分页引擎，无法检测空白页；"
+                     "仅统计 pageBreakBefore 数量（真实空白页需 Word/WPS COM）"),
+            "engine": "estimate",
+        }, None
+
     return None, f"未知模式: {mode}"
 
 
@@ -259,8 +334,8 @@ def word_measure_handler(path: str, mode: str = "pages",
         return f"错误: 文件不存在 {abs_path}"
     if not abs_path.lower().endswith(".docx"):
         return f"错误: 仅支持 .docx（旧 .doc 请先转存新格式）: {abs_path}"
-    if mode not in ("pages", "outline", "overflow"):
-        return f"错误: mode 仅支持 pages/outline/overflow，收到 {mode!r}"
+    if mode not in ("pages", "outline", "overflow", "diagnose"):
+        return f"错误: mode 仅支持 pages/outline/overflow/diagnose，收到 {mode!r}"
 
     # ① Word COM → ② WPS COM → ③ 估算
     if _com_available():
@@ -290,6 +365,16 @@ def _format(r: dict) -> str:
         lines.append(f"版心高度: {r['usable_height_pt']} pt")
     if "summary" in r:
         lines.append(f"结论: {r['summary']}")
+    if "page_break_before_count" in r:
+        lines.append(f"pageBreakBefore 数量: {r['page_break_before_count']}")
+        pb = r.get("page_break_before_paras", [])
+        if pb:
+            lines.append(f"  位置(段落索引): {pb}")
+    if "blank_pages" in r:
+        lines.append(f"空白页: {r['blank_pages'] if r['blank_pages'] else '无'}")
+        tb = r.get("trailing_blank_pages", [])
+        if tb:
+            lines.append(f"  其中尾部空白页: {tb}")
     if "note" in r:
         lines.append(r["note"])
     if "outline" in r:
@@ -314,6 +399,8 @@ register_tool("word_measure", {
         "2. 生成文档\n"
         "3. mode=outline 断言验收（如每首诗标题与正文同页）\n"
         "4. mode=overflow 检查段落被分页切断的情况\n"
+        "5. mode=diagnose 排版异常一键定位（空白页页码 + pageBreakBefore 数量与位置），"
+        "出现空白页/异常分页时优先用它而非手写脚本拆 XML\n"
         "无 Word/WPS 环境时自动降级估算并显式标注。"
     ),
     "parameters": {
@@ -322,8 +409,8 @@ register_tool("word_measure", {
             "path": {"type": "string", "description": "docx 文件路径"},
             "mode": {
                 "type": "string",
-                "enum": ["pages", "outline", "overflow"],
-                "description": "pages=总页数+版心尺寸; outline=逐段页位; overflow=跨页段落检测",
+                "enum": ["pages", "outline", "overflow", "diagnose"],
+                "description": "pages=总页数+版心尺寸; outline=逐段页位; overflow=跨页段落检测; diagnose=空白页+pageBreakBefore 一键定位",
             },
             "max_paragraphs": {
                 "type": "integer",
