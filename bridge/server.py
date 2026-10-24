@@ -620,10 +620,29 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
         session_id: str,
         auth: bool = Depends(_auth.verify),
     ):
-        """删除会话（先停止再移除）"""
-        if not _manager.remove_session(session_id):
+        """删除会话（停止活跃会话 + 清理磁盘归档文件）"""
+        if not _manager.delete_session_full(session_id):
             raise HTTPException(status_code=404, detail="Session not found")
         return {"status": "deleted", "session_id": session_id}
+
+    @app.post("/api/sessions/{session_id}/resume")
+    async def resume_session(
+        session_id: str,
+        auth: bool = Depends(_auth.verify),
+    ):
+        """从磁盘归档恢复会话为活跃会话（历史消息回放）"""
+        try:
+            session = _manager.resume_session(session_id)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="Archived session not found")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        return {
+            "status": "resumed",
+            "session_id": session.session_id,
+            "restored_from": session_id,
+            "work_dir": session.config.work_dir,
+        }
 
     @app.get(
         "/api/sessions/{session_id}/events",

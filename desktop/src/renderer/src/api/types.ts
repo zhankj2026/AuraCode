@@ -23,6 +23,8 @@ export interface SessionInfo {
   title: string
   current_activity?: { type: string; summary: string } | null
   round_count: number
+  /** true=磁盘归档会话（需 resume 后才能交互） */
+  archived?: boolean
 }
 
 export interface BridgeEvent {

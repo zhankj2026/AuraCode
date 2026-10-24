@@ -43,6 +43,9 @@ export interface AppState {
   customModels: CustomModel[]
   /** 顶部轻提示：用于把后台操作（如打开工作区）的真实成败反馈给用户，而不是静默吞掉 */
   toast: { msg: string; kind: 'error' | 'info' | 'ok' } | null
+  /** 当前会话是否正在生成回复（turn_start → true，turn_complete/session_error → false）。
+   *  驱动发送区「■ 结束」按钮的显示。按 session 记录，切换会话时自动正确。 */
+  runningSessions: Record<string, boolean>
 }
 
 const initial: AppState = {
@@ -71,6 +74,7 @@ const initial: AppState = {
   commands: [],
   customModels: [],
   toast: null,
+  runningSessions: {},
 }
 
 let state: AppState = initial
@@ -145,6 +149,49 @@ export const actions = {
     // 记住当前工作区，下次启动自动恢复（回退到引擎根目录前先恢复用户上次的选择）
     if (wd) actions.persistWorkspace(wd)
   },
+  /** 点击归档会话：恢复为活跃会话并选中（历史消息由后端回放事件流补齐） */
+  async resumeSession(id: string) {
+    const c = state.client
+    if (!c) return
+    const sess = state.sessions.find((s) => s.session_id === id)
+    if (!sess?.archived) {
+      // 活跃会话直接选中
+      actions.selectSession(id)
+      return
+    }
+    try {
+      actions.setToast('正在恢复历史会话…', 'info')
+      const r = await c.resumeSession(id)
+      const list = await c.listSessions()
+      actions.setSessions(list)
+      actions.selectSession(r.session_id)
+      actions.setToast('已恢复历史会话', 'ok')
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      actions.setToast('恢复会话失败：' + msg, 'error')
+    }
+  },
+  /** 删除会话：活跃（停+移除）与归档文件一并清理；删的是当前会话则切到第一个可用会话 */
+  async deleteSession(id: string) {
+    const c = state.client
+    if (!c) return
+    try {
+      await c.deleteSession(id)
+      const list = await c.listSessions()
+      actions.setSessions(list)
+      if (state.activeSessionId === id) {
+        // 删除的是当前会话：切到剩余的第一个（无则清空选中态）
+        actions.selectSession(list[0]?.session_id ?? null)
+        if (!list[0]) {
+          setState({ events: [], messages: {} })
+        }
+      }
+      actions.setToast('已删除会话', 'ok')
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      actions.setToast('删除会话失败：' + msg, 'error')
+    }
+  },
   /** 把当前工作区路径落盘到主进程（userData/workspace.json），重启后自动恢复 */
   async persistWorkspace(dir: string | null) {
     try {
@@ -152,6 +199,10 @@ export const actions = {
     } catch (e) {
       console.warn('[workspace] 持久化失败', e)
     }
+  },
+  /** 标记会话运行态（turn_start/turn_complete 事件驱动；「结束」按钮的显示依据） */
+  setSessionRunning(sessionId: string, running: boolean) {
+    setState({ runningSessions: { ...state.runningSessions, [sessionId]: running } })
   },
   pushMessage(sessionId: string, msg: Omit<ChatMessage, 'id' | 'ts'>) {
     const list = state.messages[sessionId] || []

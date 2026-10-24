@@ -722,6 +722,20 @@ class BridgeSession:
             logger.warning(f"Restore history failed: {e}")
             return 0
 
+    def restore_record(self, record) -> int:
+        """恢复指定归档记录到本会话（manager.resume_session 调用）。
+
+        与 _restore_history 的 work_dir 自动匹配不同：这里显式指定档案，
+        用于侧栏「恢复历史会话」。同时同步轮次/标题元数据。
+        Returns: 恢复的消息数（0=无可恢复内容）。
+        """
+        restored = self._restore_history(record)
+        if restored:
+            meta = record.meta
+            self.title = meta.last_prompt or meta.first_prompt or self.title
+            self._round_count = meta.turn_count or self._round_count
+        return restored
+
     def get_info(self) -> SessionInfo:
         """获取会话摘要"""
         with self._activities_lock:

@@ -257,6 +257,19 @@ export class BridgeClient {
     return r.json()
   }
 
+  /** 从磁盘归档恢复会话为活跃会话（历史消息回放） */
+  async resumeSession(sessionId: string) {
+    const r = await fetch(this.url(`/api/sessions/${sessionId}/resume`), {
+      method: 'POST',
+      headers: this.headers(),
+    })
+    if (!r.ok) {
+      const detail = await r.text().catch(() => '')
+      throw new Error(detail || `HTTP ${r.status}`)
+    }
+    return r.json() as Promise<{ status: string; session_id: string; restored_from: string; work_dir: string }>
+  }
+
   async listFiles(sessionId: string, subdir = ''): Promise<FileListing> {
     const r = await fetch(
       this.url(

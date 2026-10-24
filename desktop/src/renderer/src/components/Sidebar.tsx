@@ -19,6 +19,11 @@ function ChatSidebar() {
   const sessions = useStore((s) => s.sessions)
   const activeId = useStore((s) => s.activeSessionId)
 
+  // 归档会话排在活跃会话之后（后端已按此序返回，这里稳定排序兜底）
+  const sorted = [...sessions].sort((a, b) =>
+    Number(a.archived ?? false) - Number(b.archived ?? false),
+  )
+
   return (
     <>
       <button className="btn-primary" onClick={() => actions.newSession()}>
@@ -26,20 +31,38 @@ function ChatSidebar() {
       </button>
       <div className="search">🔍 搜索会话</div>
       <div className="scroll">
-        {sessions.map((s) => (
+        {sorted.map((s) => (
           <div
             key={s.session_id}
             className={`item ${activeId === s.session_id ? 'active' : ''}`}
-            onClick={() => actions.selectSession(s.session_id)}
+            onClick={() =>
+              s.archived ? actions.resumeSession(s.session_id) : actions.selectSession(s.session_id)
+            }
+            title={s.archived ? '点击恢复此历史会话' : s.work_dir}
           >
             <span
               className="dot-s"
-              style={{ background: activeId === s.session_id ? 'var(--accentLite)' : '#3a4a66', width: 7, height: 7, borderRadius: '50%' }}
+              style={{ background: s.archived ? 'var(--muted2)' : activeId === s.session_id ? 'var(--accentLite)' : '#3a4a66', width: 7, height: 7, borderRadius: '50%' }}
             />
             <div className="t">
               <div className="n">{s.title || '(未命名会话)'}</div>
-              <div className="s">{s.round_count} 轮 · {s.model || '—'} · {s.state}</div>
+              <div className="s">
+                {s.archived ? '📦 归档 · ' : ''}
+                {s.round_count} 轮 · {s.model || '—'} · {s.state}
+              </div>
             </div>
+            <button
+              className="item-del"
+              title="删除此会话"
+              onClick={(e) => {
+                e.stopPropagation()
+                const label = s.title ? `「${s.title.slice(0, 24)}」` : '该会话'
+                if (window.confirm(`确定删除 ${label}？${s.archived ? '（归档文件将一并删除，不可恢复）' : ''}`))
+                  actions.deleteSession(s.session_id)
+              }}
+            >
+              ✕
+            </button>
           </div>
         ))}
         {sessions.length === 0 && <div className="search">暂无会话，点击上方新建</div>}

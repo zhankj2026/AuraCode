@@ -184,6 +184,7 @@ class SessionInfo:
     title: str = ""
     current_activity: Optional[Dict[str, Any]] = None  # 当前正在执行的工具摘要
     round_count: int = 0  # 已处理的对话轮次数
+    archived: bool = False  # True=归档会话（磁盘快照，需 resume 恢复后才能交互）
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -197,4 +198,5 @@ class SessionInfo:
             "title": self.title,
             "current_activity": self.current_activity,
             "round_count": self.round_count,
+            "archived": self.archived,
         }

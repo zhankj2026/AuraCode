@@ -28,6 +28,9 @@ from bridge.session import BridgeSession
 
 logger = logging.getLogger(__name__)
 
+# 归档列表上限：侧栏展示用，过多时前端可分页/搜索（当前一次给足）
+ARCHIVE_LIST_LIMIT = 200
+
 
 class BridgeSessionManager:
     """
@@ -102,9 +105,94 @@ class BridgeSessionManager:
             return self._sessions.get(session_id)
 
     def list_sessions(self) -> List[SessionInfo]:
-        """列出所有会话"""
+        """列出所有会话（活跃 + 磁盘归档合并）。
+
+        历史会话在进程退出时持久化到 ~/.auracode/sessions/*.json；此前
+        list_sessions 只返回内存活跃会话，桌面重启后侧栏历史全丢——
+        「历史会话没有加载」的根因。现合并归档：
+        - 活跃会话正常返回（archived=False）
+        - 归档会话转 SessionInfo（archived=True），去重排除活跃 ID
+        - 活跃在前，归档按 updated_at 倒序在后
+        """
         with self._lock:
-            return [s.get_info() for s in self._sessions.values()]
+            infos = [s.get_info() for s in self._sessions.values()]
+
+        try:
+            from core.session_store import SessionStore
+            from datetime import datetime
+            store = SessionStore()
+            active_ids = {i.session_id for i in infos}
+            archived_infos = []
+            for meta in store.list_sessions(limit=ARCHIVE_LIST_LIMIT):
+                if meta.session_id in active_ids:
+                    continue
+                try:
+                    updated = datetime.fromisoformat(meta.updated_at).timestamp()
+                    created = datetime.fromisoformat(meta.created_at).timestamp()
+                except (ValueError, TypeError):
+                    updated = created = 0.0
+                archived_infos.append(SessionInfo(
+                    session_id=meta.session_id,
+                    state=SessionState.COMPLETED,
+                    work_dir=meta.work_dir or ".",
+                    model=meta.model or "",
+                    created_at=created,
+                    event_count=meta.message_count,
+                    last_activity=updated,
+                    title=meta.last_prompt or meta.first_prompt or "",
+                    round_count=meta.turn_count,
+                    archived=True,
+                ))
+            infos.extend(archived_infos)
+        except Exception as e:
+            # 归档合并失败不阻断活跃列表（老版本目录缺失等场景）
+            logger.warning(f"list_sessions 合并归档失败: {e}")
+        return infos
+
+    def resume_session(self, session_id: str, permission_mode: str = "auto") -> BridgeSession:
+        """从磁盘归档恢复会话为活跃会话。
+
+        恢复 = 以归档的 work_dir/model 新建会话 + 回放归档消息历史。
+        - 复用 create_session 的容量/生命周期管理
+        - 归档文件保留（resume 不等于移动；新会话退出时会再写一份新归档）
+        """
+        from core.session_store import SessionStore
+        store = SessionStore()
+        record = store.load_session(session_id)
+        if record is None:
+            raise KeyError(f"archived session not found: {session_id}")
+        if not record.messages:
+            raise ValueError(f"archived session has no messages: {session_id}")
+
+        meta = record.meta
+        config = SessionConfig(
+            work_dir=meta.work_dir or ".",
+            model=meta.model or "glm-4-flash",
+            permission_mode=permission_mode,
+            restore_history=False,  # 历史由下面显式回放，不走 work_dir 自动匹配
+        )
+        session = self.create_session(config)
+
+        # 显式回放归档消息（绕过 find_latest_by_workdir 的自动恢复，
+        # 精确恢复这份档案且不叠加别的归档）
+        restored = session.restore_record(record)
+        if not restored:
+            # 消息全被清洗（如全是残缺 tool_calls）：撤销创建，报明确错误
+            self.remove_session(session.session_id)
+            raise ValueError(f"archived session has no restorable messages: {session_id}")
+        return session
+
+    def delete_session_full(self, session_id: str) -> bool:
+        """删除会话：内存活跃会话（停+移除）与磁盘归档文件一并清理。"""
+        removed = self.remove_session(session_id)
+        archived_deleted = False
+        try:
+            from core.session_store import SessionStore
+            store = SessionStore()
+            archived_deleted = store.delete_session(session_id)
+        except Exception as e:
+            logger.warning(f"delete archive failed for {session_id}: {e}")
+        return removed or archived_deleted
 
     def stop_session(self, session_id: str) -> bool:
         """停止指定会话"""

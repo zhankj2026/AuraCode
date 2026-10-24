@@ -48,6 +48,9 @@ export function ChatComposer() {
   const mode = useStore((s) => s.mode)
   const extensions = useStore((s) => s.extensions)
   const commands = useStore((s) => s.commands)
+  const runningSessions = useStore((s) => s.runningSessions)
+  const running = activeId ? !!runningSessions[activeId] : false
+  const [stopping, setStopping] = useState(false)
 
   const [text, setText] = useState('')
   const [cursorPos, setCursorPos] = useState(0)
@@ -211,6 +214,21 @@ export function ChatComposer() {
     client.sendMessage(activeId, content).catch((e) => actions.log('发送失败: ' + e))
   }
 
+  /** 结束正在进行的回复：interrupt 中断当前轮次（会话保留，可继续对话） */
+  async function stopGeneration() {
+    if (!client || !activeId || stopping) return
+    setStopping(true)
+    try {
+      await client.interrupt(activeId)
+      actions.setSessionRunning(activeId, false)
+      actions.setToast('已结束当前回复', 'ok')
+    } catch (e: any) {
+      actions.setToast('结束失败：' + String(e?.message || e), 'error')
+    } finally {
+      setStopping(false)
+    }
+  }
+
   function onKeyDown(ev: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (mention && items.length) {
       if (ev.key === 'ArrowDown') {
@@ -323,6 +341,16 @@ export function ChatComposer() {
         <button className="send" onClick={send}>
           发送 ▸
         </button>
+        {running && (
+          <button
+            className="stop-btn"
+            onClick={stopGeneration}
+            disabled={stopping}
+            title="结束当前回复（会话保留，可继续对话）"
+          >
+            {stopping ? '…' : '■'}
+          </button>
+        )}
       </div>
       <div className="hint">
         <span className="ok">● 当前模式：{mode}</span>

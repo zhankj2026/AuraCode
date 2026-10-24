@@ -69,8 +69,11 @@ export default function App() {
         actions.setConfig(cfg)
         actions.setClient(c)
         actions.setConnected(true)
-        // 拉取真实扩展配置（技能/MCP/钩子/插件/定时任务）供「扩展/任务」面板使用
+        //         // 拉取真实扩展配置（技能/MCP/钩子/插件/定时任务）供「扩展/任务」面板使用
         actions.loadExtensions()
+        // 启动即加载自定义模型清单——否则顶栏模型下拉看不到自定义模型，
+        // 必须先进管理页再退出才显示（此前 bug）
+        actions.loadCustomModels()
 
         // 读取上次记住的工作区（重启后恢复），优先用它而非引擎根目录
         let saved = ''
@@ -176,6 +179,17 @@ export default function App() {
     if (e.type === 'turn_start') {
       lastTurnRef.current = (e.data && e.data.turn) || lastTurnRef.current
       streamIdRef.current = null
+      actions.setSessionRunning(e.session_id, true)
+    }
+
+    // 轮次完成/会话出错 → 清运行态（「■ 结束」按钮隐藏）
+    if (e.type === 'turn_complete' || e.type === 'session_error') {
+      actions.setSessionRunning(e.session_id, false)
+    }
+
+    // 会话结束事件（stop/完成）同样清运行态
+    if (e.type === 'session_stopped') {
+      actions.setSessionRunning(e.session_id, false)
     }
 
     // 其余事件（tool_execute / tool_result / result / output / status …）原样入栈，由视图层渲染
