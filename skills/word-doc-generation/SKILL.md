@@ -96,6 +96,20 @@ word_measure(path="目标.docx", mode="diagnose")
 2. **字号/行距档位**：预定义 2-3 档（宽松/标准/紧凑），整档切换，不要微调
 3. **节拆分**：单节确实超一页 → 显式拆两节，次节加"（续）"标题
 
+> **回改必须增量编辑**：改 `gen_xxx.py` 时用 `replace_in_file` 只动对应参数/片段，
+> **不要整篇 `write_file` 重写**（实测事故里同一脚本被全量重写 6 次，每次数千 token，
+> 纯属浪费）。典型例子——把"每首诗强制分页"改成"仅章节标题分页"以消除短诗留白，
+> 只改 `page_break_before` 的调用条件这一处即可：
+> ```python
+> # 改前（每首诗都分页 → 短诗被推到新页留白，diagnose 会报尾部空白页）
+> for poem in poems:
+>     page_break_before(title_p)
+> # 改后（仅首篇与章节标题分页，内容接排）
+> for i, poem in enumerate(poems):
+>     if i == 0 or poem.get("is_section_title"):
+>         page_break_before(title_p)
+> ```
+
 ## 收敛与停止条件（必须遵守）
 
 渲染器反馈闭环的前提是「能停下来」。缺少停止条件会退化成无限回改循环——真实事故里一次杜甫诗集生成跑了 **20 轮 + 用户手动中断**，其中大半是重复探版心、整篇重写脚本、以及手写脚本拆 XML 追一个排版 bug。硬性约束：
