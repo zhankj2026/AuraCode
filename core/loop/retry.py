@@ -77,6 +77,28 @@ def extract_status_code(error: Exception) -> Optional[int]:
     return None
 
 
+def extract_inner_status(error: Exception) -> Optional[int]:
+    """从网关/代理包裹的错误报文里提取被覆盖的真实 HTTP 状态码。
+
+    某些代理把上游错误包成 502/500，但 body 里藏着真正的状态，例如:
+    - ``remote sse status 400``（上游就是 400 Bad Request）
+    - ``upstream returned 503``
+    - ``HTTP 429 too many requests``
+
+    4xx 客户端错误（请求本身有问题：模型名非法、参数错误、鉴权缺失）
+    重试一万次也不可能成功，必须立即放弃走 fallback 报错；
+    而 5xx 仍视为瞬时可重试。仅在内层是 4xx 时覆盖分类。
+    """
+    msg = str(error)
+    for pat in (r'status\s+(\d{3})', r'returned\s+(\d{3})', r'HTTP\s+(\d{3})'):
+        m = re.search(pat, msg, re.IGNORECASE)
+        if m:
+            code = int(m.group(1))
+            if 100 <= code < 600:
+                return code
+    return None
+
+
 def classify_error(error: Exception) -> str:
     """
     精确分类 API 错误，优先使用 HTTP 状态码，回退到关键词匹配。
@@ -85,6 +107,13 @@ def classify_error(error: Exception) -> str:
     """
     status = extract_status_code(error)
     error_str = str(error).lower()
+
+    # 0. 探测被网关/代理包裹的真实状态码（如 ``remote sse status 400``）。
+    #     内层是 4xx 客户端错误（请求本身有误）时，外层 5xx 只是包装，
+    #     重试注定失败，立即归类为不可重试的 client_error，避免无意义的 10 轮退避。
+    inner = extract_inner_status(error)
+    if inner is not None and 400 <= inner < 500:
+        return 'client_error'
 
     # 1. 按 HTTP 状态码精确分类
     if status == 429:

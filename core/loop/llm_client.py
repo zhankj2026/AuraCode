@@ -27,6 +27,27 @@ logger = logging.getLogger(__name__)
 MAX_API_RETRIES = 10
 
 
+@staticmethod
+def _sleep_with_abort(loop, wait: float, step: float = 0.5) -> bool:
+    """中止感知等待：分段 sleep，用户中途点「结束对话」可尽快退出重试。
+
+    普通的 ``time.sleep(wait)`` 会阻塞整段等待，期间即使用户触发中断
+    （点红色方块按钮 → BridgeSession.interrupt → state.abort）也无法跳出，
+    表现为「对话已结束但后台还在反复重试连接 LLM」。
+
+    Returns:
+        True 表示等待期间被用户中止，调用方应立即放弃重试。
+    """
+    remaining = wait
+    while remaining > 0:
+        if loop.state.is_aborted():
+            return True
+        chunk = min(step, remaining)
+        time.sleep(chunk)
+        remaining -= chunk
+    return loop.state.is_aborted()
+
+
 def usage_token(usage, attr: str) -> int:
     """
     安全提取 LLM usage 对象的 token 字段。
@@ -116,6 +137,27 @@ class LLMClient:
         max_retries = MAX_API_RETRIES
 
         for attempt in range(1, max_retries + 1):
+            # 中止检查：进入下一次 LLM 调用前先判断，确保用户在等待/重试
+            # 期间点了「结束对话」能立即停止，而不是再发一轮注定失败的请求。
+            if loop.state.is_aborted():
+                logger.info("Streaming aborted before attempt %d/%d", attempt, max_retries)
+                loop.events.status("\n⛔ 已中止（用户结束对话）", kind="warning")
+                loop.events.emit("api_retry", {
+                    "attempt": attempt,
+                    "max_retries": max_retries,
+                    "wait_seconds": 0,
+                    "error": "aborted",
+                    "category": "aborted",
+                    "aborted": True,
+                    "give_up": True,
+                })
+                # 复用流式内中断的出口：finish_reason=aborted，orchestrator
+                # 检测到 is_aborted() 后返回 aborted 结果，前端显示「已中断」。
+                return StreamResult(
+                    content="", tool_calls=[], finish_reason="aborted",
+                    usage=None,
+                )
+
             try:
                 _llm_call_start = time.time()
 
@@ -356,7 +398,27 @@ class LLMClient:
                         "category": category,
                         "is_rate_limit": category == 'rate_limit',
                     })
-                    time.sleep(wait)
+                    # 中止感知等待：用户中途点「结束对话」可尽快退出重试，
+                    # 而不是把整段退避睡完再发下一轮。
+                    if self._sleep_with_abort(loop, wait):
+                        logger.info(
+                            "Streaming aborted during retry wait "
+                            f"(attempt {attempt}/{max_retries})"
+                        )
+                        loop.events.status("\n⛔ 已中止（用户结束对话）", kind="warning")
+                        loop.events.emit("api_retry", {
+                            "attempt": attempt,
+                            "max_retries": max_retries,
+                            "wait_seconds": 0,
+                            "error": "aborted",
+                            "category": "aborted",
+                            "aborted": True,
+                            "give_up": True,
+                        })
+                        return StreamResult(
+                            content="", tool_calls=[], finish_reason="aborted",
+                            usage=None,
+                        )
                     continue
 
                 # 不可重试错误或重试已耗尽

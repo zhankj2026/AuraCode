@@ -221,6 +221,22 @@ class LoopOrchestrator:
 
     # ========== 守卫与检查点 ==========
 
+    def _sleep_with_abort(self, wait: float, step: float = 0.5) -> bool:
+        """中止感知等待（分段 sleep，可被用户中断打断）。
+
+        Returns:
+            True 表示等待期间被用户中止。
+        """
+        loop = self.loop
+        remaining = wait
+        while remaining > 0:
+            if loop.state.is_aborted():
+                return True
+            chunk = min(step, remaining)
+            time.sleep(chunk)
+            remaining -= chunk
+        return loop.state.is_aborted()
+
     def _create_checkpoint(self):
         """Rewind 检查点：在每轮开始前保存消息快照。"""
         loop = self.loop
@@ -417,7 +433,15 @@ class LoopOrchestrator:
                 "category": error_category,
                 "is_rate_limit": False,
             })
-            time.sleep(wait)
+            # 中止感知等待：用户中途点「结束对话」可尽快退出当前轮次重试，
+            # 不再把整段退避睡完。
+            if self._sleep_with_abort(wait):
+                logger.info("Turn-level retry aborted by user during wait")
+                return ("return", loop.state.to_result(
+                    status="aborted",
+                    text=last_assistant_text,
+                    stop_reason="aborted",
+                ))
             return ("continue", None)
 
         # 3. 连续服务器错误（5xx/529）→ 累计计数，触发 fallback 模型
