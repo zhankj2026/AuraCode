@@ -235,6 +235,7 @@ function EventView({ e }: { e: BridgeEvent }) {
   }
   if (e.type === 'tool_result') {
     const content = String(d.content ?? '')
+    const empty = content.trim() === ''
     return (
       <div className="ev">
         <div className="eh" onClick={toggle}>
@@ -244,14 +245,15 @@ function EventView({ e }: { e: BridgeEvent }) {
           <span className="tm" />
         </div>
         <div className="body">
-          <pre className="ecode-lite">{content}</pre>
+          {/* 空结果不再渲染成一块空白黑框，改为轻量占位，避免气泡间出现莫名空白横线 */}
+          {empty ? <div className="muted" style={{ padding: '2px 0' }}>（无输出）</div> : <pre className="ecode-lite">{content}</pre>}
         </div>
       </div>
     )
   }
   if (e.type === 'result') {
     const ok = d.success
-    const msg = !ok ? d.error || '执行出错' : d.summary || d.result || '已完成'
+    const msg = !ok ? d.error || '执行失败' : d.summary || d.result || '已完成'
     return (
       <div className={`sysline ${ok ? 'ok' : 'err'}`}>
         {ok ? '✓ 完成' : '✗ 失败'}：{String(msg ?? '').slice(0, 300)}
@@ -262,6 +264,8 @@ function EventView({ e }: { e: BridgeEvent }) {
     )
   }
   if (e.type === 'output') {
+    const text = String(d.text ?? '')
+    const empty = text.trim() === ''
     return (
       <div className="ev">
         <div className="eh" onClick={toggle}>
@@ -270,7 +274,8 @@ function EventView({ e }: { e: BridgeEvent }) {
           <span className="tm" />
         </div>
         <div className="body">
-          <pre className="out">{String(d.text ?? '')}</pre>
+          {/* 空输出同样不渲染空白黑框，改为占位，避免气泡间莫名空白横线 */}
+          {empty ? <div className="muted" style={{ padding: '2px 0' }}>（无输出）</div> : <pre className="out">{text}</pre>}
         </div>
       </div>
     )

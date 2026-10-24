@@ -66,8 +66,12 @@ export function renderMarkdown(src: string): string {
         i++
       }
       i++ // 跳过结尾 ```
+      const code = buf.join('\n')
+      // 跳过空 / 纯空白的代码块：否则会渲染出一个带背景的空白 <pre>，
+      // 在气泡里表现为一摞无内容的横线（模型偶发空围栏 / 后处理残留）。
+      if (code.trim() === '') continue
       out.push(
-        `<pre class="md-pre"${lang ? ` data-lang="${lang}"` : ''}><code>${buf.join('\n')}</code></pre>`,
+        `<pre class="md-pre"${lang ? ` data-lang="${lang}"` : ''}><code>${code}</code></pre>`,
       )
       continue
     }
