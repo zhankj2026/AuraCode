@@ -72,6 +72,21 @@ export interface FileContent {
   size: number
 }
 
+/** GET /api/sessions/{id}/diff 的返回（改前/改后/统一 diff） */
+export interface FileDiff {
+  path: string
+  /** 改前内容（来自 .bak 备份；全新文件为空串） */
+  before: string
+  /** 改后内容（当前磁盘文件） */
+  after: string
+  /** unified diff 文本（difflib 生成，备用/整文展示） */
+  unified: string
+  /** "backup"=有改前版本；"none"=全新文件/无历史备份 */
+  source: 'backup' | 'none'
+  /** 改后文件当前是否仍存在（被删除则为 false） */
+  after_exists: boolean
+}
+
 /** 一次文件改动（由后端 tool_execute 事件解析得到，真实数据） */
 export interface FileChange {
   path: string

@@ -1,7 +1,8 @@
+import { useEffect, useState } from 'react'
 import { actions, useStore } from '../state/store'
 import { parseFileChanges, computeUsage } from '../api/client'
-import { readTextFull } from '../api/fsread'
-import type { FileChange } from '../api/types'
+import type { FileChange, FileDiff } from '../api/types'
+import { DiffModal } from './DiffModal'
 
 export function Inspector() {
   const inspector = useStore((s) => s.inspector)
@@ -31,20 +32,14 @@ export function Inspector() {
   )
 }
 
-function firstLines(s: string, n = 40): string[] {
-  const lines = (s || '').split('\n')
-  if (lines.length <= n) return lines
-  return [...lines.slice(0, n), `… (共 ${lines.length} 行)`]
-}
-
 function Changes() {
   const events = useStore((s) => s.events)
   const activeId = useStore((s) => s.activeSessionId)
   const openFiles = useStore((s) => s.openFiles)
   const client = useStore((s) => s.client)
-  const workDir = useStore(
-    (s) => (s.sessions.find((x) => x.session_id === s.activeSessionId)?.work_dir || '').trim(),
-  )
+  const [diff, setDiff] = useState<
+    { path: string; data?: FileDiff; loading?: boolean; error?: string } | null
+  >(null)
 
   // 真实改动：从事件流解析 agent 的文件写入(write_file)/替换(replace_in_file)
   const all = parseFileChanges(events.filter((e) => e.session_id === activeId))
@@ -53,14 +48,15 @@ function Changes() {
   const changes = [...byPath.values()]
   const unsaved = openFiles.filter((f) => f.dirty)
 
-  async function openChange(path: string) {
+  // 点击改动文件 → 拉取改前/改后并弹 diff 模态（后端基于 .bak 备份 + difflib）
+  async function openDiff(path: string) {
     if (!client || !activeId) return
+    setDiff({ path, loading: true })
     try {
-      // 整文件读取，避免 200 行截断导致打开的内容不完整
-      const r = await readTextFull(client, activeId, workDir, path)
-      actions.openFile(path, r.content)
-    } catch {
-      actions.openFile(path, '')
+      const d = await client.getDiff(activeId, path)
+      setDiff({ path, data: d })
+    } catch (e: any) {
+      setDiff({ path, error: String(e?.message || e) })
     }
   }
 
@@ -70,30 +66,12 @@ function Changes() {
       {changes.length === 0 && <div className="search">暂无 agent 改动记录</div>}
       {changes.map((c) => (
         <div key={c.path}>
-          <div className="chg" onClick={() => openChange(c.path)}>
+          <div className="chg" onClick={() => openDiff(c.path)}>
             <span className="st" style={{ color: c.kind === 'write' ? 'var(--ok)' : 'var(--warn)' }}>
               {c.kind === 'write' ? '＋' : '✎'}
             </span>
             <span className="nm">{c.path}</span>
-            <span style={{ color: 'var(--muted)', fontSize: 11 }}>查看 ▸</span>
-          </div>
-          <div className="diff">
-            <div className="dh">
-              <span>{c.path}</span>
-              <span>{c.kind === 'write' ? '写入' : '替换'}</span>
-            </div>
-            {c.kind === 'replace' ? (
-              <>
-                {firstLines(c.oldText || '').map((l, i) => (
-                  <pre className="del" key={`o${i}`}>- {l}</pre>
-                ))}
-                {firstLines(c.newText || '').map((l, i) => (
-                  <pre className="add" key={`n${i}`}>+ {l}</pre>
-                ))}
-              </>
-            ) : (
-              <pre className="add">{firstLines(c.content || '').join('\n')}</pre>
-            )}
+            <span style={{ color: 'var(--muted)', fontSize: 11 }}>对比 ▸</span>
           </div>
         </div>
       ))}
@@ -109,6 +87,37 @@ function Changes() {
             </div>
           ))}
         </>
+      )}
+
+      {diff && (
+        diff.loading ? (
+          <div className="mask show" onClick={() => setDiff(null)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <div className="mb" style={{ textAlign: 'center', color: 'var(--muted)' }}>
+                加载改动对比…
+              </div>
+            </div>
+          </div>
+        ) : diff.error ? (
+          <div className="mask show" onClick={() => setDiff(null)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <div className="mb" style={{ color: 'var(--danger)' }}>加载失败：{diff.error}</div>
+              <div className="mf">
+                <button className="btn ok" onClick={() => setDiff(null)}>关闭</button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <DiffModal
+            path={diff.path}
+            data={diff.data!}
+            onClose={() => setDiff(null)}
+            onOpenFile={(p, content) => {
+              setDiff(null)
+              actions.openFile(p, content)
+            }}
+          />
+        )
       )}
     </div>
   )

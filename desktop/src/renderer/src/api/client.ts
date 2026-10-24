@@ -5,6 +5,7 @@ import type {
   PermissionReq,
   FileListing,
   FileContent,
+  FileDiff,
   FileChange,
   SkillhubSearchResult,
   SkillhubInstallResult,
@@ -326,6 +327,16 @@ export class BridgeClient {
       throw new Error(detail || `HTTP ${r.status}`)
     }
     return r.json()
+  }
+
+  /** 取某文件改前/改后内容与 unified diff（后端基于 .bak 备份 + difflib）。 */
+  async getDiff(sessionId: string, p: string): Promise<FileDiff> {
+    const r = await fetch(
+      this.url(`/api/sessions/${sessionId}/diff?path=${encodeURIComponent(p)}`),
+      { headers: this.headers() },
+    )
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    return (await r.json()) as FileDiff
   }
 
   async listFiles(sessionId: string, subdir = ''): Promise<FileListing> {

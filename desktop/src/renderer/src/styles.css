@@ -329,6 +329,22 @@ header {
 .chg .nm { flex: 1; font-size: 12px }
 .chg .st { font-size: 10px; color: var(--ok); font-family: var(--mono) }
 
+/* ── Diff 对比视图（改动面板）────────────────────────────────────── */
+.diffnote { padding: 8px 16px; font-size: 11.5px; color: var(--muted); background: var(--bg3); border-bottom: 1px solid var(--line); line-height: 1.5 }
+.diffbody { max-height: calc(100vh - 220px); overflow: auto; font-family: var(--mono); font-size: 12px; line-height: 1.55; background: #0c1220 }
+.drow { display: flex; align-items: stretch; min-width: 0 }
+.drow .dsign { width: 16px; flex: 0 0 16px; text-align: center; color: var(--muted2); user-select: none; flex-shrink: 0 }
+.drow .dold { width: 50px; flex: 0 0 50px; text-align: right; padding-right: 8px; color: var(--muted2); user-select: none; flex-shrink: 0 }
+.drow .dnew { width: 50px; flex: 0 0 50px; text-align: right; padding-right: 8px; color: var(--muted2); user-select: none; flex-shrink: 0 }
+.drow .dtext { flex: 1; min-width: 0; padding: 0 12px 0 4px; white-space: pre-wrap; word-break: break-word; border-left: 1px solid var(--line) }
+.drow.ctx .dtext { color: #8a94a8 }
+.drow.del { background: #2e1212 }
+.drow.del .dsign { color: #f09997 }
+.drow.del .dtext { color: #f0a9a9 }
+.drow.add { background: #0e2a1c }
+.drow.add .dsign { color: #7fe0ad }
+.drow.add .dtext { color: #8fe3bb }
+
 /* Modal */
 .mask { position: fixed; inset: 0; background: #04060ccc; display: none; align-items: center; justify-content: center; z-index: 40 }
 .mask.show { display: flex }

@@ -20,6 +20,7 @@ REST API 用于会话管理和消息发送，WebSocket 用于实时事件推送�
 import asyncio
 import base64
 import binascii
+import difflib
 import json
 import logging
 import os
@@ -770,6 +771,77 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
             raise HTTPException(status_code=403, detail="Permission denied")
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/sessions/{session_id}/diff")
+    async def get_file_diff(
+        session_id: str,
+        path: str = Query(...),
+        auth: bool = Depends(_auth.verify),
+    ):
+        """返回某次会话内某文件的改前/改后内容与 unified diff。
+
+        改前内容取自工具自动生成的 .bak 备份：write_file / replace_in_file 每次
+        编辑前都会把改前原文备份到 <文件所在目录>/.backup/<名>.<时间戳>.bak。
+        取该文件最早的一份 = 进入会话前的原始版本；改后取当前磁盘文件。
+        因此无论整文件写入还是局部替换，都能给出真实对比，且不依赖 git。
+        """
+        session = _manager.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        work_dir = session.config.work_dir or "."
+        # 与工具侧一致地解析路径：绝对路径直接用，相对路径基于 work_dir
+        if os.path.isabs(path):
+            abs_path = os.path.abspath(path)
+        else:
+            abs_path = os.path.abspath(os.path.join(work_dir, path))
+        if not is_path_within(work_dir, abs_path):
+            raise HTTPException(status_code=403, detail="Path traversal denied")
+
+        # 改后：当前磁盘文件；不存在（被删除）则视为空
+        after = ""
+        after_exists = os.path.isfile(abs_path)
+        if after_exists:
+            try:
+                with open(abs_path, "r", encoding="utf-8", errors="replace") as f:
+                    after = f.read()
+            except (PermissionError, OSError):
+                raise HTTPException(status_code=403, detail="Permission denied")
+
+        # 改前：该文件所在目录 .backup 下、同名最早的一份 .bak（文件名含零填充时间戳，
+        # 字典序 == 时间序；最早一份 = 进入会话前的原始版本）
+        before = ""
+        source = "none"
+        bak_dir = os.path.join(os.path.dirname(abs_path) or ".", ".backup")
+        basename = os.path.basename(abs_path)
+        if os.path.isdir(bak_dir):
+            cands = [
+                f for f in os.listdir(bak_dir)
+                if f.startswith(basename + ".") and f.endswith(".bak")
+            ]
+            cands.sort()
+            if cands:
+                try:
+                    with open(os.path.join(bak_dir, cands[0]), "r", encoding="utf-8", errors="replace") as f:
+                        before = f.read()
+                    source = "backup"
+                except (PermissionError, OSError):
+                    before = ""
+
+        before_lines = before.splitlines(keepends=True) if before else []
+        after_lines = after.splitlines(keepends=True) if after else []
+        unified = "".join(difflib.unified_diff(
+            before_lines, after_lines,
+            fromfile="before", tofile="after", lineterm="",
+        ))
+        return {
+            "path": path,
+            "before": before,
+            "after": after,
+            "unified": unified,
+            # "backup"=有改前版本；"none"=全新文件/无历史备份
+            "source": source,
+            "after_exists": after_exists,
+        }
 
     @app.delete("/api/sessions/{session_id}/files")
     async def delete_file(
