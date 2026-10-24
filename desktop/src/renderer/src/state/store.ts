@@ -162,9 +162,22 @@ export const actions = {
     try {
       actions.setToast('正在恢复历史会话…', 'info')
       const r = await c.resumeSession(id)
+      // 重新拉列表：恢复出的活跃会话替代旧归档条目（旧归档文件仍在磁盘，
+      // 但列表展示上以新活跃会话为准，避免两条同内容条目让用户困惑）
       const list = await c.listSessions()
-      actions.setSessions(list)
+      actions.setSessions(
+        list.filter((s) => !(s.archived && s.session_id === id)),
+      )
       actions.selectSession(r.session_id)
+      // 后端 resume 返回时回放已完成，立即拉齐历史事件
+      // （不依赖 App.tsx 的切换 effect——那个在 events 非空时也只拉一次，
+      //  与 resume 的时序竞争会漏内容）
+      try {
+        const evs = await c.getEvents(r.session_id, 0)
+        actions.ingestEvents(evs)
+      } catch {
+        /* 历史拉取失败不阻断；WS 流仍可用 */
+      }
       actions.setToast('已恢复历史会话', 'ok')
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)

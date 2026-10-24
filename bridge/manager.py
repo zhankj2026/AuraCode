@@ -174,12 +174,19 @@ class BridgeSessionManager:
         session = self.create_session(config)
 
         # 显式回放归档消息（绕过 find_latest_by_workdir 的自动恢复，
-        # 精确恢复这份档案且不叠加别的归档）
+        # 精确恢复这份档案且不叠加别的归档）。restore_record 内部等待
+        # loop 就绪后回放；这里再等回放事件落库（最多 10s），保证 HTTP
+        # 返回时前端拉事件已能拿到完整历史。
         restored = session.restore_record(record)
         if not restored:
             # 消息全被清洗（如全是残缺 tool_calls）：撤销创建，报明确错误
             self.remove_session(session.session_id)
             raise ValueError(f"archived session has no restorable messages: {session_id}")
+        deadline = time.time() + 10.0
+        while time.time() < deadline:
+            if session.replayed_message_count() >= restored:
+                break
+            time.sleep(0.1)
         return session
 
     def delete_session_full(self, session_id: str) -> bool:

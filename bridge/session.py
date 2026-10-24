@@ -343,6 +343,10 @@ class BridgeSession:
         self._agent_loop = None
         self._init_error: Optional[str] = None
         self._pending_model: Optional[str] = None  # loop 未就绪时排队的模型切换
+        # loop 就绪事件：_init_agent_loop 完成时置位。resume 场景需要等
+        # loop 就绪才能回放消息（否则 _restore_history 因 _agent_loop 为
+        # None 失败，表现为「恢复成功但看不到历史内容」）。
+        self._loop_ready = threading.Event()
 
         # 统计
         self.created_at = time.time()
@@ -727,14 +731,30 @@ class BridgeSession:
 
         与 _restore_history 的 work_dir 自动匹配不同：这里显式指定档案，
         用于侧栏「恢复历史会话」。同时同步轮次/标题元数据。
-        Returns: 恢复的消息数（0=无可恢复内容）。
+        等待 AgentLoop 就绪（最多 30s）后再回放——resume 在 manager 线程
+        调用本方法时会话线程可能还在 _init_agent_loop，未就绪时
+        _restore_history 会因 _agent_loop 为 None 失败。
+        Returns: 恢复的消息数（0=无可恢复内容/超时）。
         """
+        if not self._loop_ready.wait(timeout=30.0):
+            logger.warning(f"restore_record: agent loop not ready in 30s: {self.session_id}")
+            return 0
+        if self._agent_loop is None:
+            return 0
         restored = self._restore_history(record)
         if restored:
             meta = record.meta
             self.title = meta.last_prompt or meta.first_prompt or self.title
             self._round_count = meta.turn_count or self._round_count
         return restored
+
+    def replayed_message_count(self) -> int:
+        """已回放的 user/assistant 事件数（resume 等待回放完成用）"""
+        with self._events_lock:
+            return sum(
+                1 for e in self._events
+                if e.type in ("user_message", "assistant_message")
+            )
 
     def get_info(self) -> SessionInfo:
         """获取会话摘要"""
@@ -874,6 +894,8 @@ class BridgeSession:
 
         finally:
             os.chdir(original_dir)
+            # 通知等待方：loop 就绪（成功或失败都置位，等待方检查状态）
+            self._loop_ready.set()
 
     def _run_loop(self):
         """线程主函数：消息循环"""

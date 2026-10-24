@@ -104,6 +104,7 @@ class SessionInfoResponse(BaseModel):
     title: str
     current_activity: Optional[Dict[str, Any]] = None
     round_count: int = 0
+    archived: bool = False  # True=磁盘归档会话（需 resume 恢复后才能交互）
 
 
 class EventResponse(BaseModel):
