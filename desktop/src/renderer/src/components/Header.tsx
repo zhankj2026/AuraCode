@@ -41,6 +41,7 @@ export function Header() {
   const mode = useStore((s) => s.mode)
   const client = useStore((s) => s.client)
   const customModels = useStore((s) => s.customModels)
+  const insOpen = useStore((s) => s.inspectorOpen)
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const [recent, setRecent] = useState<string[]>([])
@@ -290,6 +291,13 @@ export function Header() {
       <button className="pill" title="当前会话用量">
         <span className="k">用量</span>
         <span className="v">{usage}</span>
+      </button>
+      <button
+        className={`iconbtn ${insOpen ? '' : 'on'}`}
+        title={insOpen ? '收起右侧面板' : '打开右侧面板'}
+        onClick={() => actions.toggleInspector()}
+      >
+        {insOpen ? '⟩' : '⟨'}
       </button>
       <button className="iconbtn" title="设置" onClick={() => actions.openSettings()}>
         ⚙

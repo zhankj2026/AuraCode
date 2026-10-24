@@ -5,14 +5,22 @@ import type { FileChange } from '../api/types'
 
 export function Inspector() {
   const inspector = useStore((s) => s.inspector)
+  const open = useStore((s) => s.inspectorOpen)
   return (
-    <div className="insp">
+    <div className={`insp ${open ? '' : 'hidden'}`}>
       <div className="ih">
         {['改动', '上下文', '用量'].map((t) => (
           <div key={t} className={`it ${inspector === t ? 'on' : ''}`} onClick={() => actions.setInspector(t as any)}>
             {t}
           </div>
         ))}
+        <button
+          className="insp-close"
+          title="收起右侧面板"
+          onClick={() => actions.toggleInspector()}
+        >
+          ⟩
+        </button>
       </div>
       <div className="iscroll">
         {inspector === '改动' && <Changes />}

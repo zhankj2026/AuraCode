@@ -27,6 +27,8 @@ export interface AppState {
   activity: Activity
   extTab: string
   inspector: InspectorTab
+  /** 右侧面板（Inspector）是否展开。默认展开；可经顶栏按钮或面板内收起按钮切换。 */
+  inspectorOpen: boolean
   openFiles: OpenFile[]
   activeTab: string
   mode: string
@@ -65,6 +67,7 @@ const initial: AppState = {
   activity: 'chat',
   extTab: 'MCP',
   inspector: '改动',
+  inspectorOpen: true,
   openFiles: [],
   activeTab: 'chat',
   mode: '普通',
@@ -334,6 +337,13 @@ export const actions = {
   },
   setInspector(t: InspectorTab) {
     setState({ inspector: t })
+  },
+  /** 切换右侧面板的展开/收起；面板上「收起」按钮与顶栏「面板」按钮共用。 */
+  toggleInspector() {
+    setState({ inspectorOpen: !state.inspectorOpen })
+  },
+  setInspectorOpen(v: boolean) {
+    setState({ inspectorOpen: v })
   },
   setMode(m: string) {
     setState({ mode: m })
