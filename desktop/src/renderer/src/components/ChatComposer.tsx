@@ -168,6 +168,14 @@ export function ChatComposer() {
     setActiveIdx(0)
   }, [items])
 
+  // 输入框随内容自动长高：从 min-height(60px) 起增长，到 max-height(240px) 后改为内部滚动
+  useEffect(() => {
+    const ta = taRef.current
+    if (!ta) return
+    ta.style.height = 'auto'
+    ta.style.height = Math.min(ta.scrollHeight, 240) + 'px'
+  }, [text])
+
   function recompute(t: string, c: number) {
     setText(t)
     setCursorPos(c)

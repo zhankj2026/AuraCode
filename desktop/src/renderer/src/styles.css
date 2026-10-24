@@ -208,10 +208,10 @@ header {
 .sysline .muted { color: var(--muted2); margin-left: 4px }
 .ev .body pre.out { margin: 0; white-space: pre-wrap; word-break: break-word; color: #9fb3d6; max-height: 220px; overflow: auto }
 .muted { color: var(--muted2) }
-.composer { position: relative; flex: 0 0 auto; padding: 12px 18px 14px; background: var(--bg2); border-top: 1px solid var(--line) }
+.composer { position: relative; flex: 0 0 auto; padding: 14px 20px 16px; background: var(--bg2); border-top: 1px solid var(--line) }
 .composer.hide { display: none }
-.cin { background: var(--bg3); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: flex; gap: 10px; align-items: flex-end }
-.cin textarea { flex: 1; background: transparent; border: none; color: var(--text); font-family: inherit; font-size: 13px; resize: none; outline: none; line-height: 1.6; max-height: 120px }
+.cin { background: var(--bg3); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; gap: 10px; align-items: flex-end }
+.cin textarea { flex: 1; background: transparent; border: none; color: var(--text); font-family: inherit; font-size: 14px; resize: none; outline: none; line-height: 1.7; min-height: 60px; max-height: 240px; overflow-y: auto; }
 .cin .send { background: var(--primary); border-radius: 9px; padding: 8px 14px; color: #fff; font-weight: 600 }
 .cin .send:hover { background: var(--primaryLite) }
 /* 「■ 结束」按钮：仅会话生成中显示，方形以示与发送的区别 */
