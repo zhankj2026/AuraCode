@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { actions, useStore } from '../state/store'
+import { computeUsage } from '../api/client'
 
 /** 模型目录兜底选项（拉取后端 /api/models 失败时使用）。 */
 const MODEL_FALLBACK: Array<{ id: string; provider?: string; note?: string }> = [
@@ -58,8 +59,11 @@ export function Header() {
   }, [])
 
   const active = sessions.find((s) => s.session_id === activeId)
+  const events = useStore((s) => s.events)
+  // 实时派生：从事件流算轮次/事件数，避免读取不刷新的 sessions 快照（曾导致永远显示 0）
+  const { eventCount, roundCount } = computeUsage(events, activeId)
   const model = active?.model || '未设置'
-  const usage = `轮次 ${active?.round_count ?? 0} · 事件 ${active?.event_count ?? 0}`
+  const usage = `轮次 ${roundCount} · 事件 ${eventCount}`
   const ref = useRef<HTMLDivElement>(null)
   const mref = useRef<HTMLDivElement>(null)
 

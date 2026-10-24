@@ -1,5 +1,5 @@
 import { actions, useStore } from '../state/store'
-import { parseFileChanges } from '../api/client'
+import { parseFileChanges, computeUsage } from '../api/client'
 import { readTextFull } from '../api/fsread'
 import type { FileChange } from '../api/types'
 
@@ -148,13 +148,16 @@ function Usage() {
   const workspace = useStore((s) => s.workspace)
   const sessions = useStore((s) => s.sessions)
   const activeId = useStore((s) => s.activeSessionId)
+  const events = useStore((s) => s.events)
   const active = sessions.find((s) => s.session_id === activeId)
+  // 实时派生：从事件流算轮次/事件数，避免读取不刷新的 sessions 快照（曾导致永远显示 0）
+  const { eventCount, roundCount } = computeUsage(events, activeId)
   return (
     <div className="card">
       <div className="ct">会话用量（实时）</div>
       <div className="kv"><span>会话 ID</span><b style={{ fontSize: 11 }}>{activeId ? activeId.slice(0, 8) : '—'}</b></div>
-      <div className="kv"><span>轮次</span><b>{active?.round_count ?? 0}</b></div>
-      <div className="kv"><span>事件总数</span><b>{active?.event_count ?? 0}</b></div>
+      <div className="kv"><span>轮次</span><b>{roundCount}</b></div>
+      <div className="kv"><span>事件总数</span><b>{eventCount}</b></div>
       <div className="kv"><span>状态</span><b>{active?.state || '—'}</b></div>
       <div className="kv"><span>模型</span><b>{active?.model || '未设置'}</b></div>
       <div className="kv"><span>权限模式</span><b>{mode}</b></div>

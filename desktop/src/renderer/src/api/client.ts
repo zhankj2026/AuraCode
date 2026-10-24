@@ -56,6 +56,34 @@ export function parseFileChanges(events: BridgeEvent[]): FileChange[] {
 }
 
 /**
+ * 从实时事件流派生会话用量（轮次 / 事件总数）。
+ *
+ * 数据来源与「上下文」标签一致：store.events（WS 实时推送 + 会话切换时 ingest 的历史）。
+ * 这样「用量」面板与顶部用量胶囊不再读取不刷新的 sessions 快照，
+ * 避免活跃会话对话进行中轮次/事件数永远停在 0。
+ *
+ * 说明：
+ * - eventCount = 该会话在事件流中的可见事件数（前端 handleEvent 会跳过 user_message 以避免重复渲染，
+ *   因此这里比后端内部总事件数少「用户消息」条数，属于信息性统计而非精确后端计数）。
+ * - roundCount = 该会话 turn_start 事件数，对应后端每轮 run 自增的 _round_count。
+ * - 全局 events 有 2000 条上限（store.ts slice(-2000)），超长会话会轻微少算。
+ */
+export function computeUsage(events: BridgeEvent[], sessionId: string | null): {
+  eventCount: number
+  roundCount: number
+} {
+  if (!sessionId) return { eventCount: 0, roundCount: 0 }
+  let eventCount = 0
+  let roundCount = 0
+  for (const e of events) {
+    if (e.session_id !== sessionId) continue
+    eventCount++
+    if (e.type === 'turn_start') roundCount++
+  }
+  return { eventCount, roundCount }
+}
+
+/**
  * 对 AuraCode Bridge 后端的 REST + WebSocket 客户端。
  * 全部走 127.0.0.1 loopback + Bearer token，与现有后端一一对应。
  */
