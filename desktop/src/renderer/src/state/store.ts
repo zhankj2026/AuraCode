@@ -46,6 +46,10 @@ export interface AppState {
   /** 当前会话是否正在生成回复（turn_start → true，turn_complete/session_error → false）。
    *  驱动发送区「■ 结束」按钮的显示。按 session 记录，切换会话时自动正确。 */
   runningSessions: Record<string, boolean>
+  /** 归档会话列表（专门的归档管理页数据源，与活跃会话列表分离） */
+  archives: SessionInfo[]
+  /** 归档查看器状态：null=关闭，否则显示该归档的消息 */
+  archiveViewer: { id: string; title: string; messages: Array<{ role: string; content: string }> } | null
 }
 
 const initial: AppState = {
@@ -75,6 +79,8 @@ const initial: AppState = {
   customModels: [],
   toast: null,
   runningSessions: {},
+  archives: [],
+  archiveViewer: null,
 }
 
 let state: AppState = initial
@@ -162,13 +168,10 @@ export const actions = {
     try {
       actions.setToast('正在恢复历史会话…', 'info')
       const r = await c.resumeSession(id)
-      // 重新拉列表：恢复出的活跃会话替代旧归档条目（旧归档文件仍在磁盘，
-      // 但列表展示上以新活跃会话为准，避免两条同内容条目让用户困惑）
       const list = await c.listSessions()
-      actions.setSessions(
-        list.filter((s) => !(s.archived && s.session_id === id)),
-      )
+      actions.setSessions(list)
       actions.selectSession(r.session_id)
+      actions.setActivity('chat')
       // 后端 resume 返回时回放已完成，立即拉齐历史事件
       // （不依赖 App.tsx 的切换 effect——那个在 events 非空时也只拉一次，
       //  与 resume 的时序竞争会漏内容）
@@ -178,6 +181,8 @@ export const actions = {
       } catch {
         /* 历史拉取失败不阻断；WS 流仍可用 */
       }
+      // 恢复后刷新归档列表（归档文件仍在，但该条目已恢复为活跃会话）
+      actions.loadArchives()
       actions.setToast('已恢复历史会话', 'ok')
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
@@ -216,6 +221,52 @@ export const actions = {
   /** 标记会话运行态（turn_start/turn_complete 事件驱动；「结束」按钮的显示依据） */
   setSessionRunning(sessionId: string, running: boolean) {
     setState({ runningSessions: { ...state.runningSessions, [sessionId]: running } })
+  },
+  /** 手动归档当前/指定会话：停止+写盘+从活跃列表移除（切到剩余第一个） */
+  async archiveSession(id: string) {
+    const c = state.client
+    if (!c) return
+    try {
+      await c.archiveSession(id)
+      const list = await c.listSessions()
+      actions.setSessions(list)
+      if (state.activeSessionId === id) {
+        actions.selectSession(list[0]?.session_id ?? null)
+        if (!list[0]) setState({ events: [], messages: {} })
+      }
+      actions.setToast('已归档会话（可在「历史归档」页查看/恢复）', 'ok')
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      actions.setToast('归档失败：' + msg, 'error')
+    }
+  },
+  /** 拉取归档列表（归档管理页） */
+  async loadArchives() {
+    const c = state.client
+    if (!c) return
+    try {
+      const list = await c.listArchives()
+      setState({ archives: list })
+    } catch (e) {
+      console.warn('[archives] 加载失败', e)
+    }
+  },
+  /** 打开归档查看器（只读消息） */
+  async openArchiveViewer(id: string) {
+    const c = state.client
+    if (!c) return
+    const meta = state.archives.find((a) => a.session_id === id)
+    try {
+      const r = await c.getArchiveMessages(id)
+      setState({
+        archiveViewer: { id, title: meta?.title || '(未命名)', messages: r.messages },
+      })
+    } catch (e) {
+      actions.setToast('读取归档内容失败：' + String(e), 'error')
+    }
+  },
+  closeArchiveViewer() {
+    setState({ archiveViewer: null })
   },
   pushMessage(sessionId: string, msg: Omit<ChatMessage, 'id' | 'ts'>) {
     const list = state.messages[sessionId] || []

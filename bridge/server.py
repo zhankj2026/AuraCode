@@ -645,6 +645,36 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
             "work_dir": session.config.work_dir,
         }
 
+    @app.get("/api/archives")
+    async def list_archives(
+        auth: bool = Depends(_auth.verify),
+    ):
+        """归档会话列表（专门的归档管理页数据源，与活跃会话列表分离）"""
+        return [SessionInfoResponse(**a.to_dict()) for a in _manager.list_archives()]
+
+    @app.get("/api/archives/{session_id}/messages")
+    async def get_archive_messages(
+        session_id: str,
+        limit: int = 500,
+        auth: bool = Depends(_auth.verify),
+    ):
+        """读取归档会话的消息历史（只读查看）"""
+        try:
+            msgs = _manager.get_archive_messages(session_id, limit)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="Archived session not found")
+        return {"session_id": session_id, "messages": msgs}
+
+    @app.post("/api/sessions/{session_id}/archive")
+    async def archive_session(
+        session_id: str,
+        auth: bool = Depends(_auth.verify),
+    ):
+        """手动归档：停止会话并写盘归档，从活跃列表移除"""
+        if not _manager.archive_session(session_id):
+            raise HTTPException(status_code=404, detail="Session not found")
+        return {"status": "archived", "session_id": session_id}
+
     @app.get(
         "/api/sessions/{session_id}/events",
         response_model=List[EventResponse],

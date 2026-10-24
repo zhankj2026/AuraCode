@@ -270,6 +270,36 @@ export class BridgeClient {
     return r.json() as Promise<{ status: string; session_id: string; restored_from: string; work_dir: string }>
   }
 
+  /** 归档会话列表（归档管理页专用） */
+  async listArchives(): Promise<SessionInfo[]> {
+    const r = await fetch(this.url('/api/archives'), { headers: this.headers() })
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    return r.json()
+  }
+
+  /** 归档会话消息（只读查看） */
+  async getArchiveMessages(sessionId: string, limit = 500) {
+    const r = await fetch(
+      this.url(`/api/archives/${sessionId}/messages?limit=${limit}`),
+      { headers: this.headers() },
+    )
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    return r.json() as Promise<{ session_id: string; messages: Array<{ role: string; content: string }> }>
+  }
+
+  /** 手动归档活跃会话（停止+写盘+从列表移除） */
+  async archiveSession(sessionId: string) {
+    const r = await fetch(this.url(`/api/sessions/${sessionId}/archive`), {
+      method: 'POST',
+      headers: this.headers(),
+    })
+    if (!r.ok) {
+      const detail = await r.text().catch(() => '')
+      throw new Error(detail || `HTTP ${r.status}`)
+    }
+    return r.json()
+  }
+
   async listFiles(sessionId: string, subdir = ''): Promise<FileListing> {
     const r = await fetch(
       this.url(

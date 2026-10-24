@@ -12,52 +12,55 @@ export function Sidebar() {
   if (activity === 'ext') return <ExtSidebar />
   if (activity === 'audit') return <AuditSidebar />
   if (activity === 'models') return null
+  if (activity === 'archives') return <ArchivesSidebar />
   return <TasksSidebar />
 }
 
 function ChatSidebar() {
   const sessions = useStore((s) => s.sessions)
   const activeId = useStore((s) => s.activeSessionId)
-
-  // 归档会话排在活跃会话之后（后端已按此序返回，这里稳定排序兜底）
-  const sorted = [...sessions].sort((a, b) =>
-    Number(a.archived ?? false) - Number(b.archived ?? false),
-  )
+  const runningSessions = useStore((s) => s.runningSessions)
 
   return (
     <>
       <button className="btn-primary" onClick={() => actions.newSession()}>
         ＋ 新会话
       </button>
-      <div className="search">🔍 搜索会话</div>
       <div className="scroll">
-        {sorted.map((s) => (
+        {sessions.map((s) => (
           <div
             key={s.session_id}
             className={`item ${activeId === s.session_id ? 'active' : ''}`}
-            onClick={() =>
-              s.archived ? actions.resumeSession(s.session_id) : actions.selectSession(s.session_id)
-            }
-            title={s.archived ? '点击恢复此历史会话' : s.work_dir}
+            onClick={() => actions.selectSession(s.session_id)}
+            title={s.work_dir}
           >
             <span
               className="dot-s"
-              style={{ background: s.archived ? 'var(--muted2)' : activeId === s.session_id ? 'var(--accentLite)' : '#3a4a66', width: 7, height: 7, borderRadius: '50%' }}
+              style={{ background: runningSessions[s.session_id] ? 'var(--ok)' : activeId === s.session_id ? 'var(--accentLite)' : '#3a4a66', width: 7, height: 7, borderRadius: '50%' }}
             />
             <div className="t">
               <div className="n">{s.title || '(未命名会话)'}</div>
-              <div className="s">
-                {s.archived ? '📦 归档 · ' : ''}
-                {s.round_count} 轮 · {s.model || '—'} · {s.state}
-              </div>
+              <div className="s">{s.round_count} 轮 · {s.model || '—'} · {s.state}</div>
             </div>
+            <button
+              className="item-del"
+              title="归档此会话（停止并保存到历史归档，可在归档页恢复）"
+              onClick={(e) => {
+                e.stopPropagation()
+                const label = s.title ? `「${s.title.slice(0, 24)}」` : '该会话'
+                if (window.confirm(`确定归档 ${label}？会话将停止并保存为历史归档。`))
+                  actions.archiveSession(s.session_id)
+              }}
+            >
+              📦
+            </button>
             <button
               className="item-del"
               title="删除此会话"
               onClick={(e) => {
                 e.stopPropagation()
                 const label = s.title ? `「${s.title.slice(0, 24)}」` : '该会话'
-                if (window.confirm(`确定删除 ${label}？${s.archived ? '（归档文件将一并删除，不可恢复）' : ''}`))
+                if (window.confirm(`确定删除 ${label}？（归档文件将一并删除，不可恢复）`))
                   actions.deleteSession(s.session_id)
               }}
             >
@@ -66,6 +69,76 @@ function ChatSidebar() {
           </div>
         ))}
         {sessions.length === 0 && <div className="search">暂无会话，点击上方新建</div>}
+      </div>
+      <button className="btn" style={{ marginTop: 'auto' }} onClick={() => actions.setActivity('archives')}>
+        📦 历史归档
+      </button>
+    </>
+  )
+}
+
+function ArchivesSidebar() {
+  const archives = useStore((s) => s.archives)
+  const [q, setQ] = useState('')
+  useEffect(() => {
+    actions.loadArchives()
+  }, [])
+  const filtered = q
+    ? archives.filter(
+        (a) =>
+          (a.title || '').toLowerCase().includes(q.toLowerCase()) ||
+          (a.work_dir || '').toLowerCase().includes(q.toLowerCase()),
+      )
+    : archives
+  const fmt = (ts: number) =>
+    ts ? new Date(ts * 1000).toLocaleString('zh-CN', { hour12: false }) : '—'
+
+  return (
+    <>
+      <h3>📦 历史归档（{archives.length}）</h3>
+      <div className="search">
+        <input
+          style={{ width: '100%', background: 'transparent', border: 'none', color: 'inherit', outline: 'none' }}
+          placeholder="搜索标题 / 工作区…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+      </div>
+      <div className="scroll">
+        {filtered.length === 0 && <div className="search">无归档会话</div>}
+        {filtered.map((a) => (
+          <div className="item" key={a.session_id} title={a.work_dir}>
+            <span className="dot-s" style={{ background: 'var(--muted2)', width: 7, height: 7, borderRadius: '50%' }} />
+            <div className="t">
+              <div className="n">{a.title || '(未命名会话)'}</div>
+              <div className="s">
+                {a.round_count} 轮 · {a.model || '—'}
+                <br />
+                {fmt(a.last_activity)}
+              </div>
+            </div>
+            <button className="item-del" title="查看归档内容" onClick={(e) => { e.stopPropagation(); actions.openArchiveViewer(a.session_id) }}>
+              👁
+            </button>
+            <button className="item-del" title="恢复为可用会话" onClick={(e) => { e.stopPropagation(); actions.resumeSession(a.session_id) }}>
+              ↩
+            </button>
+            <button
+              className="item-del"
+              title="删除此归档（不可恢复）"
+              onClick={(e) => {
+                e.stopPropagation()
+                const label = a.title ? `「${a.title.slice(0, 24)}」` : '该归档'
+                if (window.confirm(`确定删除归档 ${label}？文件将删除，不可恢复。`)) {
+                  actions.deleteSession(a.session_id)
+                  actions.loadArchives()
+                }
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
       </div>
     </>
   )

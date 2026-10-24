@@ -28,6 +28,15 @@ export function MainArea() {
     )
   }
 
+  // 归档管理页：归档列表在左侧 Sidebar，主区显示选中的归档内容查看器
+  if (activity === 'archives') {
+    return (
+      <div className="main">
+        <ArchiveViewer />
+      </div>
+    )
+  }
+
   return (
     <div className="main">
       <div className="tabstrip">
@@ -382,4 +391,69 @@ function fileKind(path: string): 'image' | 'md' | 'html' | 'office' | 'code' {
   if (/\.html?$/.test(p)) return 'html'
   if (/\.(docx|pptx)$/.test(p)) return 'office'
   return 'code'
+}
+
+/** 归档内容查看器（只读）：显示归档会话的 user/assistant 消息 */
+function ArchiveViewer() {
+  const viewer = useStore((s) => s.archiveViewer)
+  if (!viewer) {
+    return (
+      <div className="stage" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted2)' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>📦</div>
+          <div>从左侧选择一个归档会话，点击 👁 查看内容</div>
+          <div style={{ fontSize: 11, marginTop: 8 }}>↩ 恢复为可用会话 · ✕ 永久删除归档</div>
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div className="stage" style={{ padding: '16px 20px', overflow: 'auto' }}>
+      <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <b style={{ fontSize: 14 }}>{viewer.title}</b>
+        <span className="tag">只读归档</span>
+        <span style={{ flex: 1 }} />
+        <button
+          className="btn"
+          style={{ padding: '4px 12px' }}
+          onClick={() => actions.resumeSession(viewer.id)}
+        >
+          ↩ 恢复为可用会话
+        </button>
+        <button className="btn" style={{ padding: '4px 12px' }} onClick={() => actions.closeArchiveViewer()}>
+          关闭
+        </button>
+      </div>
+      {viewer.messages.length === 0 && <div style={{ color: 'var(--muted2)' }}>（无可展示的消息）</div>}
+      {viewer.messages.map((m, i) => (
+        <div key={i} style={{ marginBottom: 12 }}>
+          <div
+            style={{
+              fontSize: 11,
+              color: m.role === 'user' ? 'var(--accentLite)' : 'var(--ok)',
+              marginBottom: 3,
+            }}
+          >
+            {m.role === 'user' ? '👤 用户' : '🤖 助手'}
+          </div>
+          <div
+            style={{
+              background: m.role === 'user' ? 'var(--bg2)' : 'var(--bg3)',
+              border: '1px solid var(--line)',
+              borderRadius: 8,
+              padding: '8px 12px',
+              fontSize: 13,
+              lineHeight: 1.6,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              maxHeight: 400,
+              overflow: 'auto',
+            }}
+          >
+            {m.content}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 }

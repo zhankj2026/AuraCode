@@ -125,11 +125,11 @@ export function Header() {
       actions.setToast('请先选择一个会话', 'info')
       return
     }
-    // 归档会话不能直接切模型（后端无活跃实例，会报 Session not found）。
-    // 引导用户先点击恢复——恢复出的活跃会话即可正常切换。
+    // 归档会话不能直接切模型（后端无活跃实例）。归档现在在专门的管理页
+    // （对话侧栏底部「📦 历史归档」入口），需先 ↩ 恢复为活跃会话再切换。
     const sess = sessions.find((s) => s.session_id === activeId)
     if (sess?.archived) {
-      actions.setToast('该会话是历史归档，请先在左侧列表点击它恢复后再切换模型', 'info')
+      actions.setToast('归档会话不可直接操作：请到「历史归档」页先恢复为可用会话', 'info')
       setModelOpen(false)
       return
     }

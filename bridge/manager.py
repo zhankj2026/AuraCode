@@ -20,16 +20,12 @@ import logging
 import threading
 import time
 from typing import Callable, Dict, List, Optional
-
 from bridge.types import (
     BridgeEvent, BridgeEventType, SessionConfig, SessionInfo, SessionState,
 )
 from bridge.session import BridgeSession
 
 logger = logging.getLogger(__name__)
-
-# 归档列表上限：侧栏展示用，过多时前端可分页/搜索（当前一次给足）
-ARCHIVE_LIST_LIMIT = 200
 
 
 class BridgeSessionManager:
@@ -105,33 +101,32 @@ class BridgeSessionManager:
             return self._sessions.get(session_id)
 
     def list_sessions(self) -> List[SessionInfo]:
-        """列出所有会话（活跃 + 磁盘归档合并）。
+        """列出所有会话（仅活跃会话；归档在专门的归档管理页展示）。
 
-        历史会话在进程退出时持久化到 ~/.auracode/sessions/*.json；此前
-        list_sessions 只返回内存活跃会话，桌面重启后侧栏历史全丢——
-        「历史会话没有加载」的根因。现合并归档：
-        - 活跃会话正常返回（archived=False）
-        - 归档会话转 SessionInfo（archived=True），去重排除活跃 ID
-        - 活跃在前，归档按 updated_at 倒序在后
+        历史会话退出时持久化到 ~/.auracode/sessions/*.json。曾把归档合并
+        进本列表（混排），但用户交互反馈：归档与活跃会话混在一起容易误点、
+        归档不可直接交互也易困惑——现归档独立入口 list_archives()。
         """
         with self._lock:
-            infos = [s.get_info() for s in self._sessions.values()]
+            return [s.get_info() for s in self._sessions.values()]
 
+    def list_archives(self, limit: int = 200) -> List[SessionInfo]:
+        """列出磁盘归档会话（专门的归档管理页数据源）。
+
+        与 list_sessions 分离：归档不占活跃会话位，按 updated_at 倒序。
+        """
         try:
             from core.session_store import SessionStore
             from datetime import datetime
             store = SessionStore()
-            active_ids = {i.session_id for i in infos}
-            archived_infos = []
-            for meta in store.list_sessions(limit=ARCHIVE_LIST_LIMIT):
-                if meta.session_id in active_ids:
-                    continue
+            out = []
+            for meta in store.list_sessions(limit=limit):
                 try:
                     updated = datetime.fromisoformat(meta.updated_at).timestamp()
                     created = datetime.fromisoformat(meta.created_at).timestamp()
                 except (ValueError, TypeError):
                     updated = created = 0.0
-                archived_infos.append(SessionInfo(
+                out.append(SessionInfo(
                     session_id=meta.session_id,
                     state=SessionState.COMPLETED,
                     work_dir=meta.work_dir or ".",
@@ -143,11 +138,47 @@ class BridgeSessionManager:
                     round_count=meta.turn_count,
                     archived=True,
                 ))
-            infos.extend(archived_infos)
+            return out
         except Exception as e:
-            # 归档合并失败不阻断活跃列表（老版本目录缺失等场景）
-            logger.warning(f"list_sessions 合并归档失败: {e}")
-        return infos
+            logger.warning(f"list_archives failed: {e}")
+            return []
+
+    def get_archive_messages(self, session_id: str, limit: int = 500) -> List[Dict]:
+        """读取归档会话的消息历史（归档页「查看内容」用，只读）。"""
+        from core.session_store import SessionStore
+        store = SessionStore()
+        record = store.load_session(session_id)
+        if record is None:
+            raise KeyError(f"archived session not found: {session_id}")
+        msgs = []
+        for m in (record.messages or [])[-limit:]:
+            role = m.get("role", "")
+            content = m.get("content")
+            if role not in ("user", "assistant"):
+                continue
+            if isinstance(content, list):
+                # 多段内容（图片等）拼接文本段
+                content = " ".join(
+                    p.get("text", "") for p in content
+                    if isinstance(p, dict) and p.get("type") == "text"
+                )
+            if not content:
+                continue
+            msgs.append({"role": role, "content": str(content)})
+        return msgs
+
+    def archive_session(self, session_id: str) -> bool:
+        """手动归档：停止会话（退出钩子会把消息写盘归档）并从活跃列表移除。"""
+        with self._lock:
+            session = self._sessions.get(session_id)
+        if not session:
+            return False
+        # stop() 会触发 _save_session_on_exit → ~/.auracode/sessions/*.json
+        session.stop()
+        with self._lock:
+            self._sessions.pop(session_id, None)
+        logger.info(f"Session archived (manual): {session_id}")
+        return True
 
     def resume_session(self, session_id: str, permission_mode: str = "auto") -> BridgeSession:
         """从磁盘归档恢复会话为活跃会话。
