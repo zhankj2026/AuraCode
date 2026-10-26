@@ -19,6 +19,19 @@ win:
   target:
     - nsis
   artifactName: AuraCode-Setup-${version}.${ext}
+  # ---- 代码签名（Authenticode / SmartScreen 通过） ----
+  # 未配置证书时本段不生效，构建照常进行、不会报错。
+  # 正式分发时通过环境变量注入证书（不要写死到仓库里）：
+  #   CSC_LINK        = 证书 .pfx 文件路径或下载 URL
+  #   CSC_KEY_PASSWORD= 证书私钥密码
+  # 也可改用系统/CI 证书存储：设置 certificateSubjectName 为证书主体名。
+  # rfc3161TimeStampServer + signingHashAlgorithms 仅在真正签名时生效，
+  # 时间戳确保证书过期后旧安装包的签名仍被操作系统认可。
+  rfc3161TimeStampServer: "http://timestamp.digicert.com"
+  signingHashAlgorithms:
+    - sha256
+  # 可选：使用本机/CI 证书存储中的证书时取消下行注释并填入主体名
+  # certificateSubjectName: "Your Company Name"
 nsis:
   oneClick: false
   perMachine: false                     # 装到当前用户 AppData，避免 Program Files 写权限问题（python 运行期需写缓存/状态）
