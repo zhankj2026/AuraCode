@@ -35,7 +35,11 @@ if (-not (Test-Path (Join-Path $pySrc 'python.exe'))) {
   exit 1
 }
 Write-Host "==> copying portable Python: $pySrc -> $pyDst" -ForegroundColor Cyan
-robocopy $pySrc $pyDst /E /NFL /NDL /NJH /NJS /NC /NS /XD __pycache__ /XF *.pyc | Out-Null
+# IMPORTANT: the managed-python root contains a self-referential symlink
+# `3.13.12` that points back to the install dir itself. Copying it (or
+# dereferencing it) creates python/3.13.12/3.13.12/... recursion that
+# exceeds MAX_PATH. Exclude it by name (/XD) and skip junctions (/XJ).
+robocopy $pySrc $pyDst /E /NFL /NDL /NJH /NJS /NC /NS /XJ /XD __pycache__ 3.13.12 /XF *.pyc | Out-Null
 $pyExe = Join-Path $pyDst 'python.exe'
 if (-not (Test-Path $pyExe)) { Write-Error 'python.exe copy failed'; exit 1 }
 

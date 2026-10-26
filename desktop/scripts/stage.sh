@@ -48,7 +48,18 @@ if [ ! -f "$PY_SRC/python.exe" ]; then
   exit 1
 fi
 echo "==> copying portable python: $PY_SRC -> $RES/python"
-cp -r "$PY_SRC" "$RES/python"
+# tar is used instead of cp/robocopy: the managed-python root holds a
+# self-referential symlink `3.13.12` -> the install dir itself. `cp -rL`
+# dereferences it (infinite python/3.13.12/3.13.12/...); robocopy's /flags
+# get mangled to paths by MSYS in Git Bash. tar --exclude drops the symlink;
+# -h derefs any other symlinks to real files (portable, no dangling links).
+mkdir -p "$RES/python"
+tar -C "$PY_SRC" -cf - --exclude='3.13.12' -h . 2>/dev/null | tar -C "$RES/python" -xf - 2>/dev/null
+if [ ! -f "$RES/python/python.exe" ]; then
+  echo "ERROR: staged python.exe missing after copy" >&2
+  echo "       (source junction failed to dereference? check $PY_SRC)" >&2
+  exit 1
+fi
 find "$RES/python" -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null
 find "$RES/python" -type f -name '*.pyc' -delete 2>/dev/null
 
@@ -59,7 +70,7 @@ for f in cli.py config.yaml config.example.yaml requirements.txt LICENSE README.
   [ -f "$REPO/$f" ] && cp "$REPO/$f" "$RES/engine/"
 done
 for d in bridge core skills tools mcp hooks plugins permissions services commands config; do
-  [ -d "$REPO/$d" ] && cp -r "$REPO/$d" "$RES/engine/"
+  [ -d "$REPO/$d" ] && cp -rL "$REPO/$d" "$RES/engine/"
 done
 find "$RES/engine" -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null
 find "$RES/engine" -type f -name '*.pyc' -delete 2>/dev/null
@@ -68,16 +79,32 @@ find "$RES/engine" -type f -name '*.pyc' -delete 2>/dev/null
 #    python-based (CRLF-safe, idempotent); fails the build if a
 #    real key would remain. Users configure their own key on
 #    first run (config UI / OPENAI_API_KEY env).
-PY_EXE="$RES/python/python.exe"
+#    Falls back to any available system python if the staged one
+#    is unusable (sanitizer is stdlib-only, interpreter-agnostic).
+SANI_PY="$RES/python/python.exe"
+if [ ! -f "$SANI_PY" ]; then
+  SANI_PY="$(command -v python || command -v python3 || true)"
+  if [ -z "$SANI_PY" ]; then
+    echo "ERROR: no python available for config sanitization" >&2
+    exit 1
+  fi
+  echo "    (staged python unavailable, falling back to system python)"
+fi
 if [ -f "$RES/engine/config.yaml" ]; then
   echo "==> sanitizing config.yaml (stripping api_key)"
-  if ! "$PY_EXE" "$SCRIPT_DIR/sanitize_config.py" "$RES/engine/config.yaml"; then
+  if ! "$SANI_PY" "$SCRIPT_DIR/sanitize_config.py" "$RES/engine/config.yaml"; then
+    echo ""
     echo "ERROR: config.yaml api_key sanitization failed" >&2
     exit 1
   fi
 fi
 
 # 4. compile engine to bytecode + strip sources
+PY_EXE="$RES/python/python.exe"
+if [ ! -f "$PY_EXE" ]; then
+  echo "ERROR: staged python.exe missing - cannot compile. Aborting." >&2
+  exit 1
+fi
 if [ "${SKIP_COMPILE:-0}" = "1" ]; then
   echo "==> SKIP_COMPILE=1: keeping .py sources (DEBUG ONLY, do not ship)"
 else
