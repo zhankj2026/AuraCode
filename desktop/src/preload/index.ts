@@ -15,10 +15,50 @@ contextBridge.exposeInMainWorld('auracode', {
       config: { host: string; port: number; token: string; root: string } | null
     }>,
   restartBackend: () => ipcRenderer.invoke('backend:restart'),
-  getExtensions: (root: string) => ipcRenderer.invoke('extensions:list', root),
+  getExtensions: (engineRoot: string, workDir?: string) =>
+    ipcRenderer.invoke('extensions:list', engineRoot, workDir),
   selectDirectory: () => ipcRenderer.invoke('dialog:selectDirectory'),
-  addMcp: (cfg: { root: string; name: string; transport: string; command?: string; args?: string; url?: string }) =>
-    ipcRenderer.invoke('mcp:add', cfg),
+  /** 新增/覆盖一个 MCP 服务器（scope: project → <workDir>/.mcp.json；user → ~/.auracode/mcp.json） */
+  upsertMcp: (cfg: {
+    workDir: string
+    scope: 'project' | 'user'
+    name: string
+    transport: string
+    command?: string
+    args?: string
+    url?: string
+    env?: string
+  }) => ipcRenderer.invoke('mcp:upsert', cfg),
+  /** 启停/编辑一个已存在的 MCP 服务器条目 */
+  updateMcp: (input: {
+    workDir: string
+    scope: 'project' | 'user'
+    oldName: string
+    newName?: string
+    enabled?: boolean
+    newCfg?: { transport: string; command?: string; args?: string; url?: string; env?: string }
+  }) => ipcRenderer.invoke('mcp:update', input),
+  /** 删除一个 MCP 服务器条目 */
+  deleteMcp: (workDir: string, scope: 'project' | 'user', name: string) =>
+    ipcRenderer.invoke('mcp:delete', workDir, scope, name),
+  /** 保存某 scope 的完整钩子列表（覆盖写，字段与引擎 HookConfigEntry 对齐） */
+  saveHooks: (
+    workDir: string,
+    scope: 'project' | 'user',
+    hooks: Array<{
+      event: string
+      matcher?: string
+      command: string
+      enabled?: boolean
+      description?: string
+      priority?: number
+      timeout?: number
+      onFail?: string
+    }>,
+  ) => ipcRenderer.invoke('hooks:save', workDir, scope, hooks),
+  /** 插件启停（写 ~/.auracode/plugins_settings.json，新会话生效） */
+  setPluginEnabled: (name: string, source: 'builtin' | 'project' | 'user', enabled: boolean) =>
+    ipcRenderer.invoke('plugin:setEnabled', name, source, enabled),
   getWorkspace: () => ipcRenderer.invoke('workspace:get'),
   setWorkspace: (dir: string | null) => ipcRenderer.invoke('workspace:set', dir),
   // 最近打开的工作区历史（最多 10 条，最近优先）

@@ -2,7 +2,17 @@ import { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage } from 'el
 import * as path from 'path'
 import * as fs from 'fs'
 import { createBackend } from './backend'
-import { collectExtensions } from './extensions'
+import {
+  collectExtensions,
+  upsertMcpServer,
+  updateMcpServer,
+  deleteMcpServer,
+  saveHooks,
+  setPluginEnabledState,
+  McpUpsertInput,
+  McpUpdateInput,
+  HookEntryInput,
+} from './extensions'
 import { readCustomModels, writeCustomModels, CustomModel } from './models'
 
 const backend = createBackend()
@@ -299,14 +309,18 @@ ipcMain.handle('fs:officePreview', async (_e, root: string, rel: string) => {
 })
 
 // ── IPC：读取真实扩展配置（技能/MCP/钩子/插件/定时任务），供「扩展/任务」面板使用 ──
-ipcMain.handle('extensions:list', (_e, root: string) => {
-  try {
-    return collectExtensions(root)
-  } catch (err) {
-    console.error('[extensions] 读取失败:', err)
-    return { skills: [], mcp: [], hooks: [], plugins: [], tasks: [] }
-  }
-})
+// engineRoot = 引擎根目录（内置技能/插件）；workDir = 会话工作区（项目级配置跟随它）
+ipcMain.handle(
+  'extensions:list',
+  (_e, engineRoot: string, workDir?: string) => {
+    try {
+      return collectExtensions(engineRoot, workDir)
+    } catch (err) {
+      console.error('[extensions] 读取失败:', err)
+      return { skills: [], mcp: [], hooks: [], plugins: [], tasks: [] }
+    }
+  },
+)
 
 // ── IPC：自定义模型（前台「设置 → 自定义模型」增删改，落盘 ~/.auracode/models.json）──
 ipcMain.handle('models:list', () => {
@@ -348,42 +362,58 @@ ipcMain.handle('dialog:selectDirectory', async () => {
   return result.filePaths[0]
 })
 
-// ── IPC：把 MCP 服务器配置真正写入工程 .mcp.json（磁盘落盘，不改动任何 Python）──
-// 这样「扩展 → MCP → 连接 MCP 服务器」弹窗里的“连接”能真正生效，并即时刷新左侧列表。
-ipcMain.handle('mcp:add', (_e, cfg: { root: string; name: string; transport: string; command?: string; args?: string; url?: string }) => {
+// ── IPC：MCP / 钩子 / 插件配置写盘（「扩展」面板维护；全部由主进程直写磁盘，
+// 引擎在下一会话启动时按配置加载，不改动任何 Python）──
+ipcMain.handle('mcp:upsert', (_e, cfg: McpUpsertInput) => {
   try {
-    if (!cfg.root || !cfg.name) return { ok: false, message: '缺少 root 或 name' }
-    const file = path.join(cfg.root, '.mcp.json')
-    let data: any = {}
-    if (fs.existsSync(file)) {
-      try {
-        data = JSON.parse(fs.readFileSync(file, 'utf-8'))
-      } catch {
-        data = {}
-      }
-    }
-    if (typeof data !== 'object' || data === null) data = {}
-    if (typeof data.mcpServers !== 'object' || data.mcpServers === null) data.mcpServers = {}
-
-    const entry: Record<string, string | string[]> = {}
-    if (cfg.transport === 'http' || cfg.transport === 'sse' || cfg.transport === 'websocket') {
-      entry.type = cfg.transport === 'websocket' ? 'ws' : cfg.transport
-      entry.url = cfg.url || ''
-    } else {
-      entry.type = 'stdio'
-      const cmd = (cfg.command || '').trim()
-      const args = (cfg.args || '')
-        .split(/\s+/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-      if (!cmd) return { ok: false, message: 'stdio 模式需要启动命令' }
-      entry.command = cmd
-      if (args.length) entry.args = args
-    }
-    data.mcpServers[cfg.name] = entry
-    fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8')
-    return { ok: true, message: `已写入 ${file}` }
+    return upsertMcpServer(cfg)
   } catch (err) {
-    return { ok: false, message: '写入失败：' + (err instanceof Error ? err.message : String(err)) }
+    return { ok: false, message: String(err) }
   }
 })
+
+ipcMain.handle('mcp:update', (_e, input: McpUpdateInput) => {
+  try {
+    return updateMcpServer(input)
+  } catch (err) {
+    return { ok: false, message: String(err) }
+  }
+})
+
+ipcMain.handle(
+  'mcp:delete',
+  (_e, workDir: string, scope: 'project' | 'user', name: string) => {
+    try {
+      return deleteMcpServer(workDir, scope, name)
+    } catch (err) {
+      return { ok: false, message: String(err) }
+    }
+  },
+)
+
+ipcMain.handle(
+  'hooks:save',
+  (_e, workDir: string, scope: 'project' | 'user', hooks: HookEntryInput[]) => {
+    try {
+      return saveHooks(workDir, scope, hooks)
+    } catch (err) {
+      return { ok: false, message: String(err) }
+    }
+  },
+)
+
+ipcMain.handle(
+  'plugin:setEnabled',
+  (
+    _e,
+    name: string,
+    source: 'builtin' | 'project' | 'user',
+    enabled: boolean,
+  ) => {
+    try {
+      return setPluginEnabledState(name, source, enabled)
+    } catch (err) {
+      return { ok: false, message: String(err) }
+    }
+  },
+)
