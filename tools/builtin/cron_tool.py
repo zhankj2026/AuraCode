@@ -66,6 +66,8 @@ class CronJob:
     expires_at: float = 0.0         # 过期时间(周期性任务)
     status: str = "active"          # active / expired / cancelled / fired
     label: str = ""                 # 用户可读标签
+    session_id: str = ""            # 关联的执行会话：为空表示「每次触发时新建会话」
+    work_dir: str = ""              # 执行会话的工作目录：为空时使用默认值 "."
 
     def to_dict(self) -> Dict:
         return asdict(self)
@@ -303,7 +305,9 @@ class CronScheduler:
     def create_job(self, cron: str, prompt: str,
                    recurring: bool = True,
                    durable: bool = False,
-                   label: str = "") -> CronJob:
+                   label: str = "",
+                   session_id: str = "",
+                   work_dir: str = "") -> CronJob:
         """
         创建定时任务。
 
@@ -313,6 +317,7 @@ class CronScheduler:
             recurring: True=周期性, False=一次性
             durable: True=持久化, False=仅会话
             label: 可选标签
+            session_id: 关联的执行会话 id；为空表示每次触发时新建会话
 
         Returns:
             CronJob
@@ -347,6 +352,8 @@ class CronScheduler:
             expires_at=expires_at,
             status="active",
             label=label,
+            session_id=session_id,
+            work_dir=work_dir,
         )
 
         with self._lock:
@@ -381,6 +388,21 @@ class CronScheduler:
     def get_execution_log(self) -> List[CronResult]:
         """获取执行日志"""
         return list(self._execution_log)
+
+    def update_job_session(self, job_id: str, session_id: str) -> bool:
+        """
+        写回任务关联的会话 id（触发时若新建了会话，需要持久化以便后续复用）。
+
+        Returns: 是否成功写入磁盘（仅 durable 任务落盘）
+        """
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if not job:
+                return False
+            job.session_id = session_id
+            if job.durable:
+                self._save()
+            return True
 
     # ── 调度引擎 ──
 
@@ -522,16 +544,20 @@ def random_sign() -> int:
 def cron_create(cron: str, prompt: str,
                 recurring: bool = True,
                 durable: bool = False,
-                label: str = "") -> Dict:
+                label: str = "",
+                session_id: str = "",
+                work_dir: str = "") -> Dict:
     """工具函数: 创建定时任务"""
     scheduler = get_cron_scheduler()
     job = scheduler.create_job(
         cron=cron, prompt=prompt,
         recurring=recurring, durable=durable, label=label,
+        session_id=session_id, work_dir=work_dir,
     )
     next_dt = datetime.fromtimestamp(job.next_fire_at)
     recurring_note = "周期性" if recurring else "一次性"
     durable_note = " (持久化)" if durable else " (仅会话)"
+    session_note = f" (会话 {session_id})" if session_id else " (每次新建会话)"
 
     return {
         "job_id": job.job_id,
@@ -539,8 +565,10 @@ def cron_create(cron: str, prompt: str,
         "prompt": job.prompt,
         "recurring": recurring,
         "durable": durable,
+        "session_id": session_id,
         "next_fire": next_dt.strftime("%Y-%m-%d %H:%M:%S"),
         "message": f"Scheduled {recurring_note}{durable_note} task [{job.job_id}]. "
+                   f"{session_note}. "
                    f"Next fire: {next_dt.strftime('%Y-%m-%d %H:%M:%S')}. "
                    f"Use CronDelete to cancel.",
     }
@@ -625,7 +653,7 @@ def cron_handler(args: list, loop=None) -> str:
 
     elif action == "create":
         if len(args) < 3:
-            return "用法: /cron create <cron表达式> <提示词> [--once] [--durable] [--label <name>]"
+            return "用法: /cron create <cron表达式> <提示词> [--once] [--durable] [--label <name>] [--session <id>] [--workdir <dir>]"
 
         cron_expr = args[1]
         remaining = args[2:]
@@ -634,6 +662,8 @@ def cron_handler(args: list, loop=None) -> str:
         recurring = True
         durable = False
         label = ""
+        session_id = ""
+        work_dir = ""
 
         while remaining:
             if remaining[0] == "--once":
@@ -645,6 +675,12 @@ def cron_handler(args: list, loop=None) -> str:
             elif remaining[0] == "--label" and len(remaining) > 1:
                 label = remaining[1]
                 remaining = remaining[2:]
+            elif remaining[0] == "--session" and len(remaining) > 1:
+                session_id = remaining[1]
+                remaining = remaining[2:]
+            elif remaining[0] == "--workdir" and len(remaining) > 1:
+                work_dir = remaining[1]
+                remaining = remaining[2:]
             else:
                 break
 
@@ -654,13 +690,16 @@ def cron_handler(args: list, loop=None) -> str:
             job = scheduler.create_job(
                 cron=cron_expr, prompt=prompt,
                 recurring=recurring, durable=durable, label=label,
+                session_id=session_id, work_dir=work_dir,
             )
             next_dt = datetime.fromtimestamp(job.next_fire_at)
+            session_note = f" | 会话 {job.session_id}" if job.session_id else " | 每次新建会话"
+            workdir_note = f" | 目录 {job.work_dir}" if job.work_dir else ""
             return (
                 f"✅ 已创建定时任务 [{job.job_id}]\n"
                 f"   Cron: {job.cron}\n"
                 f"   提示: {job.prompt[:80]}\n"
-                f"   类型: {'周期性' if recurring else '一次性'} | {'持久化' if durable else '会话'}\n"
+                f"   类型: {'周期性' if recurring else '一次性'} | {'持久化' if durable else '会话'}{session_note}{workdir_note}\n"
                 f"   下次触发: {next_dt.strftime('%Y-%m-%d %H:%M:%S')}"
             )
         except ValueError as e:
@@ -724,6 +763,18 @@ register_tool("cron_create", {
             "label": {
                 "type": "string",
                 "description": "Optional human-readable label",
+                "default": "",
+            },
+            "session_id": {
+                "type": "string",
+                "description": "Bind the job to a specific session: results display in that session's chat. "
+                               "Empty = create a fresh session on each trigger (default).",
+                "default": "",
+            },
+            "work_dir": {
+                "type": "string",
+                "description": "Working directory for the execution session when a new one is created. "
+                               "Empty = default directory.",
                 "default": "",
             },
         },

@@ -595,67 +595,6 @@ class BridgeSession:
         except Exception as e:
             logger.warning(f"Failed to setup ask_user callback: {e}")
 
-    def _setup_cron_callback(self):
-        """
-        设置 Cron 调度器的回调。
-
-        当 Cron 任务触发时，将 prompt 发送到 AgentLoop 执行，
-        并将执行结果通过事件推送到前端。
-        """
-        try:
-            from tools.builtin.cron_tool import get_cron_scheduler
-
-            def cron_bridge_callback(job):
-                """Bridge 模式下的 cron 回调"""
-                logger.info(f"[Cron Bridge] Firing job {job.job_id}: {job.prompt[:50]}...")
-                
-                # 发送 cron 任务触发事件
-                self._emit(BridgeEvent(
-                    type="cron_triggered",
-                    session_id=self.session_id,
-                    data={
-                        "job_id": job.job_id,
-                        "prompt": job.prompt,
-                        "cron": job.cron,
-                    },
-                ))
-                
-                # 将 prompt 发送到 AgentLoop 执行
-                if self._agent_loop:
-                    try:
-                        result = self._agent_loop.run(job.prompt)
-                        logger.info(f"[Cron Bridge] Job {job.job_id} completed")
-                        
-                        # 发送执行完成事件
-                        self._emit(BridgeEvent(
-                            type="cron_completed",
-                            session_id=self.session_id,
-                            data={
-                                "job_id": job.job_id,
-                                "success": True,
-                                "summary": result.summary[:100] if result.summary else "done",
-                            },
-                        ))
-                    except Exception as e:
-                        logger.error(f"[Cron Bridge] Job {job.job_id} failed: {e}")
-                        self._emit(BridgeEvent(
-                            type="cron_completed",
-                            session_id=self.session_id,
-                            data={
-                                "job_id": job.job_id,
-                                "success": False,
-                                "error": str(e),
-                            },
-                        ))
-
-            scheduler = get_cron_scheduler()
-            scheduler.register_callback(cron_bridge_callback)
-            logger.info("Cron callback registered for Bridge session")
-        except ImportError:
-            logger.warning("Failed to import cron_tool module")
-        except Exception as e:
-            logger.warning(f"Failed to setup cron callback: {e}")
-
     def _restore_history(self, record) -> int:
         """把归档会话的消息历史恢复到当前 AgentLoop（续接未完成任务）。
 
@@ -876,8 +815,10 @@ class BridgeSession:
             # 设置 ask_user 工具的回调（通过权限请求机制发送到前端）
             self._setup_ask_user_callback()
 
-            # 注册 Cron 调度器回调（将任务执行结果推送到前端）
-            self._setup_cron_callback()
+            # 注：Cron 调度器回调不再按会话注册（避免每个会话各注册一份、
+            # 同一任务被 N 个会话重复执行，以及会话销毁后僵尸回调的问题）。
+            # 改为在 bridge/server.py 生命周期内注册「唯一一个」全局回调，
+            # 由它按 job.session_id 路由到关联会话或新建会话。
 
             # 替换权限管理器为 Bridge 专用版
             self._perm_manager = BridgePermissionManager(

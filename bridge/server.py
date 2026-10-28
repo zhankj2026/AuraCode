@@ -211,6 +211,108 @@ def _on_event(event: BridgeEvent):
         )
 
 
+# 防止 lifespan 重复注册（同进程内只应有一个全局 Cron 回调）
+_cron_callback_registered = False
+
+
+def _register_global_cron_callback(manager: "BridgeSessionManager") -> None:
+    """
+    注册唯一一个全局 Cron 回调（替代此前每个 BridgeSession 各注册一份的坏设计）。
+
+    行为：
+      1. 读 job.session_id；若该会话仍存活则直接复用；
+      2. 否则新建一个「定时任务专用」会话（权限模式 auto，避免无人值守时卡在权限窗），
+         并把新建的 session_id 写回 job（持久化便于后续复用）；为空 job.session_id 的
+         一次性/周期性任务因此都会稳定落到同一个会话；
+      3. 向目标会话发 cron_triggered，执行 agent_loop.run(prompt)，再发 cron_completed。
+    """
+    global _cron_callback_registered
+    if _cron_callback_registered:
+        return
+    _cron_callback_registered = True
+
+    from tools.builtin.cron_tool import get_cron_scheduler
+
+    def _cron_callback(job):
+        session = None
+        # 1) 已有绑定会话且仍存活 → 直接复用
+        if job.session_id:
+            try:
+                sess = manager.get_session(job.session_id)
+                if sess is not None and sess.is_alive:
+                    session = sess
+            except Exception:
+                session = None
+
+        # 2) 需要新建会话：关联会话不存在/已失效时
+        if session is None:
+            try:
+                cfg = SessionConfig(
+                    work_dir=job.work_dir or ".",
+                    model="",  # 继承 bridge 默认模型
+                    permission_mode="auto",
+                    title=f"📋 定时任务 · {job.label or job.prompt[:24]}",
+                    restore_history=False,
+                )
+                session = manager.create_session(cfg)
+                # 写回关联，便于后续触发复用同一会话
+                get_cron_scheduler().update_job_session(job.job_id, session.session_id)
+                logger.info(
+                    f"[Cron] 为任务 {job.job_id} 新建关联会话 {session.session_id}"
+                )
+            except Exception as e:
+                logger.error(f"[Cron] 为任务 {job.job_id} 创建会话失败: {e}")
+                _on_event(BridgeEvent(
+                    type="cron_completed",
+                    session_id=job.session_id or "",
+                    data={"job_id": job.job_id, "success": False,
+                          "error": f"创建会话失败: {e}"},
+                ))
+                return
+
+        sid = session.session_id
+        logger.info(f"[Cron] 触发任务 {job.job_id} → 会话 {sid}: {job.prompt[:50]}...")
+
+        # 3a) 触发标记（前端渲染为「⏰ 定时任务」用户气泡）
+        _on_event(BridgeEvent(
+            type="cron_triggered",
+            session_id=sid,
+            data={"job_id": job.job_id, "prompt": job.prompt, "cron": job.cron,
+                  "label": job.label},
+        ))
+
+        # 3b) 执行（agent_loop.run 产生的对话事件都归属 sid，前端自动展示）
+        try:
+            result = session._agent_loop.run(job.prompt)
+            summary = result.summary[:200] if getattr(result, "summary", None) else "done"
+            _on_event(BridgeEvent(
+                type="cron_completed",
+                session_id=sid,
+                data={"job_id": job.job_id, "success": True, "summary": summary},
+            ))
+        except Exception as e:
+            logger.error(f"[Cron] 任务 {job.job_id} 执行失败: {e}")
+            _on_event(BridgeEvent(
+                type="cron_completed",
+                session_id=sid,
+                data={"job_id": job.job_id, "success": False, "error": str(e)},
+            ))
+
+        # 3c) 一次性任务完成后归档该会话：释放活跃名额，历史落盘可回看
+        #     （周期性任务保留会话以便后续触发复用）。
+        if not job.recurring:
+            try:
+                manager.archive_session(sid)
+            except Exception as e:
+                logger.warning(f"[Cron] 归档会话 {sid} 失败: {e}")
+
+    try:
+        get_cron_scheduler().register_callback(_cron_callback)
+        logger.info("全局 Cron 回调已注册")
+    except Exception as e:
+        logger.warning(f"注册全局 Cron 回调失败: {e}")
+
+
 async def _broadcast_event(event: BridgeEvent):
     """广播事件到所有已连接的 WebSocket 客户端"""
     payload = json.dumps(event.to_dict(), ensure_ascii=False)
@@ -258,6 +360,12 @@ async def lifespan(app: FastAPI):
         max_sessions=_server_config.max_sessions,
         event_callback=_on_event,
     )
+
+    # 注册「唯一一个」全局 Cron 回调：按 job.session_id 把定时任务路由到
+    # 关联会话；若该会话不存在/已失效，则新建一个会话并持久化关联，
+    # 后续触发直接复用。任务执行结果通过 cron_triggered / cron_completed 事件
+    # 落到目标会话（前端按 session_id 展示），AgentLoop.run 产生的对话也归到该会话。
+    _register_global_cron_callback(_manager)
 
     # 启动过期会话清理定时任务
     cleanup_task = asyncio.create_task(_periodic_cleanup())
@@ -584,6 +692,48 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
         info = _write_llm_config(patch)
         info["default_model"] = _server_config.default_model if _server_config else ""
         return LLMConfigResponse(**info)
+
+    # ── 定时任务（Cron）──────────────────────────────────
+    # 创建走后端而非直接写文件：只有经由 CronScheduler 单例注册，运行中的
+    # 调度器才会真正加载该任务；同时 durable 任务落盘到 ~/.auracode/scheduled_tasks.json
+    # （与主进程读取同源），前端任务列表才能即时反映。
+    class CronCreateRequest(BaseModel):
+        cron: str
+        prompt: str
+        recurring: bool = True
+        durable: bool = True
+        label: str = ""
+        session_id: str = ""
+        work_dir: str = ""
+
+    @app.post("/api/cron", response_model=dict)
+    async def create_cron(
+        req: CronCreateRequest,
+        auth: bool = Depends(_auth.verify),
+    ):
+        """创建定时任务（关联到指定会话，或留空由调度器触发时新建会话）。"""
+        from tools.builtin.cron_tool import cron_create
+        try:
+            result = cron_create(
+                cron=req.cron,
+                prompt=req.prompt,
+                recurring=req.recurring,
+                durable=req.durable,
+                label=req.label,
+                session_id=req.session_id,
+                work_dir=req.work_dir,
+            )
+            return result
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"无效的 cron 表达式: {e}")
+
+    @app.get("/api/cron", response_model=dict)
+    async def list_cron(
+        auth: bool = Depends(_auth.verify),
+    ):
+        """列出所有定时任务（含执行日志），便于前端实时核对。"""
+        from tools.builtin.cron_tool import cron_list
+        return cron_list()
 
     @app.get("/api/models", response_model=ModelsResponse)
     async def list_models(
