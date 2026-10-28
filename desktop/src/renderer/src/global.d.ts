@@ -9,6 +9,11 @@ declare global {
         token: string
         root: string
       }>
+      /** 后端就绪状态：ready=已确认启动成功 */
+      getBackendStatus: () => Promise<{
+        ready: boolean
+        config: { host: string; port: number; token: string; root: string } | null
+      }>
       restartBackend: () => Promise<unknown>
       getExtensions: (root: string) => Promise<{
         skills: { name: string; description: string; whenToUse?: string; path: string; source: 'builtin' | 'project' | 'user' }[]

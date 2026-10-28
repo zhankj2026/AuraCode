@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
 import { createBackend } from './backend'
@@ -7,6 +7,49 @@ import { readCustomModels, writeCustomModels, CustomModel } from './models'
 
 const backend = createBackend()
 let mainWindow: BrowserWindow | null = null
+let tray: Tray | null = null
+/** 真正退出标志：仅「退出登录」/ 系统关机走这条路径，关窗只是隐藏 */
+let isQuiting = false
+/** 后端是否已成功拉起并确认就绪 */
+let backendReady = false
+
+// 内联托盘图标（navy 底 + cyan 「</>」），base64 解码后用 nativeImage，
+// 避免依赖打包/开发两套资源路径布局。
+const TRAY_ICON_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAA50lEQVR42u3asRHCMAwF0L8BHSMwA8uzFx0cJQVUSJbJK3zp4uhdzpZs5XS+PI48AgAAAAAAAAAAAAAAgCXjeru/PQ8D8Ar40/h7gG/BdyNkYvCdCJkafBdCJgffgZDpwVcj3QiZmOR0ImRqhteFkMnpbQdCpuf21e/PDoVN5TzZpaqrmi87lbQV85YCrEyyygAmlLC//AZ/gDXALiAPkAmqBVSDzgOcCDkTdCrsXsDNkLtBt8P6A3SI6BHSJaZPUKcoAAAAAAAAAAAAgAOMJy6RRiifuFcqAAAAAElFTkSuQmCC'
+
+function createTray() {
+  if (tray) return
+  const img = nativeImage.createFromBuffer(Buffer.from(TRAY_ICON_BASE64, 'base64'))
+  tray = new Tray(img)
+  tray.setToolTip('AuraCode')
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: '打开 AuraCode',
+      click: () => {
+        if (!mainWindow) createWindow()
+        mainWindow?.show()
+        mainWindow?.focus()
+      },
+    },
+    { type: 'separator' },
+    {
+      label: '退出登录',
+      click: () => {
+        // 真正退出：标记 isQuiting 让 close 事件放行，触发 before-quit 停后端。
+        isQuiting = true
+        app.quit()
+      },
+    },
+  ])
+  tray.setContextMenu(contextMenu)
+  // Windows：左键单击 / 双击都直接唤出主窗口
+  tray.on('click', () => {
+    if (!mainWindow) createWindow()
+    mainWindow?.show()
+    mainWindow?.focus()
+  })
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -30,7 +73,13 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
 
-  mainWindow.on('closed', () => {
+  // 关窗不退出：拦截 close，未真正退出时隐藏窗口并保留在托盘（仿 WorkBuddy）。
+  mainWindow.on('close', (e) => {
+    if (!isQuiting) {
+      e.preventDefault()
+      mainWindow?.hide()
+      return
+    }
     mainWindow = null
   })
 }
@@ -38,23 +87,43 @@ function createWindow() {
 app.whenReady().then(async () => {
   try {
     await backend.start((line) => console.log('[bridge]', line))
+    backendReady = true
   } catch (e) {
     console.error('[bridge] 启动失败:', e)
+    backendReady = false
   }
   createWindow()
+  createTray()
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    // macOS 点击 dock 图标：窗口被隐藏（或不存在）时唤出
+    if (!mainWindow) {
+      createWindow()
+    } else {
+      mainWindow.show()
+    }
   })
 })
 
+// 关掉所有窗口不再退出程序：窗口只是被隐藏，进程留在托盘常驻。
 app.on('window-all-closed', () => {
+  /* 常驻托盘，不 quit */
+})
+
+// 真正退出前：停掉后端子进程，避免孤儿进程。仅「退出登录」会走到这里。
+app.on('before-quit', () => {
+  isQuiting = true
   backend.stop()
-  if (process.platform !== 'darwin') app.quit()
 })
 
 // ── IPC：向 renderer 暴露后端连接信息 ──────────────────────────────
 ipcMain.handle('bridge:config', () => backend.getConfig())
+
+// 后端就绪状态：渲染端据此决定是否重试连接 / 提示启动失败（而非盲目发起连接）。
+ipcMain.handle('backend:status', () => ({
+  ready: backendReady,
+  config: backend.getConfig(),
+}))
 
 // ── IPC：工作区持久化（记住上次使用的工作目录，重启后自动恢复）──
 // 注意：这里的「工作区」是会话真正的工作目录（work_dir），与引擎根目录（cli.py 所在目录）分开。

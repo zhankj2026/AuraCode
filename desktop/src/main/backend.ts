@@ -63,7 +63,7 @@ export function createBackend() {
     return process.cwd()
   }
 
-  async function waitForReady(host: string, port: number, token: string, timeoutMs = 25000) {
+  async function waitForReady(host: string, port: number, token: string, timeoutMs = 60000) {
     const url = `http://${host}:${port}/api/status`
     const deadline = Date.now() + timeoutMs
     while (Date.now() < deadline) {

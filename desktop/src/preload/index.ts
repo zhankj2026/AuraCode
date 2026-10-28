@@ -8,6 +8,12 @@ import { contextBridge, ipcRenderer } from 'electron'
  */
 contextBridge.exposeInMainWorld('auracode', {
   getConfig: () => ipcRenderer.invoke('bridge:config'),
+  /** 后端就绪状态：ready=已确认启动成功，config=连接信息（未就绪时可能为 null） */
+  getBackendStatus: () =>
+    ipcRenderer.invoke('backend:status') as Promise<{
+      ready: boolean
+      config: { host: string; port: number; token: string; root: string } | null
+    }>,
   restartBackend: () => ipcRenderer.invoke('backend:restart'),
   getExtensions: (root: string) => ipcRenderer.invoke('extensions:list', root),
   selectDirectory: () => ipcRenderer.invoke('dialog:selectDirectory'),
