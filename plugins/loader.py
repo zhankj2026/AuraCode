@@ -40,6 +40,29 @@ SOURCE_PROJECT = "project"
 SOURCE_USER = "user"
 
 
+def _is_plugin_disabled(plugin_id: str) -> bool:
+    """
+    查询用户是否在设置中显式禁用了某插件。
+
+    读取 ~/.auracode/plugins_settings.json 的 enabled_plugins 映射
+    （与 plugins/builtin.py 的 set_plugin_enabled 共用同一存储格式）。
+    文件缺失/解析失败/未记录 → 一律视为未禁用（默认启用）。
+    """
+    try:
+        import json
+        path = os.path.join(
+            os.path.expanduser("~"), ".auracode", "plugins_settings.json"
+        )
+        if not os.path.exists(path):
+            return False
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        enabled_map = data.get("enabled_plugins", {})
+        return enabled_map.get(plugin_id) is False
+    except Exception:
+        return False
+
+
 class PluginLoader:
     """
     插件加载器
@@ -195,6 +218,15 @@ class PluginLoader:
                                 plugin = attr()
                                 if plugin.is_available() and plugin.initialize():
                                     if plugin.name not in self.plugins_map:
+                                        # 用户在设置里显式禁用的插件不加载
+                                        # （~/.auracode/plugins_settings.json 的
+                                        #   enabled_plugins["{name}@{source}"]=False）
+                                        plugin_id = f"{plugin.name}@{source}"
+                                        if _is_plugin_disabled(plugin_id):
+                                            logger.info(
+                                                f"插件已被用户禁用，跳过: {plugin_id}"
+                                            )
+                                            continue
                                         self._plugin_sources[plugin.name] = source
                                         self.plugins.append(plugin)
                                         self.plugins_map[plugin.name] = plugin

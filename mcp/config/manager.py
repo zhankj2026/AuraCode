@@ -55,11 +55,16 @@ class MCPConfigManager:
             user_config_dir: Optional user config directory path.
         """
         self.project_dir = Path(project_dir) if project_dir else Path.cwd()
-        self.user_config_dir = (
-            Path(user_config_dir)
-            if user_config_dir
-            else Path.home() / ".config" / "auracode"
-        )
+        # 用户级配置目录：与 AuraCode 其余配置（skills/models/scheduled_tasks）保持
+        # 一致，统一放 ~/.auracode/mcp.json。旧版 ~/.config/auracode 仍兼容读取
+        # （迁移过渡），但新写入一律走 ~/.auracode。
+        if user_config_dir:
+            self.user_config_dir = Path(user_config_dir)
+        else:
+            auracode_dir = Path.home() / ".auracode"
+            legacy_dir = Path.home() / ".config" / "auracode"
+            # ~/.auracode 存在，或旧目录不存在 → 统一用新目录
+            self.user_config_dir = auracode_dir if (auracode_dir.exists() or not legacy_dir.exists()) else legacy_dir
         self._cached_configs: dict[ConfigScope, dict[str, ScopedMcpServerConfig]] = {}
 
     def get_all_configs(
@@ -281,7 +286,9 @@ class MCPConfigManager:
                     config=config,
                     scope=scope,
                     name=name,
-                    disabled=False,
+                    # 兼容两种禁用标记：disabled: true（标准）或 enabled: false（旧式）
+                    disabled=bool(config_data.get("disabled", False))
+                    or bool(config_data.get("enabled", True)) is False,
                 )
             except Exception:
                 # Skip invalid configs

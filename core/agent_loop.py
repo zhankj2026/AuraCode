@@ -488,6 +488,122 @@ class AgentLoop:
                 logger.warning(f"技能系统初始化失败: {e}")
                 self.skill_manager = None
 
+        # 4. MCP 服务器（桌面端「扩展 → MCP」管理的 .mcp.json / ~/.auracode/mcp.json）
+        # 读取配置并逐个连接；工具注册为 mcp__<server>__<tool>。
+        # MCPClient 全链路 asyncio，而 AgentLoop 跑在同步线程里 —— 起一个专用
+        # 常驻事件循环线程，用 run_coroutine_threadsafe 把 async 调用桥接回来。
+        self.mcp_manager = None
+        self._mcp_loop = None
+        self._mcp_loop_thread = None
+        self.mcp_enabled = config.get("enable_mcp", True)
+
+        if self.mcp_enabled:
+            try:
+                self._init_mcp(config)
+            except Exception as e:
+                logger.warning(f"MCP 初始化失败（不影响主流程）: {e}")
+                self.mcp_manager = None
+
+    def _init_mcp(self, config: Dict[str, Any]):
+        """
+        初始化 MCP 服务器集合。
+
+        从 MCPConfigManager 读取 project(.mcp.json)/user(~/.auracode/mcp.json)/
+        enterprise/managed 四级配置，跳过 disabled 的服务器，逐个连接并注册工具。
+        """
+        from mcp.manager import McpManager
+        from mcp.config.manager import MCPConfigManager
+
+        project_root = config.get("project_root", ".")
+        cfg_mgr = MCPConfigManager(project_dir=project_root)
+        # include_disabled=True 拿到全量，再自行过滤 —— 便于把禁用项记入日志
+        all_configs = cfg_mgr.get_all_configs(include_disabled=True)
+
+        if not all_configs:
+            logger.info("MCP: 未发现任何 MCP 服务器配置")
+            return
+
+        # 专用事件循环线程（daemon：进程退出不被 MCP 子进程卡住）
+        self._mcp_loop = asyncio.new_event_loop()
+        ready = threading.Event()
+
+        def _mcp_loop_runner():
+            asyncio.set_event_loop(self._mcp_loop)
+            ready.set()
+            self._mcp_loop.run_forever()
+
+        self._mcp_loop_thread = threading.Thread(
+            target=_mcp_loop_runner, name="mcp-loop", daemon=True
+        )
+        self._mcp_loop_thread.start()
+        ready.wait(timeout=5)
+
+        self.mcp_manager = McpManager()
+
+        connected = 0
+        for name, scoped in all_configs.items():
+            if scoped.disabled:
+                logger.info(f"MCP: 服务器 '{name}' 已禁用，跳过")
+                continue
+            try:
+                fut = asyncio.run_coroutine_threadsafe(
+                    self.mcp_manager.add_server(name, scoped.config), self._mcp_loop
+                )
+                state = fut.result(timeout=30)
+                if state.connected:
+                    connected += 1
+                    logger.info(
+                        f"MCP: '{name}' 已连接，发现 {len(state.tools)} 个工具"
+                    )
+                else:
+                    logger.warning(f"MCP: '{name}' 连接失败: {state.error}")
+            except Exception as e:
+                logger.warning(f"MCP: '{name}' 连接异常: {e}")
+
+        if connected > 0:
+            self.mcp_manager.register_tools_to_registry()
+            logger.info(f"MCP: 共 {connected}/{len(all_configs)} 个服务器就绪")
+
+        # 把已连接服务器的 async 工具包装成同步 handler 注入全局注册表。
+        # tool_executor 是同步调用 handler(**kwargs)，直接注册 async handler
+        # 会拿到 coroutine 对象而非结果 —— 这里统一桥接。
+        for sname, state in self.mcp_manager.servers.items():
+            if not state.connected:
+                continue
+            for tool_name, adapter in state.tool_adapters.items():
+                def _make_sync_handler(ad):
+                    def _handler(**kwargs):
+                        fut = asyncio.run_coroutine_threadsafe(
+                            ad.execute(kwargs), self._mcp_loop
+                        )
+                        return fut.result(timeout=120)
+                    return _handler
+                try:
+                    register_tool(
+                        adapter.qualified_name,
+                        {
+                            "description": adapter.description,
+                            "parameters": adapter.get_parameters(),
+                            "handler": _make_sync_handler(adapter),
+                            "permission_level": "execute",
+                        },
+                    )
+                except ValueError as e:
+                    logger.warning(f"MCP 工具注册失败 {adapter.qualified_name}: {e}")
+
+    def shutdown_mcp(self):
+        """断开所有 MCP 服务器并停止专用事件循环线程（会话结束时调用）"""
+        mgr, loop = self.mcp_manager, self._mcp_loop
+        self.mcp_manager, self._mcp_loop = None, None
+        if mgr is not None and loop is not None:
+            try:
+                fut = asyncio.run_coroutine_threadsafe(mgr.disconnect_all(), loop)
+                fut.result(timeout=10)
+            except Exception as e:
+                logger.warning(f"MCP 断开失败: {e}")
+        if loop is not None:
+            loop.call_soon_threadsafe(loop.stop)
+
     # ========== 主循环 ==========
 
     def run(self, user_input: str) -> QueryResult:

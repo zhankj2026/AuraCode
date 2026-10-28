@@ -850,9 +850,12 @@ class BridgeSession:
                 "model": self.config.model,
                 "max_iterations": self.config.max_iterations,
                 "permission_mode": self.config.permission_mode,
-                "enable_plugins": False,  # Bridge 模式关闭插件减少开销
+                # 插件改为默认开启：桌面端「扩展 → 插件」面板已支持启停管理
+                # （~/.auracode/plugins_settings.json），关闭加载会让面板形同虚设。
+                "enable_plugins": True,
                 "enable_hooks": True,
                 "enable_skills": True,
+                "enable_mcp": True,  # 桌面端「扩展 → MCP」写入的 .mcp.json / ~/.auracode/mcp.json
                 "active_skills": [],
                 "project_root": abs_work_dir if self.config.work_dir else os.getcwd(),  # 工具文件操作的基准路径
             }
