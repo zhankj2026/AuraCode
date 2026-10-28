@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
 import { actions, useStore } from '../state/store'
 import { readTextFull } from '../api/fsread'
 import type { FileEntry, McpServerInfo, SkillInfo, PluginInfo, HookInfo } from '../api/types'
@@ -230,6 +230,44 @@ function ExtSidebar() {
   const extTab = useStore((s) => s.extTab)
   const ext = useStore((s) => s.extensions)
   const data = ext || { skills: [], mcp: [], hooks: [], plugins: [], tasks: [] }
+  const workDir = useStore(
+    (s) => s.sessions.find((x) => x.session_id === s.activeSessionId)?.work_dir || '',
+  )
+
+  /** MCP 启停/删除（enterprise/managed 为只读管理作用域，不提供操作） */
+  async function mcpToggle(m: McpServerInfo, enabled: boolean) {
+    if (m.scope !== 'project' && m.scope !== 'user') return
+    const r = await window.auracode.updateMcp({ workDir, scope: m.scope, oldName: m.name, enabled })
+    if (r.ok) {
+      actions.setToast(`${enabled ? '已启用' : '已禁用'}「${m.name}」（新会话生效）`, 'ok')
+      actions.loadExtensions()
+    } else {
+      actions.setToast(r.message, 'error')
+    }
+  }
+  async function mcpDelete(m: McpServerInfo) {
+    if (m.scope !== 'project' && m.scope !== 'user') return
+    if (!window.confirm(`确定删除 MCP 服务器「${m.name}」？配置将从文件中移除。`)) return
+    const r = await window.auracode.deleteMcp(workDir, m.scope, m.name)
+    if (r.ok) {
+      actions.setToast(r.message, 'ok')
+      actions.loadExtensions()
+    } else {
+      actions.setToast(r.message, 'error')
+    }
+  }
+
+  /** 插件启停（写 ~/.auracode/plugins_settings.json） */
+  async function pluginToggle(p: PluginInfo, enabled: boolean) {
+    const r = await window.auracode.setPluginEnabled(p.name, p.source, enabled)
+    if (r.ok) {
+      actions.setToast(r.message, 'ok')
+      actions.loadExtensions()
+    } else {
+      actions.setToast(r.message, 'error')
+    }
+  }
+
   return (
     <>
       <div className="tabs">
@@ -240,42 +278,108 @@ function ExtSidebar() {
         ))}
       </div>
       <div className="scroll">
-        {extTab === 'MCP' && <McpList data={data.mcp} />}
+        {extTab === 'MCP' && <McpList data={data.mcp} onToggle={mcpToggle} onDelete={mcpDelete} />}
         {extTab === '技能' && <SkillList data={data.skills} />}
-        {extTab === '插件' && <PluginList data={data.plugins} />}
+        {extTab === '插件' && <PluginList data={data.plugins} onToggle={pluginToggle} />}
         {extTab === '钩子' && <HookList data={data.hooks} />}
       </div>
     </>
   )
 }
 
-function McpList({ data }: { data: McpServerInfo[] }) {
+/** 可操作列表项的小按钮（启停/编辑/删除） */
+function RowBtn({
+  title,
+  children,
+  onClick,
+}: {
+  title: string
+  children: ReactNode
+  onClick: () => void
+}) {
+  return (
+    <button
+      className="item-del"
+      title={title}
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick()
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+function McpList({
+  data,
+  onToggle,
+  onDelete,
+}: {
+  data: McpServerInfo[]
+  onToggle: (m: McpServerInfo, enabled: boolean) => void
+  onDelete: (m: McpServerInfo) => void
+}) {
   if (data.length === 0)
     return (
-      <div className="search">
-        暂无 MCP 服务器配置
-        <br />
-        （项目 .mcp.json 或 ~/.auracode/mcp.json）
-      </div>
+      <>
+        <button className="btn-primary" onClick={() => actions.openMcp()}>
+          🔌 连接 MCP 服务器
+        </button>
+        <div className="search">
+          暂无 MCP 服务器配置
+          <br />
+          （项目 .mcp.json 或 ~/.auracode/mcp.json）
+        </div>
+      </>
     )
   return (
     <>
       <button className="btn-primary" onClick={() => actions.openMcp()}>
         🔌 连接 MCP 服务器
       </button>
-      {data.map((m) => (
-        <div className="item" key={`${m.scope}:${m.name}`}>
-          <span className="t">
-            <div className="n">{m.name}</div>
-            <div className="s">
-              {m.type}
-              {m.command ? ' · ' + m.command : ''}
-              {m.url ? ' · ' + m.url : ''}
-            </div>
-          </span>
-          <span className={`tag ${m.enabled ? 'green' : 'red'}`}>{m.enabled ? '已启用' : '已禁用'}</span>
-        </div>
-      ))}
+      {data.map((m) => {
+        const manageable = m.scope === 'project' || m.scope === 'user'
+        return (
+          <div className="item" key={`${m.scope}:${m.name}`} title={`${m.scope} 作用域`}>
+            <span className="t">
+              <div className="n">{m.name}</div>
+              <div className="s">
+                {m.scope === 'project' ? '项目' : m.scope === 'user' ? '用户' : m.scope}
+                {' · '}
+                {m.type}
+                {m.command ? ' · ' + m.command : ''}
+                {m.url ? ' · ' + m.url : ''}
+              </div>
+            </span>
+            {manageable ? (
+              <>
+                <span
+                  className={`tag ${m.enabled ? 'green' : 'red'}`}
+                  style={{ cursor: 'pointer' }}
+                  title={m.enabled ? '点击禁用（新会话生效）' : '点击启用'}
+                  onClick={() => onToggle(m, !m.enabled)}
+                >
+                  {m.enabled ? '已启用' : '已禁用'}
+                </span>
+                <RowBtn
+                  title="编辑配置"
+                  onClick={() => {
+                    if (m.scope === 'project' || m.scope === 'user') actions.openMcpEdit(m.name, m.scope)
+                  }}
+                >
+                  ✎
+                </RowBtn>
+                <RowBtn title="删除此服务器" onClick={() => onDelete(m)}>✕</RowBtn>
+              </>
+            ) : (
+              <span className={`tag ${m.enabled ? 'green' : 'red'}`} title="企业管理配置，只读">
+                {m.enabled ? '已启用' : '已禁用'}
+              </span>
+            )}
+          </div>
+        )
+      })}
     </>
   )
 }
@@ -303,45 +407,74 @@ function SkillList({ data }: { data: SkillInfo[] }) {
   )
 }
 
-function PluginList({ data }: { data: PluginInfo[] }) {
+function PluginList({
+  data,
+  onToggle,
+}: {
+  data: PluginInfo[]
+  onToggle: (p: PluginInfo, enabled: boolean) => void
+}) {
   if (data.length === 0) return <div className="search">未扫描到插件模块（plugins/*.py 中的 ToolPlugin）</div>
-  return data.map((p) => (
-    <div className="item" key={`${p.source}:${p.name}`}>
-      <span className="t">
-        <div className="n">
-          {p.name}
-          {p.version ? ` v${p.version}` : ''}
-        </div>
-        <div className="s">{p.description}</div>
-      </span>
-      <span className="meta">{p.source}</span>
-      {p.enabled === true && <span className="tag green">启用</span>}
-      {p.enabled === false && <span className="tag red">禁用</span>}
-    </div>
-  ))
+  return data.map((p) => {
+    const enabled = p.enabled !== false
+    return (
+      <div className="item" key={`${p.source}:${p.name}`}>
+        <span className="t">
+          <div className="n">
+            {p.name}
+            {p.version ? ` v${p.version}` : ''}
+          </div>
+          <div className="s">{p.description}</div>
+        </span>
+        <span className="meta">{p.source === 'builtin' ? '内置' : p.source === 'project' ? '项目' : '用户'}</span>
+        <span
+          className={`tag ${enabled ? 'green' : 'red'}`}
+          style={{ cursor: 'pointer' }}
+          title="点击切换启停（新会话生效）"
+          onClick={() => onToggle(p, !enabled)}
+        >
+          {enabled ? '启用' : '禁用'}
+        </span>
+      </div>
+    )
+  })
 }
 
 function HookList({ data }: { data: HookInfo[] }) {
   if (data.length === 0)
     return (
-      <div className="search">
-        暂无钩子配置
-        <br />
-        （.auracode/hooks.json）
-      </div>
-    )
-  return data.map((h, i) => (
-    <div className="item" key={i}>
-      <span className="t">
-        <div className="n">
-          {h.event}
-          {h.matcher ? ` · ${h.matcher}` : ''}
+      <>
+        <button className="btn-primary" onClick={() => actions.openHooks()}>
+          🪝 管理钩子
+        </button>
+        <div className="search">
+          暂无钩子配置
+          <br />
+          （.auracode/hooks.json 或 ~/.auracode/hooks.json）
         </div>
-        <div className="s">{h.command}</div>
-      </span>
-      <span className={`tag ${h.enabled ? 'green' : 'red'}`}>{h.enabled ? '启用' : '禁用'}</span>
-    </div>
-  ))
+      </>
+    )
+  const scopeLabel = (s: string) => (s === 'project' ? '项目' : '用户')
+  return (
+    <>
+      <button className="btn-primary" onClick={() => actions.openHooks()}>
+        🪝 管理钩子
+      </button>
+      {data.map((h, i) => (
+        <div className="item" key={`${h.scope}:${i}`} title={`${scopeLabel(h.scope)}级 · ${h.command}`}>
+          <span className="t">
+            <div className="n">
+              {h.event}
+              {h.matcher ? ` · ${h.matcher}` : ''}
+            </div>
+            <div className="s">{h.command}</div>
+          </span>
+          <span className="meta">{scopeLabel(h.scope)}</span>
+          <span className={`tag ${h.enabled ? 'green' : 'red'}`}>{h.enabled ? '启用' : '禁用'}</span>
+        </div>
+      ))}
+    </>
+  )
 }
 
 function AuditSidebar() {

@@ -139,6 +139,14 @@ export interface HookInfo {
   enabled: boolean
   description?: string
   priority: number
+  /** 命令超时（秒） */
+  timeout?: number
+  /** 失败策略: ignore / warn / block */
+  onFail?: string
+  /** 所在配置文件：project=工作区 .auracode/hooks.json；user=~/.auracode/hooks.json */
+  scope: 'project' | 'user'
+  /** 在所在文件 hooks 数组中的索引（定位用） */
+  index: number
 }
 export interface PluginInfo {
   name: string

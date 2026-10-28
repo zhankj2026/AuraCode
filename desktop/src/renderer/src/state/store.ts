@@ -34,7 +34,11 @@ export interface AppState {
   mode: string
   settingsOpen: boolean
   mcpOpen: boolean
+  /** MCP 编辑器弹窗：null=新增，否则编辑该服务器（含 scope 定位） */
+  mcpEdit: { name: string; scope: 'project' | 'user' } | null
   skillhubOpen: boolean
+  /** 钩子管理弹窗 */
+  hooksOpen: boolean
   log: string[]
   workspace: string
   tempSession: boolean
@@ -73,7 +77,9 @@ const initial: AppState = {
   mode: '普通',
   settingsOpen: false,
   mcpOpen: false,
+  mcpEdit: null,
   skillhubOpen: false,
+  hooksOpen: false,
   log: [],
   workspace: 'auracode-src',
   tempSession: false,
@@ -379,16 +385,26 @@ export const actions = {
     setState({ settingsOpen: false })
   },
   openMcp() {
-    setState({ mcpOpen: true, settingsOpen: false })
+    setState({ mcpOpen: true, settingsOpen: false, mcpEdit: null })
   },
   closeMcp() {
-    setState({ mcpOpen: false })
+    setState({ mcpOpen: false, mcpEdit: null })
+  },
+  /** 编辑已有 MCP 服务器（列表的 ✎ 按钮进入） */
+  openMcpEdit(name: string, scope: 'project' | 'user') {
+    setState({ mcpOpen: true, settingsOpen: false, mcpEdit: { name, scope } })
   },
   openSkillhub() {
     setState({ skillhubOpen: true })
   },
   closeSkillhub() {
     setState({ skillhubOpen: false })
+  },
+  openHooks() {
+    setState({ hooksOpen: true })
+  },
+  closeHooks() {
+    setState({ hooksOpen: false })
   },
   setWorkspace(name: string, temp = false) {
     setState({ workspace: name, tempSession: temp })
@@ -534,12 +550,19 @@ export const actions = {
   setExtensions(data: ExtensionsData) {
     setState({ extensions: data })
   },
-  /** 从主进程拉取真实扩展配置（技能/MCP/钩子/插件/定时任务） */
+  /** 当前会话的工作区绝对路径（项目级扩展配置的基准；无会话时回退引擎根目录） */
+  currentWorkDir(): string {
+    const sess = state.sessions.find((s) => s.session_id === state.activeSessionId)
+    if (sess?.work_dir) return sess.work_dir
+    return state.config?.root || '.'
+  },
+  /** 从主进程拉取真实扩展配置（技能/MCP/钩子/插件/定时任务）。
+   *  engineRoot=引擎根目录（内置资源）；workDir=当前会话工作区（项目级配置跟随它）。 */
   async loadExtensions() {
-    const root = state.config?.root
-    if (!root) return
+    const engineRoot = state.config?.root
+    if (!engineRoot) return
     try {
-      const data = await window.auracode.getExtensions(root)
+      const data = await window.auracode.getExtensions(engineRoot, actions.currentWorkDir())
       setState({ extensions: data })
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)

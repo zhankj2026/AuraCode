@@ -11,6 +11,7 @@ import { SettingsModal } from './components/SettingsModal'
 import { PermissionModal } from './components/PermissionModal'
 import { McpModal } from './components/McpModal'
 import { SkillHubModal } from './components/SkillHubModal'
+import { HooksModal } from './components/HooksModal'
 
 export default function App() {
   const client = useStore((s) => s.client)
@@ -35,10 +36,14 @@ export default function App() {
       .catch(() => {})
   }, [client, activeId])
 
-  // 进入「扩展 / 任务」视图时刷新真实配置（配置可能被外部修改）
+  // 进入「扩展 / 任务」视图时刷新真实配置（配置可能被外部修改）；
+  // 会话工作区变化时也刷新 —— 项目级 .mcp.json / .auracode/hooks.json 跟随工作区
+  const workDir = useStore(
+    (s) => s.sessions.find((x) => x.session_id === s.activeSessionId)?.work_dir || '',
+  )
   useEffect(() => {
     if (activity === 'ext' || activity === 'tasks') actions.loadExtensions()
-  }, [activity])
+  }, [activity, workDir])
 
   // 1) 启动握手：先确认主进程后端已就绪，再做一次真实 REST 握手；
   //    期间自动重试，覆盖「后端冷启动慢 / 瞬间未就绪」的竞态，避免一次性失败进死屏。
@@ -265,6 +270,7 @@ export default function App() {
       <PermissionModal />
       <McpModal />
       <SkillHubModal />
+      <HooksModal />
 
       {toast && (
         <div
