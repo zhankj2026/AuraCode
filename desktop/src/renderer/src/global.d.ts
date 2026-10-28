@@ -32,7 +32,7 @@ declare global {
           index: number
         }[]
         plugins: { name: string; description: string; version?: string; source: 'builtin' | 'project' | 'user'; enabled?: boolean }[]
-        tasks: { job_id: string; cron: string; prompt: string; recurring: boolean; durable: boolean; status: string; next_fire_at?: number; fire_count: number; label?: string }[]
+        tasks: { job_id: string; cron: string; prompt: string; recurring: boolean; durable: boolean; status: string; next_fire_at?: number; fire_count: number; label?: string; session_id?: string }[]
       }>
       selectDirectory: () => Promise<string | null>
       getWorkspace: () => Promise<string | null>

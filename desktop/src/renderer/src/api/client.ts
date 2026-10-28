@@ -152,6 +152,36 @@ export class BridgeClient {
     return r.json()
   }
 
+  async createCron(body: {
+    cron: string
+    prompt: string
+    recurring?: boolean
+    durable?: boolean
+    label?: string
+    session_id?: string
+    work_dir?: string
+  }) {
+    const r = await fetch(this.url('/api/cron'), {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify(body),
+    })
+    const data = (await r.json()) as any
+    if (!r.ok) {
+      throw new Error(data?.detail || `创建定时任务失败 (HTTP ${r.status})`)
+    }
+    return data as {
+      job_id: string
+      cron: string
+      prompt: string
+      recurring: boolean
+      durable: boolean
+      session_id: string
+      next_fire: string
+      message: string
+    }
+  }
+
   async respondPermission(
     sessionId: string,
     request_id: string,

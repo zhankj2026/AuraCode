@@ -83,7 +83,7 @@ function ChatThread() {
       .filter((e) => e.session_id === activeId)
       .filter((e) =>
         ['user_message', 'assistant_message', 'tool_execute', 'tool_result', 'result', 'output', 'status', 'history_restored',
-         'api_retry', 'turn_retry', 'fallback_activated'].includes(
+         'api_retry', 'turn_retry', 'fallback_activated', 'cron_triggered', 'cron_completed'].includes(
           e.type,
         ),
       )
@@ -314,6 +314,26 @@ function EventView({ e }: { e: BridgeEvent }) {
     return (
       <div className="sysline ok">
         ⟲ 已续接上次会话（{d.messages} 条消息 · {d.turn_count} 轮）— 可直接继续未完成的任务
+      </div>
+    )
+  }
+  // 定时任务触发：渲染成带时钟图标的「用户」气泡，明确这是一次自动执行的输入
+  if (e.type === 'cron_triggered') {
+    const label = d.label ? `（${String(d.label)}）` : ''
+    return (
+      <div className="msg user cron">
+        <div className="who">⏰ 定时任务{label}</div>
+        <div className="bubble">{String(d.prompt ?? '')}</div>
+      </div>
+    )
+  }
+  // 定时任务完成：明确成败与摘要，归属目标会话
+  if (e.type === 'cron_completed') {
+    const ok = d.success
+    const msg = ok ? d.summary || '已完成' : d.error || '执行失败'
+    return (
+      <div className={`sysline ${ok ? 'ok' : 'err'}`}>
+        {ok ? '✓ 定时任务完成' : '✗ 定时任务失败'}：{String(msg ?? '').slice(0, 300)}
       </div>
     )
   }

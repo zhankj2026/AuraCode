@@ -165,6 +165,8 @@ export interface TaskInfo {
   next_fire_at?: number
   fire_count: number
   label?: string
+  /** 关联的会话 id：为空表示「每次触发新建会话」 */
+  session_id?: string
 }
 export interface ExtensionsData {
   skills: SkillInfo[]

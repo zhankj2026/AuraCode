@@ -71,6 +71,8 @@ export interface TaskInfo {
   next_fire_at?: number
   fire_count: number
   label?: string
+  /** 关联的会话 id：为空表示「每次触发新建会话」 */
+  session_id?: string
 }
 
 export interface ExtensionsData {
@@ -339,6 +341,7 @@ function readTasks(): TaskInfo[] {
       next_fire_at: typeof j.next_fire_at === 'number' ? j.next_fire_at : undefined,
       fire_count: typeof j.fire_count === 'number' ? j.fire_count : 0,
       label: j.label,
+      session_id: j.session_id || '',
     })
   }
   return out.sort((a, b) => (a.next_fire_at || 0) - (b.next_fire_at || 0))
