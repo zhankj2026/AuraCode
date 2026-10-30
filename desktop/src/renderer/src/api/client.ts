@@ -221,6 +221,37 @@ export class BridgeClient {
     return data
   }
 
+  /** 修改定时任务（部分字段更新；cron 变更时后端重算下次触发时间） */
+  async updateCron(
+    jobId: string,
+    body: {
+      cron?: string
+      prompt?: string
+      recurring?: boolean
+      label?: string
+      session_id?: string
+    },
+  ) {
+    const r = await fetch(this.url(`/api/cron/${jobId}`), {
+      method: 'PUT',
+      headers: this.headers(),
+      body: JSON.stringify(body),
+    })
+    const data = (await r.json().catch(() => ({}))) as any
+    if (!r.ok) {
+      throw new Error(data?.detail || `修改定时任务失败 (HTTP ${r.status})`)
+    }
+    return data as {
+      job_id: string
+      cron: string
+      prompt: string
+      recurring: boolean
+      status: string
+      next_fire: string
+      message: string
+    }
+  }
+
   async respondPermission(
     sessionId: string,
     request_id: string,

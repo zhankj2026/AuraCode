@@ -773,6 +773,37 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
             raise HTTPException(status_code=404, detail=result.get("message", "任务不存在"))
         return result
 
+    class CronUpdateRequest(BaseModel):
+        cron: Optional[str] = None
+        prompt: Optional[str] = None
+        recurring: Optional[bool] = None
+        label: Optional[str] = None
+        session_id: Optional[str] = None
+        work_dir: Optional[str] = None
+
+    @app.put("/api/cron/{job_id}", response_model=dict)
+    async def update_cron(
+        job_id: str,
+        req: CronUpdateRequest,
+        auth: bool = Depends(_auth.verify),
+    ):
+        """修改定时任务（部分字段更新，None = 不变；cron 变更时下次触发时间从现在重算）。"""
+        from tools.builtin.cron_tool import cron_update
+        result = cron_update(
+            job_id,
+            cron=req.cron or "",
+            prompt=req.prompt or "",
+            recurring=req.recurring,
+            label=req.label,
+            session_id=req.session_id,
+        )
+        if not result.get("ok"):
+            code = {"not_found": 404, "invalid_cron": 400}.get(
+                result.get("error", ""), 400,
+            )
+            raise HTTPException(status_code=code, detail=result.get("message", "修改失败"))
+        return result
+
     @app.get("/api/models", response_model=ModelsResponse)
     async def list_models(
         auth: bool = Depends(_auth.verify),

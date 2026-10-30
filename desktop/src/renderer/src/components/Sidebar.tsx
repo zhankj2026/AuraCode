@@ -2,6 +2,7 @@ import { ReactNode, useEffect, useState } from 'react'
 import { actions, useStore } from '../state/store'
 import { readTextFull } from '../api/fsread'
 import { CronCreateModal } from './CronCreateModal'
+import { CronEditModal } from './CronEditModal'
 import type { FileEntry, McpServerInfo, SkillInfo, PluginInfo, HookInfo, TaskInfo } from '../api/types'
 
 const EXT_TABS = ['MCP', '技能', '插件', '钩子']
@@ -581,6 +582,7 @@ function TasksSidebar() {
   const client = useStore((s) => s.client)
   const [open, setOpen] = useState(false)
   const [busyId, setBusyId] = useState('')
+  const [editing, setEditing] = useState<TaskInfo | null>(null)
   const fmt = (ts?: number) =>
     ts ? new Date(ts * 1000).toLocaleString('zh-CN', { hour12: false }) : '—'
   const dot: Record<string, string> = {
@@ -673,6 +675,14 @@ function TasksSidebar() {
               </button>
             )}
             <button
+              className="cron-op"
+              title="编辑任务（表达式/提示词/类型/关联会话）"
+              disabled={busyId === t.job_id}
+              onClick={() => setEditing(t)}
+            >
+              ✏️
+            </button>
+            <button
               className="cron-op danger"
               title="删除任务（不可恢复）"
               disabled={busyId === t.job_id}
@@ -692,6 +702,16 @@ function TasksSidebar() {
           onClose={() => setOpen(false)}
           onToast={(m, k) => actions.setToast(m, k)}
           onCreated={() => actions.loadExtensions()}
+        />
+      )}
+      {editing && (
+        <CronEditModal
+          task={editing}
+          sessions={sessions}
+          client={client}
+          onClose={() => setEditing(null)}
+          onToast={(m, k) => actions.setToast(m, k)}
+          onUpdated={() => actions.loadExtensions()}
         />
       )}
     </>

@@ -410,6 +410,61 @@ class CronScheduler:
                 self._save()
             return True
 
+    def update_job(self, job_id: str,
+                   cron: Optional[str] = None,
+                   prompt: Optional[str] = None,
+                   recurring: Optional[bool] = None,
+                   label: Optional[str] = None,
+                   session_id: Optional[str] = None,
+                   work_dir: Optional[str] = None) -> CronJob:
+        """部分更新任务字段（None = 不修改）。
+
+        - cron 变更：重算 next_fire_at（从现在起下一个匹配时刻），
+          并重置周期性任务的 30 天有效期（编辑视为重新启用）
+        - recurring 切换：同步调整 expires_at（周期性→重置，一次性→清除）
+        - 仅改 label/prompt 等展示字段：不动触发时间与有效期
+
+        Raises:
+            KeyError: 任务不存在
+            ValueError: cron 表达式非法
+        """
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                raise KeyError(f"cron job not found: {job_id}")
+
+            schedule_changed = False
+            if cron is not None and cron.strip() != job.cron:
+                cron_expr = CronExpression(cron.strip())  # ValueError 即非法
+                job.cron = cron.strip()
+                job.next_fire_at = cron_expr.next_fire_time().timestamp()
+                schedule_changed = True
+            if recurring is not None and recurring != job.recurring:
+                job.recurring = recurring
+                schedule_changed = True
+
+            if schedule_changed:
+                if job.recurring:
+                    expr = CronExpression(job.cron)
+                    period_min = expr.period_minutes()
+                    jitter_min = min(period_min * RECURRING_JITTER_PCT, RECURRING_JITTER_MAX_MIN)
+                    job.expires_at = time.time() + RECURRING_MAX_AGE_MS / 1000
+                else:
+                    job.expires_at = 0.0
+
+            if prompt is not None:
+                job.prompt = prompt
+            if label is not None:
+                job.label = label
+            if session_id is not None:
+                job.session_id = session_id
+            if work_dir is not None:
+                job.work_dir = work_dir
+
+            if job.durable:
+                self._save()
+            return job
+
     def list_jobs(self) -> List[CronJob]:
         """列出所有任务"""
         with self._lock:
@@ -644,6 +699,50 @@ def cron_resume(job_id: str) -> Dict:
     }
 
 
+def cron_update(job_id: str, cron: str = "", prompt: str = "",
+                recurring: Optional[bool] = None,
+                label: Optional[str] = None,
+                session_id: Optional[str] = None) -> Dict:
+    """工具函数: 修改定时任务（空串/None = 该字段不修改）"""
+    scheduler = get_cron_scheduler()
+    kwargs: Dict[str, Any] = {}
+    if cron:
+        kwargs["cron"] = cron
+    if prompt:
+        kwargs["prompt"] = prompt
+    if recurring is not None:
+        kwargs["recurring"] = recurring
+    if label is not None:
+        kwargs["label"] = label
+    if session_id is not None:
+        kwargs["session_id"] = session_id
+    if not kwargs:
+        return {"ok": False, "job_id": job_id, "error": "no_fields",
+                "message": "No fields to update"}
+
+    try:
+        job = scheduler.update_job(job_id, **kwargs)
+    except KeyError:
+        return {"ok": False, "job_id": job_id, "error": "not_found",
+                "message": f"Job [{job_id}] not found"}
+    except ValueError as e:
+        return {"ok": False, "job_id": job_id, "error": "invalid_cron",
+                "message": f"Invalid cron expression: {e}"}
+
+    next_dt = datetime.fromtimestamp(job.next_fire_at) if job.next_fire_at else None
+    return {
+        "ok": True,
+        "job_id": job_id,
+        "cron": job.cron,
+        "prompt": job.prompt,
+        "recurring": job.recurring,
+        "status": job.status,
+        "next_fire": next_dt.strftime("%Y-%m-%d %H:%M:%S") if next_dt else "N/A",
+        "message": f"Updated cron job [{job_id}]. Next fire: "
+                   f"{next_dt.strftime('%Y-%m-%d %H:%M:%S') if next_dt else 'N/A'}.",
+    }
+
+
 def cron_list() -> Dict:
     """工具函数: 列出定时任务"""
     scheduler = get_cron_scheduler()
@@ -681,6 +780,7 @@ def cron_handler(args: list, loop=None) -> str:
     用法:
         /cron list                         — 列出所有任务
         /cron create <cron_expr> <prompt>  — 创建任务
+        /cron edit <job_id> [选项]         — 修改任务
         /cron delete <job_id>              — 删除任务
         /cron pause <job_id>               — 暂停任务
         /cron resume <job_id>              — 恢复已暂停任务
@@ -798,6 +898,58 @@ def cron_handler(args: list, loop=None) -> str:
             return f"▶️ 已恢复任务 [{job_id}]，下次触发: {next_note}"
         return f"❌ 恢复失败：任务 [{job_id}] 不存在或未处于暂停状态"
 
+    elif action == "edit":
+        if len(args) < 2:
+            return ("用法: /cron edit <job_id> [--cron <表达式>] [--prompt <文本>] "
+                    "[--label <名称>] [--once] [--recurring] [--session <id>] [--adhoc]")
+        job_id = args[1]
+        tokens = args[2:]
+        kwargs: dict = {}
+
+        # 第一遍：抽取选项（--prompt 除外，允许出现在任意位置）
+        rest: list = []
+        i = 0
+        while i < len(tokens):
+            t = tokens[i]
+            if t == "--cron" and i + 1 < len(tokens):
+                kwargs["cron"] = tokens[i + 1]; i += 2
+            elif t == "--label" and i + 1 < len(tokens):
+                kwargs["label"] = tokens[i + 1]; i += 2
+            elif t == "--session" and i + 1 < len(tokens):
+                kwargs["session_id"] = tokens[i + 1]; i += 2
+            elif t == "--adhoc":
+                kwargs["session_id"] = ""; i += 1
+            elif t == "--once":
+                kwargs["recurring"] = False; i += 1
+            elif t == "--recurring":
+                kwargs["recurring"] = True; i += 1
+            else:
+                rest.append(t); i += 1
+
+        # 第二遍：--prompt 显式指定（其后全部为提示词）；否则剩余位置文本作为提示词
+        if "--prompt" in rest:
+            k = rest.index("--prompt")
+            prompt_text = " ".join(rest[k + 1:]).strip()
+            rest = rest[:k]
+            if prompt_text:
+                kwargs["prompt"] = prompt_text
+        positional = " ".join(rest).strip()
+        if positional:
+            kwargs["prompt"] = positional
+
+        if not kwargs:
+            return "❌ 没有要修改的字段"
+        result = cron_update(job_id, **kwargs)
+        if not result.get("ok"):
+            return f"❌ 修改失败: {result.get('message', '')}"
+        return (
+            f"✏️ 已修改任务 [{job_id}]\n"
+            f"   Cron: {result['cron']}\n"
+            f"   提示: {result['prompt'][:80]}\n"
+            f"   类型: {'周期性' if result['recurring'] else '一次性'} | 状态: {result['status']}\n"
+            f"   下次触发: {result['next_fire']}"
+        )
+
     elif action == "log":
         log = scheduler.get_execution_log()
         if not log:
@@ -813,7 +965,7 @@ def cron_handler(args: list, loop=None) -> str:
         return "\n".join(lines)
 
     else:
-        return "用法: /cron [list|create|delete|pause|resume|log] [参数...]"
+        return "用法: /cron [list|create|edit|delete|pause|resume|log] [参数...]"
 
 
 # ── 注册 ─────────────────────────────────────────────────
@@ -923,6 +1075,48 @@ register_tool("cron_resume", {
     "permission_level": "write",
 })
 
+register_tool("cron_update", {
+    "description": (
+        "Update fields of an existing cron job (partial update): cron expression, prompt, "
+        "recurring flag, label, or bound session. Empty/None fields are left unchanged. "
+        "Changing the cron recomputes the next fire time from now."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "job_id": {
+                "type": "string",
+                "description": "Job ID to update",
+            },
+            "cron": {
+                "type": "string",
+                "description": "New 5-field cron expression (empty = unchanged)",
+                "default": "",
+            },
+            "prompt": {
+                "type": "string",
+                "description": "New prompt to execute (empty = unchanged)",
+                "default": "",
+            },
+            "recurring": {
+                "type": "boolean",
+                "description": "True=recurring, False=one-shot (null = unchanged)",
+            },
+            "label": {
+                "type": "string",
+                "description": "New human-readable label (null = unchanged)",
+            },
+            "session_id": {
+                "type": "string",
+                "description": "New bound session id, empty string = create a fresh session on each trigger (null = unchanged)",
+            },
+        },
+        "required": ["job_id"],
+    },
+    "handler": cron_update,
+    "permission_level": "write",
+})
+
 register_tool("cron_list", {
     "description": (
         "List all scheduled cron jobs with status, next fire time, and execution count."
@@ -942,7 +1136,7 @@ try:
         "description": "定时任务管理 — 创建/删除/查看 Cron 任务",
         "handler": cron_handler,
         "category": "scheduling",
-        "args_help": "[list|create|delete|pause|resume|log] [参数...]",
+        "args_help": "[list|create|edit|delete|pause|resume|log] [参数...]",
     })
 except Exception:
     pass
