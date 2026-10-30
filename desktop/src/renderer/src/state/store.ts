@@ -140,6 +140,54 @@ export const actions = {
   setSessions(sessions: SessionInfo[]) {
     setState({ sessions })
   },
+  /** 后端清理了会话（session_expired 事件 / 定期对账发现消失）：
+   *  从列表移除；若是当前会话则切到剩余第一个，避免侧栏停留幽灵 idle 会话 */
+  sessionExpired(sessionId: string, reason = '') {
+    if (!state.sessions.some((s) => s.session_id === sessionId)) return
+    const list = state.sessions.filter((s) => s.session_id !== sessionId)
+    const running = { ...state.runningSessions }
+    delete running[sessionId]
+    setState({ sessions: list, runningSessions: running })
+    if (state.activeSessionId === sessionId) {
+      actions.selectSession(list[0]?.session_id ?? null)
+      if (!list[0]) setState({ events: [], messages: {} })
+      actions.setToast(
+        reason === 'idle_timeout'
+          ? '当前会话空闲过久，已被后端自动清理（历史可在「历史归档」页找回）'
+          : '当前会话已被后端清理，已切换会话',
+        'info',
+      )
+    }
+  },
+  /** 定期对账：拉取后端真实会话列表并同步（静默失败不打扰）。
+   *  WS 断连重试 5 次失败后 session_expired 事件收不到，这是兜底通道。 */
+  async refreshSessions() {
+    const c = state.client
+    if (!c) return
+    try {
+      const list = await c.listSessions()
+      const cur = state.sessions
+      // 先逐个移除后端已消失的会话（sessionExpired 内部处理运行态清理
+      // 与当前会话切换），再整体对齐，顺序不能反
+      const gone = cur.filter(
+        (s) => !list.some((n) => n.session_id === s.session_id),
+      )
+      for (const s of gone) actions.sessionExpired(s.session_id, 'reconcile')
+      // 有实际变化才更新，避免每 60s 无谓重渲染
+      const changed =
+        gone.length > 0 ||
+        cur.length !== list.length ||
+        list.some((n) => {
+          const o = cur.find((s) => s.session_id === n.session_id)
+          return (
+            !o || o.state !== n.state || o.round_count !== n.round_count || o.title !== n.title
+          )
+        })
+      if (changed) setState({ sessions: list })
+    } catch {
+      /* 后端瞬时不达：保持现状，下轮再试 */
+    }
+  },
   /** 会话模型变更后同步本地状态（热切换成功 / model_changed 事件）。
    *  此前 model 只在 listSessions 快照里，热切换后下拉框仍显示旧值，
    *  用户再次切换极易触发后端 409「模型未变化」。 */

@@ -133,6 +133,14 @@ export default function App() {
     }
   }, [retryKey])
 
+  // 会话列表定期对账（60s）：后端过期清理、异常退出等导致前后端不一致时兜底。
+  // WS 断连重试 5 次失败后 session_expired 事件收不到，这里保证最终一致。
+  useEffect(() => {
+    if (!connected || !client) return
+    const t = setInterval(() => actions.refreshSessions(), 60_000)
+    return () => clearInterval(t)
+  }, [connected, client])
+
   function handleEvent(e: BridgeEvent, c: BridgeClient) {
     // 本地发送时已即时渲染用户消息，忽略后端回放的 user_message
     if (e.type === 'user_message') return
@@ -212,6 +220,12 @@ export default function App() {
     // 会话结束事件（stop/完成）同样清运行态
     if (e.type === 'session_stopped') {
       actions.setSessionRunning(e.session_id, false)
+    }
+
+    // 后端过期清理了会话：移除侧栏条目（当前会话被清则切换并提示）
+    if (e.type === 'session_expired') {
+      actions.sessionExpired(e.session_id, String(e.data?.reason || ''))
+      return
     }
 
     // 其余事件（tool_execute / tool_result / result / output / status …）原样入栈，由视图层渲染

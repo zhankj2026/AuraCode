@@ -64,6 +64,7 @@ class BridgeEventType(str, Enum):
     SESSION_STOPPED = "session_stopped"
     SESSION_ERROR = "session_error"
     SESSION_ARCHIVED = "session_archived"       # 会话持久化完成
+    SESSION_EXPIRED = "session_expired"         # 会话被后端过期清理（前端移除幽灵条目）
     SERVER_SHUTTING_DOWN = "server_shutting_down"  # 服务器即将关闭
     # 对话
     USER_MESSAGE = "user_message"

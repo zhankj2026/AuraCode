@@ -394,24 +394,34 @@ class BridgeSessionManager:
         """
         cleaned = 0
         now = time.time()
+        stale: List[tuple] = []  # (session_id, reason)
 
         with self._lock:
-            stale_ids = []
             for sid, session in self._sessions.items():
                 # 已完成/失败的会话
                 if session.state in (SessionState.COMPLETED, SessionState.FAILED):
-                    stale_ids.append(sid)
+                    stale.append((sid, session.state.value))
                     continue
                 # 长时间空闲的会话
                 if session.state == SessionState.IDLE:
                     idle = now - session.last_activity
                     if idle > max_idle_seconds:
-                        stale_ids.append(sid)
+                        stale.append((sid, "idle_timeout"))
 
-        for sid in stale_ids:
+        for sid, reason in stale:
             self.remove_session(sid)
             cleaned += 1
-            logger.info(f"Stale session cleaned up: {sid}")
+            logger.info(f"Stale session cleaned up: {sid} ({reason})")
+            # 广播过期事件：前端据此移除侧栏幽灵条目。此前清理是静默的，
+            # 前端列表不刷新，会话消失后 UI 仍显示 idle 状态的旧会话。
+            try:
+                self._event_callback(BridgeEvent(
+                    type=BridgeEventType.SESSION_EXPIRED,
+                    session_id=sid,
+                    data={"reason": reason},
+                ))
+            except Exception as e:
+                logger.warning(f"Emit session_expired failed for {sid}: {e}")
 
         return cleaned
 
