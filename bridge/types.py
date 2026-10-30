@@ -150,6 +150,9 @@ class SessionConfig:
     # 启动时是否按 work_dir 恢复最近归档会话的历史（续接未完成任务）。
     # 默认 True；前端「新会话」可传 False 表示全新开始。
     restore_history: bool = True
+    # 会话显示标题（为空时由首条消息前 50 字符自动生成）。
+    # 定时任务等场景显式指定，便于在 UI 一眼识别来源。
+    title: str = ""
 
     def __post_init__(self):
         # 将 work_dir 规范化为绝对路径。

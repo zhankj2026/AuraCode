@@ -351,7 +351,7 @@ class BridgeSession:
         # 统计
         self.created_at = time.time()
         self.last_activity = 0.0
-        self.title = ""
+        self.title = config.title  # 允许创建时显式指定（如定时任务标题）
         self._round_count = 0  # 已处理的消息轮次数
         self._session_store = SessionStore()  # 会话持久化
         self._archived_meta = None  # 增量归档复用的元数据（同一会话只写一份档案）
