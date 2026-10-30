@@ -64,7 +64,7 @@ class CronJob:
     last_fire_at: float = 0.0       # 上次触发时间戳
     fire_count: int = 0             # 已触发次数
     expires_at: float = 0.0         # 过期时间(周期性任务)
-    status: str = "active"          # active / expired / cancelled / fired
+    status: str = "active"          # active / paused / expired / cancelled / fired
     label: str = ""                 # 用户可读标签
     session_id: str = ""            # 关联的执行会话：为空表示「每次触发时新建会话」
     work_dir: str = ""              # 执行会话的工作目录：为空时使用默认值 "."
@@ -289,8 +289,9 @@ class CronScheduler:
         loaded = self._store.load_jobs()
         with self._lock:
             for job_id, job in loaded.items():
-                if job.status == "active":
-                    # 检查是否过期
+                # active 与 paused 都要恢复：paused 若不载入，重启后会被静默丢弃
+                if job.status in ("active", "paused"):
+                    # 检查是否过期（暂停中的任务同样会到期）
                     if job.recurring and job.expires_at and time.time() > job.expires_at:
                         job.status = "expired"
                     else:
@@ -371,6 +372,40 @@ class CronScheduler:
             job = self._jobs[job_id]
             job.status = "cancelled"
             del self._jobs[job_id]
+            if job.durable:
+                self._save()
+            return True
+
+    def pause_job(self, job_id: str) -> bool:
+        """暂停任务：保留全部配置，调度循环跳过（status != "active" 不触发）。
+
+        仅允许从 active 暂停；expired/cancelled 等终态任务返回 False。
+        """
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if not job or job.status != "active":
+                return False
+            job.status = "paused"
+            if job.durable:
+                self._save()
+            return True
+
+    def resume_job(self, job_id: str) -> bool:
+        """恢复暂停的任务。
+
+        next_fire_at 重算为「从现在起」的下一个匹配时刻：暂停期间时间已流逝，
+        旧值大概率落在过去，若不重算会在恢复后的第一次 _tick 立即触发。
+        恢复后从下个匹配时间开始计次，符合直觉且避免补触发风暴。
+        """
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if not job or job.status != "paused":
+                return False
+            try:
+                job.next_fire_at = CronExpression(job.cron).next_fire_time().timestamp()
+            except Exception:
+                return False
+            job.status = "active"
             if job.durable:
                 self._save()
             return True
@@ -579,8 +614,34 @@ def cron_delete(job_id: str) -> Dict:
     scheduler = get_cron_scheduler()
     success = scheduler.delete_job(job_id)
     if success:
-        return {"job_id": job_id, "message": f"Cancelled cron job [{job_id}]"}
-    return {"job_id": job_id, "message": f"Job [{job_id}] not found"}
+        return {"ok": True, "job_id": job_id, "message": f"Cancelled cron job [{job_id}]"}
+    return {"ok": False, "job_id": job_id, "message": f"Job [{job_id}] not found"}
+
+
+def cron_pause(job_id: str) -> Dict:
+    """工具函数: 暂停定时任务（保留配置，不再触发）"""
+    scheduler = get_cron_scheduler()
+    if scheduler.pause_job(job_id):
+        return {"ok": True, "job_id": job_id,
+                "message": f"Paused cron job [{job_id}]. Use cron_resume to re-enable."}
+    return {"ok": False, "job_id": job_id,
+            "message": f"Job [{job_id}] not found or not active"}
+
+
+def cron_resume(job_id: str) -> Dict:
+    """工具函数: 恢复已暂停的定时任务（从下个匹配时间重新开始）"""
+    scheduler = get_cron_scheduler()
+    if not scheduler.resume_job(job_id):
+        return {"ok": False, "job_id": job_id,
+                "message": f"Job [{job_id}] not found or not paused"}
+    job = scheduler.get_job(job_id)
+    next_dt = datetime.fromtimestamp(job.next_fire_at) if job and job.next_fire_at else None
+    return {
+        "ok": True,
+        "job_id": job_id,
+        "next_fire": next_dt.strftime("%Y-%m-%d %H:%M:%S") if next_dt else "N/A",
+        "message": f"Resumed cron job [{job_id}].",
+    }
 
 
 def cron_list() -> Dict:
@@ -621,6 +682,8 @@ def cron_handler(args: list, loop=None) -> str:
         /cron list                         — 列出所有任务
         /cron create <cron_expr> <prompt>  — 创建任务
         /cron delete <job_id>              — 删除任务
+        /cron pause <job_id>               — 暂停任务
+        /cron resume <job_id>              — 恢复已暂停任务
         /cron log                          — 查看执行日志
     """
     scheduler = get_cron_scheduler()
@@ -640,7 +703,10 @@ def cron_handler(args: list, loop=None) -> str:
             next_dt = datetime.fromtimestamp(job.next_fire_at) if job.next_fire_at else None
             type_icon = "🔄" if job.recurring else "⏱️"
             dur_icon = "💾" if job.durable else "📝"
-            status_icon = {"active": "✅", "expired": "⏰", "cancelled": "❌", "fired": "🔥"}.get(job.status, "❓")
+            status_icon = {
+                "active": "✅", "paused": "⏸️", "expired": "⏰",
+                "cancelled": "❌", "fired": "🔥",
+            }.get(job.status, "❓")
             lines.append(f"  {status_icon} {type_icon}{dur_icon} [{job.job_id}]")
             lines.append(f"     Cron: {job.cron}")
             lines.append(f"     提示: {job.prompt[:60]}{'...' if len(job.prompt) > 60 else ''}")
@@ -713,6 +779,25 @@ def cron_handler(args: list, loop=None) -> str:
             return f"✅ 已取消任务 [{job_id}]"
         return f"❌ 任务 [{job_id}] 不存在"
 
+    elif action == "pause":
+        if len(args) < 2:
+            return "用法: /cron pause <job_id>"
+        job_id = args[1]
+        if scheduler.pause_job(job_id):
+            return f"⏸️ 已暂停任务 [{job_id}]（/cron resume 可恢复）"
+        return f"❌ 暂停失败：任务 [{job_id}] 不存在或不是运行中状态"
+
+    elif action == "resume":
+        if len(args) < 2:
+            return "用法: /cron resume <job_id>"
+        job_id = args[1]
+        if scheduler.resume_job(job_id):
+            job = scheduler.get_job(job_id)
+            next_dt = datetime.fromtimestamp(job.next_fire_at) if job and job.next_fire_at else None
+            next_note = next_dt.strftime('%Y-%m-%d %H:%M:%S') if next_dt else 'N/A'
+            return f"▶️ 已恢复任务 [{job_id}]，下次触发: {next_note}"
+        return f"❌ 恢复失败：任务 [{job_id}] 不存在或未处于暂停状态"
+
     elif action == "log":
         log = scheduler.get_execution_log()
         if not log:
@@ -728,7 +813,7 @@ def cron_handler(args: list, loop=None) -> str:
         return "\n".join(lines)
 
     else:
-        return "用法: /cron [list|create|delete|log] [参数...]"
+        return "用法: /cron [list|create|delete|pause|resume|log] [参数...]"
 
 
 # ── 注册 ─────────────────────────────────────────────────
@@ -800,6 +885,44 @@ register_tool("cron_delete", {
     "permission_level": "write",
 })
 
+register_tool("cron_pause", {
+    "description": (
+        "Pause a scheduled cron job by ID: keeps its configuration but stops it from firing. "
+        "Resume later with cron_resume."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "job_id": {
+                "type": "string",
+                "description": "Job ID to pause",
+            },
+        },
+        "required": ["job_id"],
+    },
+    "handler": cron_pause,
+    "permission_level": "write",
+})
+
+register_tool("cron_resume", {
+    "description": (
+        "Resume a paused cron job by ID. The next fire time is recomputed from now, "
+        "so missed occurrences during the pause are NOT fired retroactively."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "job_id": {
+                "type": "string",
+                "description": "Job ID to resume",
+            },
+        },
+        "required": ["job_id"],
+    },
+    "handler": cron_resume,
+    "permission_level": "write",
+})
+
 register_tool("cron_list", {
     "description": (
         "List all scheduled cron jobs with status, next fire time, and execution count."
@@ -819,7 +942,7 @@ try:
         "description": "定时任务管理 — 创建/删除/查看 Cron 任务",
         "handler": cron_handler,
         "category": "scheduling",
-        "args_help": "[list|create|delete|log] [参数...]",
+        "args_help": "[list|create|delete|pause|resume|log] [参数...]",
     })
 except Exception:
     pass

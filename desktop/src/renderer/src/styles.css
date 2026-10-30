@@ -142,6 +142,12 @@ header {
 .item-del { display: none; background: none; border: none; color: var(--muted2); font-size: 12px; padding: 2px 5px; border-radius: 5px; cursor: pointer; flex-shrink: 0 }
 .item:hover .item-del { display: inline-block }
 .item-del:hover { color: var(--danger); background: var(--bg2) }
+/* 定时任务条目操作按钮（暂停/恢复/删除）：默认隐藏，悬停条目时浮现 */
+.cron-op { display: none; background: none; border: none; color: var(--muted2); font-size: 12px; padding: 2px 5px; border-radius: 5px; cursor: pointer; flex-shrink: 0 }
+.item:hover .cron-op { display: inline-block }
+.cron-op:hover { color: var(--text); background: var(--bg2) }
+.cron-op.danger:hover { color: var(--danger) }
+.cron-op:disabled { opacity: 0.4; cursor: default }
 .tabs { display: flex; gap: 4px; padding: 6px 10px }
 .tabs button { flex: 1; background: var(--bg3); border: 1px solid var(--line); border-radius: 6px; padding: 6px; font-size: 11.5px; color: var(--muted) }
 .tabs button.on { color: #fff; border-color: var(--primary); background: var(--bg4) }

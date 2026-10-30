@@ -182,6 +182,45 @@ export class BridgeClient {
     }
   }
 
+  /** 暂停定时任务：保留配置不再触发（需 bridge 运行中；404 = 任务不存在或不可暂停） */
+  async pauseCron(jobId: string) {
+    const r = await fetch(this.url(`/api/cron/${jobId}/pause`), {
+      method: 'POST',
+      headers: this.headers(),
+    })
+    const data = (await r.json().catch(() => ({}))) as any
+    if (!r.ok) {
+      throw new Error(data?.detail || `暂停定时任务失败 (HTTP ${r.status})`)
+    }
+    return data
+  }
+
+  /** 恢复已暂停的定时任务（下次触发时间由后端从当前时刻重算） */
+  async resumeCron(jobId: string) {
+    const r = await fetch(this.url(`/api/cron/${jobId}/resume`), {
+      method: 'POST',
+      headers: this.headers(),
+    })
+    const data = (await r.json().catch(() => ({}))) as any
+    if (!r.ok) {
+      throw new Error(data?.detail || `恢复定时任务失败 (HTTP ${r.status})`)
+    }
+    return data
+  }
+
+  /** 删除定时任务（后端从调度器移除并同步落盘，不可恢复） */
+  async deleteCron(jobId: string) {
+    const r = await fetch(this.url(`/api/cron/${jobId}`), {
+      method: 'DELETE',
+      headers: this.headers(),
+    })
+    const data = (await r.json().catch(() => ({}))) as any
+    if (!r.ok) {
+      throw new Error(data?.detail || `删除定时任务失败 (HTTP ${r.status})`)
+    }
+    return data
+  }
+
   async respondPermission(
     sessionId: string,
     request_id: string,

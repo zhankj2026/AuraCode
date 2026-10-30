@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from 'react'
 import { actions, useStore } from '../state/store'
 import { readTextFull } from '../api/fsread'
 import { CronCreateModal } from './CronCreateModal'
-import type { FileEntry, McpServerInfo, SkillInfo, PluginInfo, HookInfo } from '../api/types'
+import type { FileEntry, McpServerInfo, SkillInfo, PluginInfo, HookInfo, TaskInfo } from '../api/types'
 
 const EXT_TABS = ['MCP', '技能', '插件', '钩子']
 
@@ -580,13 +580,46 @@ function TasksSidebar() {
   const sessions = useStore((s) => s.sessions)
   const client = useStore((s) => s.client)
   const [open, setOpen] = useState(false)
+  const [busyId, setBusyId] = useState('')
   const fmt = (ts?: number) =>
     ts ? new Date(ts * 1000).toLocaleString('zh-CN', { hour12: false }) : '—'
   const dot: Record<string, string> = {
     active: 'var(--ok)',
+    paused: 'var(--warn)',
     expired: 'var(--muted2)',
     cancelled: 'var(--danger)',
     fired: 'var(--warn)',
+  }
+  // 任务操作统一走 bridge REST（调度器在 bridge 进程内存中，直接改
+  // scheduled_tasks.json 会被其下次落盘覆盖）。成功后刷新扩展列表。
+  const op = async (jobId: string, fn: (id: string) => Promise<unknown>, okMsg: string) => {
+    if (busyId) return
+    if (!client) {
+      actions.setToast('后端未连接，无法操作定时任务', 'error')
+      return
+    }
+    setBusyId(jobId)
+    try {
+      await fn(jobId)
+      actions.setToast(okMsg, 'ok')
+      actions.loadExtensions()
+    } catch (e) {
+      actions.setToast(e instanceof Error ? e.message : String(e), 'error')
+    } finally {
+      setBusyId('')
+    }
+  }
+  const del = (t: TaskInfo) => {
+    if (busyId || !client) return
+    const c = client
+    if (!window.confirm(`确定删除定时任务「${t.label || t.prompt.slice(0, 30) || t.job_id}」？删除后不可恢复。`)) return
+    void op(t.job_id, (id) => c.deleteCron(id), '定时任务已删除')
+  }
+  const pauseOrResume = (t: TaskInfo, resume: boolean) => {
+    if (!client) return
+    const c = client
+    if (resume) void op(t.job_id, (id) => c.resumeCron(id), '定时任务已恢复')
+    else void op(t.job_id, (id) => c.pauseCron(id), '定时任务已暂停')
   }
   return (
     <>
@@ -609,7 +642,7 @@ function TasksSidebar() {
           </div>
         )}
         {tasks.map((t) => (
-          <div className="item" key={t.job_id}>
+          <div className="item" key={t.job_id} style={{ cursor: 'default' }}>
             <span className="dot-s" style={{ background: dot[t.status] || 'var(--muted2)', width: 7, height: 7, borderRadius: '50%' }} />
             <span className="t">
               <div className="n">{t.label || t.prompt.slice(0, 40) || t.job_id}</div>
@@ -617,9 +650,37 @@ function TasksSidebar() {
                 {t.cron} · {t.recurring ? '周期' : '一次性'}
                 {t.durable ? ' · 持久化' : ''} · 触发 {t.fire_count} 次
                 {t.session_id ? ` · 会话 ${t.session_id.slice(0, 6)}` : ''}
+                {t.status === 'paused' ? ' · 已暂停' : ''}
               </div>
             </span>
-            <div className="meta">{fmt(t.next_fire_at)}</div>
+            {t.status === 'paused' ? (
+              <button
+                className="cron-op"
+                title="恢复任务（下次触发时间从现在重算）"
+                disabled={busyId === t.job_id}
+                onClick={() => pauseOrResume(t, true)}
+              >
+                ▶
+              </button>
+            ) : (
+              <button
+                className="cron-op"
+                title="暂停任务（保留配置，不再触发）"
+                disabled={busyId === t.job_id}
+                onClick={() => pauseOrResume(t, false)}
+              >
+                ⏸
+              </button>
+            )}
+            <button
+              className="cron-op danger"
+              title="删除任务（不可恢复）"
+              disabled={busyId === t.job_id}
+              onClick={() => del(t)}
+            >
+              🗑
+            </button>
+            <div className="meta">{t.status === 'paused' ? '已暂停' : fmt(t.next_fire_at)}</div>
           </div>
         ))}
       </div>

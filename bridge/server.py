@@ -735,6 +735,44 @@ def create_app(config: Optional[BridgeServerConfig] = None) -> FastAPI:
         from tools.builtin.cron_tool import cron_list
         return cron_list()
 
+    # 任务变更必须走这里而非直接改 scheduled_tasks.json：调度器把任务表
+    # 持在内存且 _save() 全量覆盖写盘，绕过它会丢改动。
+    @app.post("/api/cron/{job_id}/pause", response_model=dict)
+    async def pause_cron(
+        job_id: str,
+        auth: bool = Depends(_auth.verify),
+    ):
+        """暂停定时任务：保留配置不再触发，恢复后从下个匹配时间重新计算。"""
+        from tools.builtin.cron_tool import cron_pause
+        result = cron_pause(job_id)
+        if not result.get("ok"):
+            raise HTTPException(status_code=404, detail=result.get("message", "任务不存在或不可暂停"))
+        return result
+
+    @app.post("/api/cron/{job_id}/resume", response_model=dict)
+    async def resume_cron(
+        job_id: str,
+        auth: bool = Depends(_auth.verify),
+    ):
+        """恢复已暂停的定时任务（下次触发时间从现在重算，不补触发暂停期间错过的时点）。"""
+        from tools.builtin.cron_tool import cron_resume
+        result = cron_resume(job_id)
+        if not result.get("ok"):
+            raise HTTPException(status_code=404, detail=result.get("message", "任务不存在或未处于暂停状态"))
+        return result
+
+    @app.delete("/api/cron/{job_id}", response_model=dict)
+    async def delete_cron(
+        job_id: str,
+        auth: bool = Depends(_auth.verify),
+    ):
+        """删除定时任务（从调度器移除；durable 任务同步从落盘文件清除）。"""
+        from tools.builtin.cron_tool import cron_delete
+        result = cron_delete(job_id)
+        if not result.get("ok"):
+            raise HTTPException(status_code=404, detail=result.get("message", "任务不存在"))
+        return result
+
     @app.get("/api/models", response_model=ModelsResponse)
     async def list_models(
         auth: bool = Depends(_auth.verify),
