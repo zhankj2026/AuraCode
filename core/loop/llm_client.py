@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 MAX_API_RETRIES = 10
 
 
-@staticmethod
 def _sleep_with_abort(loop, wait: float, step: float = 0.5) -> bool:
     """中止感知等待：分段 sleep，用户中途点「结束对话」可尽快退出重试。
 
@@ -400,7 +399,7 @@ class LLMClient:
                     })
                     # 中止感知等待：用户中途点「结束对话」可尽快退出重试，
                     # 而不是把整段退避睡完再发下一轮。
-                    if self._sleep_with_abort(loop, wait):
+                    if _sleep_with_abort(loop, wait):
                         logger.info(
                             "Streaming aborted during retry wait "
                             f"(attempt {attempt}/{max_retries})"
