@@ -1,9 +1,10 @@
-import { ReactNode, useEffect, useState } from 'react'
+import { ReactNode, useEffect, useMemo, useState } from 'react'
 import { actions, useStore } from '../state/store'
 import { readTextFull } from '../api/fsread'
 import { CronCreateModal } from './CronCreateModal'
 import { CronEditModal } from './CronEditModal'
 import type { FileEntry, McpServerInfo, SkillInfo, PluginInfo, HookInfo, TaskInfo } from '../api/types'
+import { AUDIT_EVENT_TYPES, buildAuditTurns, fmtDuration } from '../lib/audit'
 
 const EXT_TABS = ['MCP', '技能', '插件', '钩子']
 
@@ -479,85 +480,156 @@ function HookList({ data }: { data: HookInfo[] }) {
   )
 }
 
+// ── 审计视图：按轮次分组的明细日志 ──────────────────────────────
+// 分组/配对逻辑在 ../lib/audit.ts（可单测）；这里只做展示与展开交互。
+
 function AuditSidebar() {
   const events = useStore((s) => s.events)
   const activeId = useStore((s) => s.activeSessionId)
-  const rows = events
-    .filter((e) => e.session_id === activeId || !activeId)
-    .filter((e) =>
-      [
-        'permission_request',
-        'permission_response',
-        'tool_execute',
-        'tool_complete',
-        'session_created',
-        'session_started',
-        'session_stopped',
-        'session_error',
-        'turn_start',
-        'turn_complete',
-      ].includes(e.type),
-    )
-    .slice(-80)
-    .reverse()
+  // 轮次展开状态：undefined = 走默认（最近 2 个轮次展开）；条目默认收起
+  const [turnOpen, setTurnOpen] = useState<Record<string, boolean>>({})
+  const [entryOpen, setEntryOpen] = useState<Record<string, boolean>>({})
+  // pre 内容"展开全部"状态
+  const [fullText, setFullText] = useState<Record<string, boolean>>({})
+
+  const turns = useMemo(() => {
+    const rows = events
+      .filter((e) => e.session_id === activeId || !activeId)
+      .filter((e) => AUDIT_EVENT_TYPES.includes(e.type))
+    return buildAuditTurns(rows)
+  }, [events, activeId])
 
   const time = (t: number) => new Date(t * 1000).toLocaleTimeString('zh-CN', { hour12: false })
-  const dotColor: Record<string, string> = {
-    permission_request: 'var(--warn)',
-    permission_response: 'var(--ok)',
-    tool_execute: 'var(--primaryLite)',
-    tool_complete: 'var(--accentLite)',
-    session_error: 'var(--danger)',
+  const statusStyle: Record<string, { color: string; icon: string }> = {
+    running: { color: 'var(--warn)', icon: '⏳' },
+    success: { color: 'var(--ok)', icon: '✔' },
+    fail: { color: 'var(--danger)', icon: '✖' },
+    info: { color: 'var(--muted2)', icon: '·' },
   }
 
-  function describe(e: any): { title: string; sub: string } {
-    switch (e.type) {
-      case 'permission_request':
-        return { title: '权限请求', sub: `${e.data?.tool_name} · ${e.data?.description || ''}` }
-      case 'permission_response':
-        return {
-          title: e.data?.behavior === 'allow' ? '权限允许' : '权限拒绝',
-          sub: e.data?.request_id || '',
-        }
-      case 'tool_execute': {
-        const a = typeof e.data?.arguments === 'string' ? safeParse(e.data.arguments) : e.data?.arguments
-        const p = a?.path ? ` · ${a.path}` : ''
-        return { title: `工具调用 · ${e.data?.tool_name}`, sub: p }
-      }
-      case 'tool_complete':
-        return { title: `工具完成 · ${e.data?.tool_name}`, sub: e.data?.success === false ? '失败' : '成功' }
-      case 'session_created':
-        return { title: '会话创建', sub: e.session_id?.slice(0, 8) || '' }
-      case 'session_started':
-        return { title: '会话开始', sub: '' }
-      case 'session_stopped':
-        return { title: '会话停止', sub: '' }
-      case 'session_error':
-        return { title: '会话错误', sub: String(e.data?.error || '') }
-      case 'turn_start':
-        return { title: '轮次开始', sub: '' }
-      case 'turn_complete':
-        return { title: '轮次完成', sub: '' }
-      default:
-        return { title: e.type, sub: '' }
-    }
-  }
+  // 展示按时间倒序（最新轮次在最上），默认展开最近 2 个轮次
+  const display = useMemo(() => [...turns].reverse(), [turns])
+
+  const toggle = (
+    set: React.Dispatch<React.SetStateAction<Record<string, boolean>>>,
+    key: string,
+  ) => set((m) => ({ ...m, [key]: !(m[key] ?? false) }))
 
   return (
     <>
-      <div className="search">🛡️ 审计 / 活动日志</div>
+      <div className="search">🛡️ 审计 · 轮次明细（{turns.length} 轮）</div>
       <div className="scroll">
-        {rows.length === 0 && <div className="search">暂无审计记录</div>}
-        {rows.map((e) => {
-          const d = describe(e)
+        {display.length === 0 && (
+          <div className="search">暂无审计记录
+            <br />发起对话后这里会记录每轮的工具调用、参数与结果
+          </div>
+        )}
+        {display.map((t, idx) => {
+          const defaultOpen = idx < 2
+          const open = turnOpen[t.key] ?? defaultOpen
+          const dur = t.endTs && t.startTs ? t.endTs - t.startTs : 0
+          const toolCount = t.entries.filter((e) => e.kind === 'tool').length
+          const running = t.entries.some((e) => e.status === 'running')
           return (
-            <div className="item" key={e.event_id}>
-              <span className="dot-s" style={{ background: dotColor[e.type] || 'var(--muted2)', width: 7, height: 7, borderRadius: '50%' }} />
-              <div className="t">
-                <div className="n" style={{ color: e.type === 'permission_request' ? 'var(--warn)' : e.type === 'session_error' ? 'var(--danger)' : 'var(--text)' }}>{d.title}</div>
-                <div className="s">{d.sub}</div>
+            <div className="audit-turn" key={t.key || idx}>
+              <div
+                className="audit-head"
+                onClick={() => toggle(setTurnOpen, t.key)}
+                title={t.userPrompt}
+              >
+                <span className="audit-caret">{open ? '▾' : '▸'}</span>
+                <span className="t">
+                  <div className="n">
+                    {t.turnNo !== null ? `第 ${t.turnNo} 轮` : t.userPrompt ? '进行中' : '系统'}
+                    {running && <span style={{ color: 'var(--warn)' }}> · 运行中</span>}
+                    <span className="audit-sum">
+                      {toolCount > 0 ? ` · ${toolCount} 个工具` : ''}
+                      {dur > 0 ? ` · ${fmtDuration(dur)}` : ''}
+                    </span>
+                  </div>
+                  {t.userPrompt && (
+                    <div className="s audit-prompt">👤 {t.userPrompt.slice(0, 60)}</div>
+                  )}
+                  {!open && t.preview && (
+                    <div className="s audit-preview">{t.preview.slice(0, 60)}</div>
+                  )}
+                </span>
               </div>
-              <div className="meta">{time(e.timestamp)}</div>
+              {open && (
+                <div className="audit-body">
+                  {t.userPrompt && t.userPrompt.length > 60 && (
+                    <div className="audit-entry">
+                      <span className="audit-ic">👤</span>
+                      <div className="t">
+                        <div className="audit-fulltext">{t.userPrompt}</div>
+                      </div>
+                    </div>
+                  )}
+                  {t.entries.length === 0 && !t.userPrompt && (
+                    <div className="audit-entry"><span className="audit-ic">·</span><div className="t"><div className="s">（无活动）</div></div></div>
+                  )}
+                  {t.entries.map((en) => {
+                    const st = statusStyle[en.status] || statusStyle.info
+                    const eOpen = entryOpen[en.key] ?? false
+                    const expandable = en.detail.length > 0
+                    return (
+                      <div className="audit-entry" key={en.key}>
+                        <div
+                          className={`audit-row ${expandable ? 'clickable' : ''}`}
+                          onClick={() => expandable && toggle(setEntryOpen, en.key)}
+                        >
+                          <span className="audit-ic" style={{ color: st.color }}>{st.icon}</span>
+                          <div className="t">
+                            <div className="n">
+                              {en.title}
+                              {en.duration != null && (
+                                <span className="audit-sum"> · {fmtDuration(en.duration)}</span>
+                              )}
+                            </div>
+                            {en.sub && <div className="s">{en.sub}</div>}
+                          </div>
+                          <div className="meta">{time(en.ts)}</div>
+                        </div>
+                        {eOpen && expandable && (
+                          <div className="audit-detail">
+                            {en.detail.map((sec, si) => {
+                              const fk = `${en.key}_${si}`
+                              const long = sec.text.length > 400 || sec.text.split('\n').length > 10
+                              const showFull = fullText[fk] ?? false
+                              const text = showFull || !long ? sec.text : sec.text.split('\n').slice(0, 10).join('\n').slice(0, 400)
+                              return (
+                                <div className="audit-sec" key={fk}>
+                                  <div className="audit-sec-lbl">
+                                    {sec.label}
+                                    {long && (
+                                      <button
+                                        type="button"
+                                        className="audit-more"
+                                        onClick={() => toggle(setFullText, fk)}
+                                      >
+                                        {showFull ? '收起' : '展开全部'}
+                                      </button>
+                                    )}
+                                  </div>
+                                  <pre className={sec.tone === 'err' ? 'err' : ''}>{text}</pre>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {t.preview && (
+                    <div className="audit-entry">
+                      <span className="audit-ic">🤖</span>
+                      <div className="t">
+                        <div className="s audit-preview">{t.preview}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )
         })}
