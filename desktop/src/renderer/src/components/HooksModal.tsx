@@ -3,6 +3,27 @@ import { actions, useStore } from '../state/store'
 import type { HookInfo } from '../api/types'
 
 /**
+ * 图标统一用 SVG：钩子（hook）取「闪电」语义——在事件触发时执行命令。
+ */
+function HookIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="15"
+      height="15"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
+    </svg>
+  )
+}
+
+/**
  * 钩子管理弹窗（完整 CRUD）。
  * - 项目级：<工作区>/.auracode/hooks.json；用户级：~/.auracode/hooks.json
  * - 字段与引擎 hooks/config_loader.py 的 HookConfigEntry 一一对应
@@ -142,24 +163,31 @@ export function HooksModal() {
   return (
     <div className="mask show" onClick={(e) => e.target === e.currentTarget && actions.closeHooks()}>
       <div className="modal xl">
-        <div className="mh" style={{ background: 'var(--bg3)' }}>
-          <div className="ic" style={{ background: 'var(--primaryLite)', color: '#fff' }}>🪝</div>
+        <div className="mh">
+          <div className="ic" style={{ background: 'var(--primaryLite)', color: '#fff' }}>
+            <HookIcon />
+          </div>
           <div className="ti">钩子管理</div>
           <span className="sp" />
           <select
+            className="inp mini"
             value={scope}
             onChange={(e) => setScope(e.target.value as 'project' | 'user')}
-            style={{ marginRight: 8 }}
+            aria-label="作用域"
+            title="选择配置作用域"
           >
             <option value="project">项目级</option>
             <option value="user">用户级</option>
           </select>
-          <button className="btn" onClick={() => actions.closeHooks()}>✕</button>
+          <button className="btn" onClick={() => actions.closeHooks()} aria-label="关闭">
+            ✕
+          </button>
         </div>
 
         <div className="mb" style={{ overflow: 'auto', maxHeight: 'calc(80vh - 150px)' }}>
-          <div className="note" style={{ marginBottom: 8 }}>
-            写入 <b>{targetFile}</b>；命令支持变量替换 {'{tool_name}'} 与输入参数占位符，失败策略 on_fail=ignore/warn/block（block 会拦截工具执行）。保存后新会话生效。
+          <div className="note" style={{ marginBottom: 10 }}>
+            写入 <b>{targetFile}</b>；命令支持变量替换 {'{tool_name}'} 与输入参数占位符，失败策略
+            on_fail=ignore/warn/block（block 会拦截工具执行）。保存后新会话生效。
           </div>
 
           {hooks.length === 0 && (
@@ -169,100 +197,120 @@ export function HooksModal() {
           )}
 
           {hooks.map((h, i) => (
-            <div
-              key={i}
-              style={{
-                border: '1px solid var(--line)',
-                borderRadius: 8,
-                padding: '10px 12px',
-                marginBottom: 10,
-                background: 'var(--bg2)',
-              }}
-            >
-              <div style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
-                <span className="tag" style={{ flexShrink: 0 }}>#{i + 1}</span>
-                <select value={h.event} onChange={(e) => patch(i, { event: e.target.value })} style={{ flex: 1 }}>
+            <div className="card hook-card" key={i}>
+              <div className="hook-head">
+                <span className="tag">#{i + 1}</span>
+                <select
+                  className="inp"
+                  value={h.event}
+                  onChange={(e) => patch(i, { event: e.target.value })}
+                  aria-label="事件"
+                >
                   {HOOK_EVENTS.map((ev) => (
-                    <option key={ev} value={ev}>{ev}</option>
+                    <option key={ev} value={ev}>
+                      {ev}
+                    </option>
                   ))}
                 </select>
                 <select
+                  className="inp"
                   value={h.matcher}
                   onChange={(e) => patch(i, { matcher: e.target.value })}
-                  style={{ flex: 1 }}
+                  aria-label="匹配工具"
                   title="只在该工具触发时执行（留空 = 所有工具）"
                 >
                   <option value="">匹配所有工具</option>
                   {TOOL_MATCHERS.map((m) => (
-                    <option key={m} value={m}>{m}</option>
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
                   ))}
                 </select>
                 <button
                   className={`btn ${h.enabled ? 'ok' : ''}`}
-                  style={{ flexShrink: 0, padding: '3px 10px' }}
                   onClick={() => patch(i, { enabled: !h.enabled })}
+                  aria-label={h.enabled ? '禁用该钩子' : '启用该钩子'}
                 >
                   {h.enabled ? '启用' : '禁用'}
                 </button>
                 <button
                   className="btn"
-                  style={{ flexShrink: 0, padding: '3px 10px' }}
                   onClick={() => setHooks((hs) => hs.filter((_, idx) => idx !== i))}
+                  aria-label="删除该钩子"
                 >
                   ✕
                 </button>
               </div>
+
               <textarea
+                className="inp"
                 value={h.command}
                 placeholder="要执行的 Shell 命令，如 echo {tool_name} >> hooks.log"
+                aria-label="执行命令"
                 onChange={(e) => patch(i, { command: e.target.value })}
-                style={{ width: '100%', minHeight: 44, fontFamily: 'var(--mono, monospace)', resize: 'vertical' }}
+                style={{ minHeight: 44, resize: 'vertical' }}
               />
-              <div style={{ display: 'flex', gap: 8, marginTop: 6, alignItems: 'center' }}>
+
+              <div className="hook-foot">
                 <input
+                  className="inp"
                   value={h.description}
                   placeholder="描述（可选）"
+                  aria-label="描述"
                   onChange={(e) => patch(i, { description: e.target.value })}
-                  style={{ flex: 1 }}
                 />
-                <select value={h.onFail} onChange={(e) => patch(i, { onFail: e.target.value })} title="失败策略">
+                <select
+                  className="inp"
+                  value={h.onFail}
+                  onChange={(e) => patch(i, { onFail: e.target.value })}
+                  aria-label="失败策略"
+                  title="失败策略"
+                >
                   <option value="ignore">失败忽略</option>
                   <option value="warn">失败警告</option>
                   <option value="block">失败拦截</option>
                 </select>
-                <input
-                  type="number"
-                  value={h.priority}
-                  onChange={(e) => patch(i, { priority: Number(e.target.value) || 0 })}
-                  style={{ width: 64 }}
-                  title="优先级（越大越先执行）"
-                />
-                <input
-                  type="number"
-                  value={h.timeout}
-                  onChange={(e) => patch(i, { timeout: Number(e.target.value) || 10 })}
-                  style={{ width: 64 }}
-                  title="超时（秒）"
-                />
+                <label className="hook-num" title="优先级（越大越先执行）">
+                  优先级
+                  <input
+                    className="inp mini"
+                    type="number"
+                    value={h.priority}
+                    onChange={(e) => patch(i, { priority: Number(e.target.value) || 0 })}
+                    aria-label="优先级"
+                  />
+                </label>
+                <label className="hook-num" title="超时（秒）">
+                  超时
+                  <input
+                    className="inp mini"
+                    type="number"
+                    value={h.timeout}
+                    onChange={(e) => patch(i, { timeout: Number(e.target.value) || 10 })}
+                    aria-label="超时（秒）"
+                  />
+                </label>
               </div>
             </div>
           ))}
 
           <button
-            className="btn"
-            style={{ width: '100%' }}
+            className="btn hook-add"
             onClick={() => setHooks((hs) => [...hs, emptyHook()])}
+            aria-label="添加钩子"
           >
             ＋ 添加钩子
           </button>
         </div>
 
         <div className="mf">
-          <div style={{ fontSize: 11, color: 'var(--muted)', padding: '0 14px' }}>
+          <div className="muted" style={{ fontSize: 11, padding: '0 4px' }}>
             {hooks.length} 条 · {scope === 'user' ? '用户级（所有项目生效）' : '项目级（仅当前工作区）'}
           </div>
           <div className="spacer" style={{ flex: 1 }} />
-          <button className="btn" onClick={() => actions.closeHooks()} disabled={busy}>取消</button>
+          <button className="btn" onClick={() => actions.closeHooks()} disabled={busy}>
+            取消
+          </button>
           <button className="btn ok" onClick={save} disabled={busy}>
             {busy ? '保存中…' : '保存全部'}
           </button>
