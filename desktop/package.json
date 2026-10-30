@@ -9,6 +9,8 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "stage": "powershell -ExecutionPolicy Bypass -File scripts/stage.ps1",
     "dist": "npm run stage && electron-vite build && electron-builder --win nsis",
     "package": "npm run stage && electron-vite build && electron-builder --win nsis"
@@ -21,6 +23,11 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "^4.64.9",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/jest-dom": "^6.10.0",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.8",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
@@ -28,6 +35,8 @@
     "electron": "^31.3.0",
     "electron-builder": "^24.13.3",
     "electron-vite": "^2.3.0",
-    "typescript": "^5.5.4"
+    "jsdom": "^25.0.1",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.9"
   }
 }

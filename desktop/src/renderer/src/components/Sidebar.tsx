@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { actions, useStore } from '../state/store'
 import { readTextFull } from '../api/fsread'
+import { CronCreateModal } from './CronCreateModal'
 import type { FileEntry, McpServerInfo, SkillInfo, PluginInfo, HookInfo } from '../api/types'
 
 const EXT_TABS = ['MCP', '技能', '插件', '钩子']
@@ -628,128 +629,12 @@ function TasksSidebar() {
           sessions={sessions}
           client={client}
           onClose={() => setOpen(false)}
+          onToast={(m, k) => actions.setToast(m, k)}
+          onCreated={() => actions.loadExtensions()}
         />
       )}
     </>
   )
 }
 
-function CronCreateModal({
-  activeSessionId,
-  sessions,
-  client,
-  onClose,
-}: {
-  activeSessionId: string | null
-  sessions: { session_id: string; title: string; work_dir: string }[]
-  client: any
-  onClose: () => void
-}) {
-  const [prompt, setPrompt] = useState('')
-  const [cron, setCron] = useState('0 9 * * *')
-  const [recurring, setRecurring] = useState(true)
-  const [binding, setBinding] = useState<'current' | 'new' | 'adhoc'>('adhoc')
-  const [busy, setBusy] = useState(false)
-
-  async function submit() {
-    if (!client) return actions.setToast('后端未连接', 'error')
-    if (!prompt.trim() || !cron.trim()) {
-      return actions.setToast('请填写提示词与 cron 表达式', 'error')
-    }
-    setBusy(true)
-    try {
-      const workDir =
-        binding === 'current'
-          ? sessions.find((s) => s.session_id === activeSessionId)?.work_dir || '.'
-          : '.'
-      let sessionId = ''
-      if (binding === 'current') {
-        sessionId = activeSessionId || ''
-      } else if (binding === 'new') {
-        // 先建一个专用会话并立即绑定，后续触发都复用它
-        const r = await client.createSession({
-          work_dir: workDir,
-          permission_mode: 'auto',
-          restore_history: false,
-        })
-        sessionId = r.session_id
-      }
-      const res = await client.createCron({
-        cron: cron.trim(),
-        prompt: prompt.trim(),
-        recurring,
-        durable: true,
-        session_id: sessionId,
-        work_dir: workDir,
-      })
-      actions.setToast(
-        `已创建定时任务 ${res.job_id.slice(0, 6)}，下次触发：${res.next_fire}`,
-        'ok',
-      )
-      actions.loadExtensions()
-      onClose()
-    } catch (e: any) {
-      actions.setToast('创建失败：' + (e?.message || e), 'error')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="mask show" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ width: 520 }}>
-        <h3>新建定时任务</h3>
-        <label className="field">
-          <span>提示词（触发时执行的指令）</span>
-          <textarea
-            className="inp"
-            rows={3}
-            value={prompt}
-            placeholder="例如：汇总今天 git 提交并写到 report.md"
-            onChange={(e) => setPrompt(e.target.value)}
-          />
-        </label>
-        <label className="field">
-          <span>Cron 表达式（5 字段：分 时 日 月 周）</span>
-          <input
-            className="inp"
-            value={cron}
-            placeholder="0 9 * * *"
-            onChange={(e) => setCron(e.target.value)}
-          />
-        </label>
-        <label className="field row">
-          <span>类型</span>
-          <select
-            className="inp"
-            value={recurring ? 'recurring' : 'once'}
-            onChange={(e) => setRecurring(e.target.value === 'recurring')}
-          >
-            <option value="recurring">周期性</option>
-            <option value="once">一次性</option>
-          </select>
-        </label>
-        <label className="field">
-          <span>关联会话（结果将展示在该会话中）</span>
-          <select
-            className="inp"
-            value={binding}
-            onChange={(e) => setBinding(e.target.value as any)}
-          >
-            <option value="adhoc">每次触发新建会话</option>
-            <option value="current">绑定当前会话</option>
-            <option value="new">新建专用会话并绑定</option>
-          </select>
-        </label>
-        <div className="modal-actions">
-          <button className="btn" onClick={onClose} disabled={busy}>
-            取消
-          </button>
-          <button className="btn ok" onClick={submit} disabled={busy}>
-            {busy ? '创建中…' : '创建'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
+// CronCreateModal 已抽到 ./CronCreateModal.tsx（含可视化 cron 构建器 CronBuilder）

@@ -76,6 +76,8 @@ examples/
 desktop/node_modules/
 desktop/out/
 desktop/dist/
+desktop/.vitest-tmp/
+desktop/coverage/
 desktop/resources/
 # 早期 stage.ps1 路径 bug 遗留的重复产物（当前脚本只写 desktop/resources）
 desktop/scripts/resources/
