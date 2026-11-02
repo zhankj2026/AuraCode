@@ -34,7 +34,7 @@ def _activate_and_report(skill_name: str, args: list, loop=None) -> str:
         return result
     
     # 获取 skill prompt
-    skill_manager = SkillContext._skill_manager
+    skill_manager = SkillContext.get_skill_manager()
     if skill_manager and skill_name in skill_manager.skills:
         skill = skill_manager.skills[skill_name]
         prompt_content = skill.prompt_content or ""

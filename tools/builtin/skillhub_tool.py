@@ -99,7 +99,7 @@ def _reload_skills() -> int:
     """安装后热重载，让新技能立即可路由/调用。"""
     try:
         from skills.context import SkillContext
-        sm = SkillContext._skill_manager
+        sm = SkillContext.get_skill_manager()
         if sm is not None:
             return sm.reload_skills()
     except Exception as e:
@@ -389,7 +389,7 @@ def skill_acquire_handler(intent: str, auto_install: bool = True,
     """
     from skills.context import SkillContext
 
-    sm = SkillContext._skill_manager
+    sm = SkillContext.get_skill_manager()
     router = getattr(sm, "router", None) if sm else None
 
     local_lines: list = []

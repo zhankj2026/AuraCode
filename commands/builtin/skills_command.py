@@ -24,7 +24,7 @@ from skills.context import SkillContext
 def _get_skill_manager():
     """获取 SkillManager 实例"""
     if SkillContext.is_initialized():
-        return SkillContext._skill_manager
+        return SkillContext.get_skill_manager()
     return None
 
 

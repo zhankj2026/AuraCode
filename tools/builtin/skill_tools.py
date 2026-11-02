@@ -185,7 +185,7 @@ def invoke_skill_handler(skill_name: str, args: str = "") -> str:
         技能的 prompt 内容（已处理）
     """
     try:
-        sm = SkillContext._skill_manager
+        sm = SkillContext.get_skill_manager()
         if sm is None:
             return "❌ 技能系统未初始化"
         return sm.invoke_skill(skill_name, args)
@@ -292,7 +292,7 @@ def route_skill_handler(intent: str, top_k: int = 3) -> str:
     """
     try:
         from skills.context import SkillContext
-        sm = SkillContext._skill_manager
+        sm = SkillContext.get_skill_manager()
         if sm is None:
             return "❌ 技能系统未初始化"
         router = getattr(sm, "router", None)

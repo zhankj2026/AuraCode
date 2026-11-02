@@ -50,7 +50,7 @@ def _project_root() -> str:
     # 2) SkillManager
     try:
         from skills.context import SkillContext
-        mgr = SkillContext._skill_manager
+        mgr = SkillContext.get_skill_manager()
         if mgr and getattr(mgr, "project_root", None):
             return mgr.project_root
     except Exception:
@@ -81,7 +81,7 @@ def skill_create_handler(
     """创建自定义技能（SKILL.md + prompt.md 落盘）"""
     try:
         from skills.context import SkillContext
-        mgr = SkillContext._skill_manager
+        mgr = SkillContext.get_skill_manager()
         if mgr is None:
             return "❌ 技能系统未初始化（本会话未启用技能）"
         result = mgr.create_skill(
@@ -99,7 +99,7 @@ def skill_create_handler(
 def skill_delete_handler(name: str) -> str:
     try:
         from skills.context import SkillContext
-        mgr = SkillContext._skill_manager
+        mgr = SkillContext.get_skill_manager()
         if mgr is None:
             return "❌ 技能系统未初始化"
         return mgr.delete_skill(name)

@@ -502,7 +502,7 @@ class PluginLoader:
 
         try:
             from skills.context import SkillContext
-            sm = SkillContext._skill_manager
+            sm = SkillContext.get_skill_manager()
             if sm is None:
                 logger.debug("SkillManager 未初始化，跳过 skill 自动发现")
                 return
