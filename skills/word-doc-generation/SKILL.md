@@ -69,7 +69,7 @@ page_break_before(title)
 word_measure(path="目标.docx", mode="outline")
 ```
 
-拿到每段所在页码后，把版式需求转成**可程序化判定的断言**。示例（"每首诗一页内"）：
+拿到每段所在页码后，把版式需求转成**可程序化判定的断言**。
 
 - 标题段页码 == 该节最后一段页码（节未跨页）
 - 或明确允许跨页时：下一节标题页码 == 上一节末段页码 + 1
@@ -132,7 +132,7 @@ word_measure(path="目标.docx", mode="diagnose")
 ## 验收清单
 
 - [ ] `word_measure pages`：总页数符合预期
-- [ ] `word_measure outline`：所有断言通过（每节一页/按规划跨页）
+- [ ] `word_measure outline`：所有断言通过（按规划跨页）
 - [ ] `word_measure overflow`：无意外段落断裂（或断裂处已加"（续）"）
 - [ ] 文档无连续空白页（空段落挤页的典型残留）
 - [ ] 交付文件名与用户要求一致
