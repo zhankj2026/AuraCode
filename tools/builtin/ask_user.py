@@ -29,33 +29,30 @@ from tools.registry import register_tool
 
 logger = logging.getLogger(__name__)
 
-# ── 全局回调（Bridge 模式使用） ────────────────────────────────────────────────────
-
-_ask_user_callback: Optional[Callable] = None
-_callback_lock = threading.Lock()
+# ── 会话级回调（线程局部，多会话隔离）────────────────────────────────────
+# 此前是进程级全局回调：后初始化的会话会覆盖前者，导致 ask_user 应答可能路由到
+# 错误会话的权限处理器。改为线程局部 —— 每个 BridgeSession 在独立线程运行，回调
+# 按会话线程隔离，与 core/memory.py 的线程局部范式一致。
+_ask_user_tls = threading.local()
 
 
 def set_ask_user_callback(callback: Callable):
     """
-    注册全局用户询问回调（Bridge 远程模式使用）。
+    注册用户询问回调（Bridge 远程模式使用，按会话线程隔离）。
 
     回调函数签名: callback(question: str, options: list, multi_select: bool) -> str
     返回值: 用户选择的选项标签或自定义文本
     """
-    global _ask_user_callback
-    with _callback_lock:
-        _ask_user_callback = callback
+    _ask_user_tls.callback = callback
 
 
 def clear_ask_user_callback():
-    global _ask_user_callback
-    with _callback_lock:
-        _ask_user_callback = None
+    if hasattr(_ask_user_tls, "callback"):
+        del _ask_user_tls.callback
 
 
 def _get_ask_user_callback() -> Optional[Callable]:
-    with _callback_lock:
-        return _ask_user_callback
+    return getattr(_ask_user_tls, "callback", None)
 
 
 # ── CLI 模式实现 ──────────────────────────────────────────────────────────────────
