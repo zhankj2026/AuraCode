@@ -402,8 +402,42 @@ class CoordinatorMode:
         }
 
 
-# 全局 Coordinator 实例
-coordinator = CoordinatorMode()
+# ── 多会话隔离 ──
+# 此前 coordinator 是进程级全局单例，多会话并发时 workers 注册表、pending 通知、
+# 综合历史、工作流进度会跨会话共享而串台。改为线程局部：每个会话线程（BridgeSession）
+# 各自持有独立 CoordinatorMode 实例；AgentLoop 初始化时显式绑定本会话实例。
+import threading
+
+_coordinator_tls = threading.local()
+
+
+def set_coordinator(coord: "CoordinatorMode") -> None:
+    """绑定当前会话线程的 CoordinatorMode 实例（由 AgentLoop 调用）"""
+    _coordinator_tls.instance = coord
+
+
+def get_coordinator() -> "CoordinatorMode":
+    """获取当前会话线程的 CoordinatorMode 实例（未绑定则懒创建）"""
+    inst = getattr(_coordinator_tls, "instance", None)
+    if inst is None:
+        inst = CoordinatorMode()
+        _coordinator_tls.instance = inst
+    return inst
+
+
+class _CoordinatorProxy:
+    """线程局部代理：所有对 `coordinator` 的访问都路由到当前会话线程的实例，
+    从而兼容既有 `from core.coordinator import coordinator` 的全局导入写法。"""
+
+    def __getattr__(self, name):
+        return getattr(get_coordinator(), name)
+
+    def __setattr__(self, name, value):
+        setattr(get_coordinator(), name, value)
+
+
+# 全局代理（保持导入名不变，行为按会话线程隔离）
+coordinator = _CoordinatorProxy()
 
 
 def get_coordinator_system_prompt() -> str:

@@ -764,11 +764,10 @@ class BridgeSession:
                 os.chdir(abs_work_dir)
                 logger.info(f"Bridge session: changed to {abs_work_dir}, cwd={os.getcwd()}")
 
-            # 设置环境变量供 AgentLoop 使用
-            if self.config.api_key:
-                os.environ["OPENAI_API_KEY"] = self.config.api_key
-            if self.config.base_url:
-                os.environ["OPENAI_BASE_URL"] = self.config.base_url
+            # 不再写入进程级 os.environ：每个会话的 api_key / base_url 已通过
+            # 下方 AgentLoop(config) 显式传入，写入进程环境变量会在多会话并发时
+            # 互相覆盖（后初始化的会话污染前者的凭据）。os.environ 仅作为
+            # 配置未显式携带凭据时的兜底读取源。
 
             from core.agent_loop import AgentLoop
 

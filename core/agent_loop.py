@@ -194,6 +194,25 @@ class AgentLoop:
         # 4. 扩展系统集成
         self._init_extensions(config)
 
+        # 4.5 多会话隔离：coordinator / subagent_manager 按会话线程绑定独立实例
+        # （此前是进程级全局单例，多会话下 workers 注册表、子代理清单、工作流进度
+        #  会跨会话共享而串台）。AgentLoop 在会话线程内创建本会话实例并写入线程局部；
+        #  子代理线程不引用这些全局，全部隔离生效。
+        try:
+            from core.coordinator import set_coordinator, CoordinatorMode
+            from core.subagent import set_subagent_manager, SubagentManager
+            self._coordinator = CoordinatorMode()
+            set_coordinator(self._coordinator)
+            self._subagent_manager = SubagentManager(
+                max_concurrent=5,
+                api_key=self._default_api_key,
+                base_url=self._default_base_url,
+            )
+            set_subagent_manager(self._subagent_manager)
+            logger.info("会话级 coordinator/subagent_manager 已隔离绑定")
+        except Exception as e:
+            logger.warning(f"会话级单例初始化失败（降级为线程局部懒创建）: {e}")
+
         # 5. 工具定义(JSON Schema) - 包含内置工具 + 插件工具
         self.tools = get_tool_schemas()
 
@@ -301,12 +320,9 @@ class AgentLoop:
         #    若用户填的是完整端点（含该后缀）需先剥掉，否则路径重复导致 404。
         base_url = _normalize_base_url(base_url) if base_url else base_url
 
-        # 1) 先把 base_url / api_key 同步到环境变量（与 __init__ 一致，
-        #    AgentLoop 内部记忆提取器/记忆管理器会回退读环境变量）。
-        if base_url:
-            os.environ["OPENAI_BASE_URL"] = base_url
-        if api_key:
-            os.environ["OPENAI_API_KEY"] = api_key
+        # 1) 不再写入进程级 os.environ：记忆管理器/提取器已通过 self.client 显式持有
+        #    当前客户端，无需回退读环境变量；写入进程环境变量会在多会话并发时互相污染
+        #    （后初始化的会话覆盖前者的 api_key / base_url）。
 
         # 2) 重建 OpenAI 客户端（沿用 __init__ 的超时/重试策略）
         eff_key = api_key or os.environ.get("OPENAI_API_KEY")

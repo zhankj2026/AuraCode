@@ -236,12 +236,17 @@ class SubagentManager:
     - Agent 定义文件支持
     """
 
-    def __init__(self, max_concurrent: int = 5):
+    def __init__(self, max_concurrent: int = 5,
+                 api_key: Optional[str] = None,
+                 base_url: Optional[str] = None):
         """
         初始化 Subagent 管理器
 
         Args:
             max_concurrent: 最大并发数
+            api_key: LLM API Key（优先用显式传入，其次回退进程级环境变量）。
+                     多会话场景下由 AgentLoop 传入本会话的凭据，避免跨会话串用。
+            base_url: LLM API Base URL（同上）
         """
         self.agents: Dict[str, SubagentHandle] = {}
         self.max_concurrent = max_concurrent
@@ -250,9 +255,9 @@ class SubagentManager:
         # 加载 agent 定义
         self.agent_definitions = AgentDefinition.load_agents_directory()
 
-        # LLM 客户端配置
-        self.api_key = os.environ.get("OPENAI_API_KEY")
-        self.base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
+        # LLM 客户端配置：显式传入优先，其次回退进程级环境变量
+        self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
+        self.base_url = base_url or os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
 
         if not self.api_key:
             logger.warning("OPENAI_API_KEY not set, subagents will use mock execution")
@@ -718,8 +723,41 @@ Do NOT return raw search results or verbose logs."""
                 logger.info(f"清理 {len(to_remove)} 个已完成的 Subagent")
 
 
-# 全局 Subagent 管理器实例
-subagent_manager = SubagentManager(max_concurrent=5)
+# ── 多会话隔离 ──
+# 此前 subagent_manager 是进程级全局单例，多会话并发时子代理清单（agents 注册表）
+# 会跨会话共享而串台；且其 api_key/base_url 在构造时从进程级 os.environ 读取，
+# 多会话不同凭据时全部落到同一份（默认）凭据。改为线程局部：每个会话线程持有独立
+# 实例，并由 AgentLoop 用本会话的 api_key/base_url 显式构造。
+_subagent_tls = threading.local()
+
+
+def set_subagent_manager(mgr: "SubagentManager") -> None:
+    """绑定当前会话线程的 SubagentManager 实例（由 AgentLoop 调用）"""
+    _subagent_tls.instance = mgr
+
+
+def get_subagent_manager() -> "SubagentManager":
+    """获取当前会话线程的 SubagentManager 实例（未绑定则懒创建）"""
+    inst = getattr(_subagent_tls, "instance", None)
+    if inst is None:
+        inst = SubagentManager(max_concurrent=5)
+        _subagent_tls.instance = inst
+    return inst
+
+
+class _SubagentManagerProxy:
+    """线程局部代理：所有对 `subagent_manager` 的访问路由到当前会话线程的实例，
+    兼容既有 `from core.subagent import subagent_manager` 的全局导入写法。"""
+
+    def __getattr__(self, name):
+        return getattr(get_subagent_manager(), name)
+
+    def __setattr__(self, name, value):
+        setattr(get_subagent_manager(), name, value)
+
+
+# 全局代理（保持导入名不变，行为按会话线程隔离）
+subagent_manager = _SubagentManagerProxy()
 
 
 # ── 子代理间消息传递 ─────────────────────────────────────────
