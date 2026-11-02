@@ -30,84 +30,88 @@ from tools.registry import register_tool
 
 logger = logging.getLogger(__name__)
 
-# ── 全局计划模式状态 ──────────────────────────────────────────────────────────────
-
-_plan_mode_lock = threading.Lock()
-_plan_mode_active: bool = False
-_plan_mode_reason: str = ""
-_plan_file_path: str = ""          # plan 文件路径
-_plan_turn_count: int = 0          # 进入计划模式后的轮次计数
-_plan_mode_entry_time: float = 0   # 进入计划模式的时间戳
+# ── 计划模式状态（线程局部，多会话隔离）─────────────────────────────────
+# 每个 BridgeSession 在独立线程运行 AgentLoop，线程局部天然隔离，
+# 避免多会话并发时计划模式状态互相覆盖 / 张冠李戴注入 prompt。
+# 与 core/memory.py 的线程局部范式一致。
+_plan_tls = threading.local()
 
 # 周期性提醒配置: 每隔 N 轮注入一次提醒
 PLAN_REMINDER_INTERVAL = 3
 
-# ── 项目工作目录（由 AgentLoop 注入，替代 os.getcwd()）───────────────────
-_project_root: str = ""
+# 项目工作目录线程局部（替代原模块级 _project_root 全局）
+_project_tls = threading.local()
+
+
+def _state() -> dict:
+    """获取当前会话线程的计划模式状态字典（懒初始化）"""
+    s = getattr(_plan_tls, "state", None)
+    if s is None:
+        s = {
+            "active": False,
+            "reason": "",
+            "file_path": "",
+            "turn_count": 0,
+            "entry_time": 0.0,
+        }
+        _plan_tls.state = s
+    return s
 
 
 def set_project_root(root: str):
-    """设置项目工作目录（由 AgentLoop.__init__ 调用）"""
-    global _project_root
-    _project_root = root
+    """设置项目工作目录（由 AgentLoop.__init__ 调用，按会话线程隔离）"""
+    _project_tls.root = root
 
 
 def get_project_root() -> str:
     """获取项目工作目录，未设置时降级为 os.getcwd()"""
-    return _project_root or os.getcwd()
+    return getattr(_project_tls, "root", None) or os.getcwd()
 
 
 def is_plan_mode_active() -> bool:
-    with _plan_mode_lock:
-        return _plan_mode_active
+    return _state()["active"]
 
 
 def set_plan_mode(active: bool, reason: str = "", plan_file: str = ""):
-    global _plan_mode_active, _plan_mode_reason, _plan_file_path
-    global _plan_turn_count, _plan_mode_entry_time
-    with _plan_mode_lock:
-        _plan_mode_active = active
-        _plan_mode_reason = reason
-        if active:
-            _plan_file_path = plan_file
-            _plan_turn_count = 0
-            _plan_mode_entry_time = datetime.now().timestamp()
-        else:
-            _plan_file_path = ""
-            _plan_turn_count = 0
+    s = _state()
+    s["active"] = active
+    s["reason"] = reason
+    if active:
+        s["file_path"] = plan_file
+        s["turn_count"] = 0
+        s["entry_time"] = datetime.now().timestamp()
+    else:
+        s["file_path"] = ""
+        s["turn_count"] = 0
 
 
 def get_plan_mode_reason() -> str:
-    with _plan_mode_lock:
-        return _plan_mode_reason
+    return _state()["reason"]
 
 
 def get_plan_file_path() -> str:
     """获取当前 plan 文件路径（供 AgentLoop 传递给 LLM）"""
-    with _plan_mode_lock:
-        return _plan_file_path
+    return _state()["file_path"]
 
 
 def get_plan_turn_count() -> int:
     """获取计划模式已持续的轮次数"""
-    with _plan_mode_lock:
-        return _plan_turn_count
+    return _state()["turn_count"]
 
 
 def increment_plan_turn():
     """递增计划模式轮次计数（由 AgentLoop 每轮调用）"""
-    with _plan_mode_lock:
-        if _plan_mode_active:
-            global _plan_turn_count
-            _plan_turn_count += 1
+    s = _state()
+    if s["active"]:
+        s["turn_count"] += 1
 
 
 def should_inject_reminder() -> bool:
     """判断是否需要注入计划模式提醒（每 PLAN_REMINDER_INTERVAL 轮）"""
-    with _plan_mode_lock:
-        if not _plan_mode_active:
-            return False
-        return _plan_turn_count > 0 and _plan_turn_count % PLAN_REMINDER_INTERVAL == 0
+    s = _state()
+    if not s["active"]:
+        return False
+    return s["turn_count"] > 0 and s["turn_count"] % PLAN_REMINDER_INTERVAL == 0
 
 
 def get_plan_content() -> str:
