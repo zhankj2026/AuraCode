@@ -350,7 +350,12 @@ class BridgeSession:
 
         # 统计
         self.created_at = time.time()
-        self.last_activity = 0.0
+        # 注意：last_activity 必须初始化为创建时刻，而不是 0.0（即 1970 年）。
+        # 否则空闲清理 / 看门狗会算出「已空闲 17 亿秒」，将刚自动创建的空会话
+        # 立即判为 idle_timeout 清掉，前端收到 SESSION_EXPIRED 后清空会话，
+        # 表现为「打开没有自动开空会话 / 切换模型报错：没有会话」。
+        self.last_activity = self.created_at
+        self._user_active = False  # 是否收到过用户消息（用于空闲/超时判定豁免）
         self.title = config.title  # 允许创建时显式指定（如定时任务标题）
         self._round_count = 0  # 已处理的消息轮次数
         self._session_store = SessionStore()  # 会话持久化
@@ -380,7 +385,14 @@ class BridgeSession:
         """发送用户消息（线程安全，支持附件）"""
         if self._stop_flag.is_set():
             raise RuntimeError("Session is stopped")
+        # 收到用户消息即标记为「已活动」，解除空闲/超时豁免。
+        self._user_active = True
+        self.last_activity = time.time()
         self._message_queue.put({"content": content, "attachments": attachments or []})
+
+    def has_user_activity(self) -> bool:
+        """会话是否收到过用户消息（用于空闲/超时判定豁免）。"""
+        return self._user_active
 
     def respond_permission(self, request_id: str, behavior: str, message: str = "") -> bool:
         """回复权限请求"""
@@ -945,6 +957,11 @@ class BridgeSession:
             timeout = self.config.session_timeout
             if timeout <= 0:
                 continue  # 0 = 不超时
+
+            # 从未向会话发过消息的空会话不触发看门狗超时，避免刚自动创建的
+            # 空会话被立即停掉（前端表现为「切换模型报错：没有会话」）。
+            if not self._user_active:
+                continue
 
             idle_seconds = time.time() - self.last_activity
             if idle_seconds > timeout:

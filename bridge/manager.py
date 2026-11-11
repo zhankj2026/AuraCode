@@ -404,6 +404,10 @@ class BridgeSessionManager:
                     continue
                 # 长时间空闲的会话
                 if session.state == SessionState.IDLE:
+                    # 从未向会话发过用户消息的空会话不视为空闲，避免误杀刚自动
+                    # 创建的空会话（前端据此自动开空会话，误杀后表现为「没有会话」）。
+                    if not session.has_user_activity():
+                        continue
                     idle = now - session.last_activity
                     if idle > max_idle_seconds:
                         stale.append((sid, "idle_timeout"))
