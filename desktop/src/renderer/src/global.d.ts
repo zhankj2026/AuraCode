@@ -15,6 +15,13 @@ declare global {
         config: { host: string; port: number; token: string; root: string } | null
       }>
       restartBackend: () => Promise<unknown>
+      /** 后端运行日志：拉取落盘路径 + 内存缓冲（面板打开时 catch-up） */
+      getBackendLogs: () => Promise<{
+        path: string
+        logs: Array<{ ts: number; line: string }>
+      }>
+      /** 订阅后端日志实时推送，返回反订阅函数 */
+      onBackendLog: (cb: (entry: { ts: number; line: string }) => void) => () => void
       /** 扩展配置读取：engineRoot=引擎根目录（内置技能/插件），workDir=会话工作区（项目级配置） */
       getExtensions: (engineRoot: string, workDir?: string) => Promise<{
         skills: { name: string; description: string; whenToUse?: string; path: string; source: 'builtin' | 'project' | 'user' }[]

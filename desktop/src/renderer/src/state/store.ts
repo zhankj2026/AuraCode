@@ -56,6 +56,8 @@ export interface AppState {
   archives: SessionInfo[]
   /** 归档查看器状态：null=关闭，否则显示该归档的消息 */
   archiveViewer: { id: string; title: string; messages: Array<{ role: string; content: string }> } | null
+  /** 后端运行日志（实时）：来自主进程中转的 python cli.py --bridge 输出 */
+  backendLogs: Array<{ ts: number; line: string }>
 }
 
 const initial: AppState = {
@@ -90,6 +92,7 @@ const initial: AppState = {
   runningSessions: {},
   archives: [],
   archiveViewer: null,
+  backendLogs: [],
 }
 
 let state: AppState = initial
@@ -502,6 +505,21 @@ export const actions = {
   },
   clearToast() {
     setState({ toast: null })
+  },
+  /** 追加一条后端日志（实时推送）。限制内存上限避免无限增长。 */
+  appendBackendLog(entry: { ts: number; line: string }) {
+    const next = state.backendLogs.slice()
+    next.push(entry)
+    if (next.length > 3000) next.splice(0, next.length - 3000)
+    setState({ backendLogs: next })
+  },
+  /** 用主进程缓冲整体替换（面板打开时 catch-up，避免与实时推送重复） */
+  setBackendLogs(list: Array<{ ts: number; line: string }>) {
+    setState({ backendLogs: list.slice(-3000) })
+  },
+  /** 仅清空前端显示（不影响主进程落盘文件） */
+  clearBackendLogs() {
+    setState({ backendLogs: [] })
   },
   /** 顶部模式选择器（普通/自动/计划/绕过）映射为会话 permission_mode。
    *  修复：此前硬编码 normal，每次 write_file/run_command 都弹权限窗打断长任务；

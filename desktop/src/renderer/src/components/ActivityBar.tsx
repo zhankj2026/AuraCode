@@ -8,6 +8,7 @@ const ITEMS: { key: Activity; icon: string; label: string }[] = [
   { key: 'audit', icon: '🛡️', label: '审计' },
   { key: 'tasks', icon: '📋', label: '任务' },
   { key: 'models', icon: '🧠', label: '模型' },
+  { key: 'log', icon: '📜', label: '日志' },
 ]
 
 export function ActivityBar() {

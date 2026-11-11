@@ -98,7 +98,7 @@ export interface FileChange {
 }
 
 export type PermissionMode = '普通' | '自动' | '计划' | '绕过'
-export type Activity = 'chat' | 'files' | 'ext' | 'audit' | 'tasks' | 'models' | 'archives'
+export type Activity = 'chat' | 'files' | 'ext' | 'audit' | 'tasks' | 'models' | 'archives' | 'log'
 export type InspectorTab = '改动' | '上下文' | '用量'
 
 export interface ChatMessage {

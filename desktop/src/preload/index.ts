@@ -15,6 +15,18 @@ contextBridge.exposeInMainWorld('auracode', {
       config: { host: string; port: number; token: string; root: string } | null
     }>,
   restartBackend: () => ipcRenderer.invoke('backend:restart'),
+  /** 拉取后端运行日志缓冲（落盘路径 + 内存缓冲），供「运行日志」面板 catch-up */
+  getBackendLogs: () =>
+    ipcRenderer.invoke('backend:logs') as Promise<{
+      path: string
+      logs: Array<{ ts: number; line: string }>
+    }>,
+  /** 订阅后端日志的实时推送；返回反订阅函数 */
+  onBackendLog: (cb: (entry: { ts: number; line: string }) => void) => {
+    const listener = (_e: unknown, entry: { ts: number; line: string }) => cb(entry)
+    ipcRenderer.on('backend:log', listener)
+    return () => ipcRenderer.removeListener('backend:log', listener)
+  },
   getExtensions: (engineRoot: string, workDir?: string) =>
     ipcRenderer.invoke('extensions:list', engineRoot, workDir),
   selectDirectory: () => ipcRenderer.invoke('dialog:selectDirectory'),

@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage } from 'el
 import * as path from 'path'
 import * as fs from 'fs'
 import { createBackend } from './backend'
+import { backendLog } from './backendLog'
 import {
   collectExtensions,
   upsertMcpServer,
@@ -83,6 +84,9 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
 
+  // 把当前窗口挂到日志中转，后端输出实时推到该窗口（窗口重建时会被再次 attach）
+  backendLog.attachWindow(mainWindow)
+
   // 关窗不退出：拦截 close，未真正退出时隐藏窗口并保留在托盘（仿 WorkBuddy）。
   mainWindow.on('close', (e) => {
     if (!isQuiting) {
@@ -95,8 +99,17 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // 准备后端日志落盘（userData/auracode-backend.log），必须在 backend.start 之前
   try {
-    await backend.start((line) => console.log('[bridge]', line))
+    backendLog.init(app.getPath('userData'))
+  } catch (e) {
+    console.error('[backendLog] 初始化失败:', e)
+  }
+  try {
+    await backend.start((line) => {
+      backendLog.push(line)
+      console.log('[bridge]', line)
+    })
     backendReady = true
   } catch (e) {
     console.error('[bridge] 启动失败:', e)
@@ -133,6 +146,12 @@ ipcMain.handle('bridge:config', () => backend.getConfig())
 ipcMain.handle('backend:status', () => ({
   ready: backendReady,
   config: backend.getConfig(),
+}))
+
+// ── IPC：后端运行日志（落盘路径 + 内存缓冲）── 供「运行日志」面板 catch-up ──
+ipcMain.handle('backend:logs', () => ({
+  path: backendLog.path,
+  logs: backendLog.getBuffer(),
 }))
 
 // ── IPC：工作区持久化（记住上次使用的工作目录，重启后自动恢复）──

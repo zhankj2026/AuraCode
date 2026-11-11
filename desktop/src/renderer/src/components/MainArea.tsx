@@ -6,6 +6,7 @@ import { HtmlPreview } from './HtmlPreview'
 import { ChatComposer } from './ChatComposer'
 import { CustomModels } from './CustomModels'
 import { ImagePreview, MarkdownPreview, OfficePreview } from './FilePreview'
+import { BackendLog } from './BackendLog'
 import { renderMarkdown } from '../lib/md'
 
 export function MainArea() {
@@ -33,6 +34,15 @@ export function MainArea() {
     return (
       <div className="main">
         <ArchiveViewer />
+      </div>
+    )
+  }
+
+  // 运行日志：实时展示后端（python cli.py --bridge）输出，便于排查启动/会话问题
+  if (activity === 'log') {
+    return (
+      <div className="main">
+        <BackendLog />
       </div>
     )
   }
