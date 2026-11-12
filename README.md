@@ -1,6 +1,8 @@
 # AuraCode — AI 编程智能体
 
 > Python 实现的全功能 AI 编程助手，支持 **56 种内置工具**、**54 条交互命令**、**9 项领域技能**，具备 MCP 协议完整实现、Bridge 远程控制（事件级 + Token 级流式）、会话持久化体系与企业级安全策略。
+>
+> 同时提供 **Electron 桌面客户端**：Windows 安装包内置便携 Python 与后端引擎，开箱即用，无需单独配置 Python 环境。
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
@@ -29,6 +31,7 @@
 | **插件系统** | 生命周期管理 — 自动发现、依赖解析、Marketplace、插件间通信 |
 | **会话持久化** | 完整体系 — file-history、tasks、session-env、session-transcript、project-store |
 | **限流机制** | 滑动窗口限流 + Token 计量 + 429 错误处理 + 指数退避重试 |
+| **桌面客户端** | Electron + React — Windows NSIS 安装包内置便携 Python 与后端；多会话、Token 级流式输出、权限审批、文件编辑、模型切换、定时任务可视化、运行日志面板 |
 
 ---
 
@@ -41,6 +44,12 @@
 - Git（可选，用于 Git 相关命令）
 
 ### 安装
+
+**方式 A：桌面客户端（推荐，无需配置 Python 环境）**
+
+下载 `AuraCode-Setup-<version>.exe`（Windows NSIS）直接安装。安装包已内置便携 Python 3.13 与 AuraCode 后端引擎，安装到当前用户目录、不需要管理员权限，也无需预先安装 Python。详见下文的「桌面客户端」章节。
+
+**方式 B：命令行（Python 源码运行）**
 
 ```bash
 cd auracode
@@ -94,6 +103,100 @@ python cli.py -c status
 python cli.py --bridge
 python cli.py --bridge --bridge-port 9000
 ```
+
+---
+
+## 🖥️ 桌面客户端
+
+`desktop/` 是 Electron + React + TypeScript 应用（electron-vite 构建），在既有 Python 引擎之上提供图形界面。生产包把 **便携 Python 3.13 + AuraCode 引擎** 一起打进安装目录，用户不需要安装 Python。
+
+### 功能面板
+
+| 面板 | 能力 |
+|------|------|
+| 💬 对话 | 多会话、消息发送、Token 级流式输出、工具调用 / 结果卡片、中断 |
+| 🗂️ 文件 | 资源树浏览、打开为编辑器 Tab、编辑与保存 |
+| 🧩 扩展 | MCP 服务器、Hooks、技能、插件管理 |
+| 🛡️ 审计 | 权限审批与操作记录 |
+| 📋 任务 | 定时任务（Cron 可视化构建、新建、启停） |
+| 🧠 模型 | 供应商与模型配置、运行时切换 |
+| 📜 日志 | 后端 stdout 实时面板，落盘 `userData/auracode-backend.log` |
+
+另含：工作区切换（历史目录 / 临时会话 / 新建 / 打开本地文件夹）、设置分类页（通用 / 外观 / 快捷键 / 模型 / 技能 / MCP / 权限 / 数据管理）、权限请求确认弹窗。
+
+### 架构
+
+```
+Electron 主进程 (desktop/src/main)
+  ├─ 生成随机 Bearer token，spawn `python cli.py --bridge`（127.0.0.1:8765）
+  ├─ 轮询 /api/status 等待后端就绪，通过 IPC 下发 {host, port, token}
+  └─ 采集后端 stdout → 落盘 + 实时推送「日志」面板
+        │ contextBridge (preload, contextIsolation)
+        ▼
+React 渲染进程 (desktop/src/renderer)
+  └─ BridgeClient：REST + WebSocket → 127.0.0.1:<port>
+        ▼
+AuraCode Bridge 后端（FastAPI，仓库根目录）
+  └─ 多会话 AgentLoop（每会话独立线程，状态按线程局部隔离）
+```
+
+- **多会话隔离**：计划模式、用户询问回调、技能管理器、协调器与子代理管理器均按会话线程局部化；LLM 凭据改为显式传参，不再写进程级环境变量，避免并发会话串台 / 串用。
+- **会话与工作区**：工作目录持久化在 `userData/workspace.json`，会话快照在 `~/.auracode/sessions/*.json`，重启后可续接。
+- **启动链路**：握手成功后若无会话会自动创建空会话；空闲清理与看门狗只针对「收到过用户消息」的会话，不会误杀刚创建的空会话。
+
+### 开发
+
+```bash
+cd desktop
+npm install
+npm run dev
+```
+
+开发模式复用本机 Python 引擎，可用环境变量覆盖：
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `AURACODE_ROOT` | Python 工程根目录（含 `cli.py`） | 向上级目录探测 |
+| `AURACODE_PYTHON` | python 可执行文件 | `python` / `python3` |
+| `AURACODE_PORT` | Bridge 端口 | `8765` |
+| `AURACODE_HOST` | 绑定地址 | `127.0.0.1` |
+
+前端单测：`cd desktop && npm test`（vitest）。
+
+### 打包（Windows NSIS）
+
+```bash
+cd desktop
+npm run package          # stage → electron-vite build → electron-builder --win nsis
+```
+
+产物：`desktop/dist/AuraCode-Setup-<version>.exe`（当前 0.1.0，约 93 MB）。
+
+其它入口：
+
+```bash
+# 签名分发：需自备代码签名证书（见 scripts/package-signed.ps1），缺文件自动退化为普通打包
+powershell -ExecutionPolicy Bypass -File scripts/package-signed.ps1
+
+# Git Bash / 受限环境：改用 bash 版 stage 脚本
+bash scripts/stage.sh && npx electron-builder --win nsis
+```
+
+**打包做了什么**：
+
+1. `stage` 把便携 Python 与裁剪后的引擎源码拷进 `desktop/resources/`；引擎编译为 `.pyc` 后删除明文 `.py`（仅保留 `cli.py` 作为启动入口），并清洗 `config.yaml` 中可能残留的 API Key。
+2. `scripts/prune_python.py` 在依赖安装后精简便携 Python：移除开发期头文件 / 静态库、无关的第三方包（Pillow、oracledb、pytest 等）与 pip 生成的 `.pyc` 缓存，并做一次运行期依赖导入自检。用 `SKIP_PRUNE=1` 可跳过以排查问题。
+3. `electron-builder.yml` 使用 NSIS `compression: maximum`，并只保留 `zh-CN` / `en-US` 两个 Electron 语言包。
+
+应用 / 安装器 / 卸载器图标来自 `desktop/build/icon.ico`（16–256 共 7 档分辨率）。注意 `build/` 被 `.gitignore` 忽略，该图标已用 `git add -f` 强制纳入跟踪，克隆后才会随包生效。
+
+> 打包命令请重定向日志并显式检查退出码（`cmd > build.log 2>&1; echo $?`），不要接 `| tail` 之类的管道 —— 管道退出码会掩盖构建失败。
+
+### 故障排查
+
+- **看不到会话 / 切换模型报错**：打开「📜 日志」面板查看后端 stdout，面板会红色高亮 `idle_timeout`、`Stale session cleaned up`、`Traceback` 等行；日志同时落盘到 `userData/auracode-backend.log`。
+- **后端一直「正在启动」**：确认安装目录 `resources/` 下的便携 Python 与 engine 是否完整（打包分发问题），日志面板可直接反映后端有没有真正启动。
+- **打包异常**：`SKIP_PRUNE=1` 跳过精简、`SKIP_COMPILE=1` 保留明文源码（仅调试，勿发布）、`SKIP_PIP=1` 跳过依赖安装。
 
 ---
 
@@ -653,6 +756,16 @@ auracode/
 ├── requirements.txt          # Python 依赖
 ├── LICENSE                   # Apache 2.0 许可证
 │
+├── desktop/                  # Electron 桌面客户端
+│   ├── src/main/             #   主进程：后端生命周期 / IPC / 运行日志
+│   ├── src/preload/          #   contextBridge 最小 API
+│   ├── src/renderer/         #   React UI（活动栏 / 侧栏 / 主区 / 设置 / 弹窗）
+│   ├── scripts/              #   stage.ps1 / stage.sh / prune_python.py / 签名打包
+│   ├── build/icon.ico        #   应用与安装器图标（16–256 共 7 档）
+│   ├── resources/            #   打包时生成的便携 Python + engine（gitignore）
+│   ├── electron-builder.yml  #   NSIS 打包配置
+│   └── package.json
+│
 ├── core/                     # 核心引擎
 │   ├── agent_loop.py         #   TAOR 智能体循环（Think-Act-Observe-Repeat, 2638 行）
 │   ├── session_state.py      #   会话状态（Token 追踪/成本/权限）
@@ -780,6 +893,9 @@ AuraCode 通过 OpenAI 兼容接口对接各类 LLM：
 |------|------|
 | `OPENAI_API_KEY` | LLM API 密钥（必需） |
 | `OPENAI_BASE_URL` | API Base URL（可选） |
+| `AURACODE_ROOT` / `AURACODE_PYTHON` | 桌面开发模式：Python 工程根目录 / 解释器路径 |
+| `AURACODE_HOST` / `AURACODE_PORT` | 桌面开发模式：Bridge 绑定地址 / 端口 |
+| `SKIP_PRUNE` / `SKIP_COMPILE` / `SKIP_PIP` | 打包调试开关，见「桌面客户端」 |
 
 ---
 
@@ -795,6 +911,12 @@ python -m pytest tests/ -v
 python -m pytest tests/test_cd_command.py -v
 python -m pytest tests/test_exec_command.py -v
 python -m pytest tests/test_phase3_mcp_advanced.py -v
+```
+
+桌面端前端单测（vitest）：
+
+```bash
+cd desktop && npm test
 ```
 
 ---
@@ -814,5 +936,6 @@ python -m pytest tests/test_phase3_mcp_advanced.py -v
 ## 📮 联系方式
 
 - 📖 文档：`docs/` 目录
-- 💬 问题反馈：GitHub Issues /Gitee Issues
-- 🌟 项目地址：https://gitee.com/creating2018/auracode 
+- 💬 问题反馈：GitHub Issues / Gitee Issues
+- 🌟 Gitee：https://gitee.com/creating2018/auracode
+- 🌟 GitHub：https://github.com/zhankj2026/AuraCode
