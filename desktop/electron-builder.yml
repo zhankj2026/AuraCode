@@ -8,6 +8,12 @@ directories:
 # dictionary. Trades a slower build / slightly slower install for a noticeably
 # smaller setup exe. (Complements the prune step in scripts/prune_python.py.)
 compression: maximum
+# Electron ships 55 locale .pak files (~38 MB) by default. The app UI is
+# Chinese with English fallback, so keep just these two; the rest is dead
+# weight that NSIS cannot compress further (.pak is already compressed).
+electronLanguages:
+  - zh-CN
+  - en-US
 # 只打包编译产物与描述文件；resources/ 下的 portable python 与 engine
 # 通过 extraResources 单独拷进 <安装目录>/resources，避免被打进 app.asar
 #（python 需要直接执行，engine 需被主进程 fs 读取、运行期可写）。
