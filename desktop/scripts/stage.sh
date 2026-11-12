@@ -13,6 +13,8 @@
 #   5. optional: pip install engine deps into staged python
 #      (skipped silently when offline; deps then expected in
 #      the source python already)
+#   5b. prune runtime-unused payload (dev headers, unrelated packages,
+#       bytecode caches) via scripts/prune_python.py -- shared with stage.ps1
 #
 # Why cli.py stays: Electron spawns it by filename. It contains
 # no business logic beyond arg parsing + dispatch, acceptable.
@@ -27,6 +29,9 @@
 #   PYTHON_SRC   - portable python source dir
 #   SKIP_COMPILE=1 - keep .py sources (debug only)
 #   PIP_MIRROR   - defaults to tsinghua
+#   SKIP_PIP=1   - skip the optional pip install
+#   SKIP_PRUNE=1 - skip the size prune (bisect a packaging problem)
+#   PRUNE_VERIFY=0 - skip the post-prune import smoke test
 # ============================================================
 set -u
 
@@ -130,7 +135,7 @@ if [ "${SKIP_PIP:-0}" != "1" ]; then
      openai pyyaml fastapi uvicorn pydantic httpx websockets aiohttp pywin32 \
      2>&1 | grep -v '^$' | head -5)
   # verify
-  if NO_PROXY='*' "$PY_EXE" -c "import openai, yaml, fastapi, uvicorn, pydantic, httpx, websockets, aiohttp" 2>/dev/null; then
+  if NO_PROXY='*' "$PY_EXE" -B -c "import openai, yaml, fastapi, uvicorn, pydantic, httpx, websockets, aiohttp" 2>/dev/null; then
     echo "    deps OK"
   else
     echo "    WARN: deps missing in staged python (offline?)."
@@ -138,12 +143,22 @@ if [ "${SKIP_PIP:-0}" != "1" ]; then
   fi
 fi
 
+# 5b. Prune runtime-unused payload from staged Python. Shared with stage.ps1
+#     via scripts/prune_python.py so both entry points stay in sync.
+#     MUST stay after step 5: pip, Scripts/*.exe and pip-generated .pyc files
+#     are all part of what gets dropped. SKIP_PRUNE=1 / PRUNE_VERIFY=0 to debug.
+echo "==> pruning staged portable Python (runtime-unused payload)"
+if ! "$PY_EXE" -B "$SCRIPT_DIR/prune_python.py" "$RES/python"; then
+  echo "ERROR: prune_python.py failed; aborting to keep build safe" >&2
+  exit 1
+fi
+
 # 6. size report + security audit
 echo "==> security audit:"
 echo "    .py remaining : $(find "$RES/engine" -name '*.py' | wc -l) (expect 1: cli.py)"
 echo "    .pyc count    : $(find "$RES/engine" -name '*.pyc' | wc -l)"
 if [ -f "$RES/engine/config.yaml" ]; then
-  KEY_STATE=$(cd "$RES/engine" && "$PY_EXE" -c "import re; s=open('config.yaml','rb').read().decode('utf-8'); m=re.search(r'(?m)^\s*api_key:[ \t]*([^\r\n]*)', s); print('SANITIZED' if (m is None or m.group(1).strip() in ('','\x22\x22',\"''\")) else 'LEAKED')")
+  KEY_STATE=$(cd "$RES/engine" && "$PY_EXE" -B -c "import re; s=open('config.yaml','rb').read().decode('utf-8'); m=re.search(r'(?m)^\s*api_key:[ \t]*([^\r\n]*)', s); print('SANITIZED' if (m is None or m.group(1).strip() in ('','\x22\x22',\"''\")) else 'LEAKED')")
   if [[ "$KEY_STATE" == "SANITIZED" ]]; then
     echo "    config api_key: SANITIZED"
   else

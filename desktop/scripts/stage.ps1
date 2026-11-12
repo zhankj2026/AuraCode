@@ -126,6 +126,22 @@ if ($bad.Count -eq 0) {
   Write-Warning "missing deps: $($bad -join ', ')"
 }
 
+# 3b. Prune runtime-unused payload from the staged Python. Shared with
+#     stage.sh via scripts/prune_python.py (single source of truth).
+#     MUST stay after step 3: pip itself, Scripts/*.exe and the .pyc caches
+#     created by pip install are all part of what gets dropped.
+#     Set SKIP_PRUNE=1 to bisect a packaging problem.
+$prunePy = Join-Path $scriptDir 'prune_python.py'
+if (Test-Path $prunePy) {
+  & $pyExe -B $prunePy $pyDst
+  if ($LASTEXITCODE -ne 0) {
+    Write-Error 'prune_python.py failed; aborting to keep build safe'
+    exit 1
+  }
+} else {
+  Write-Warning 'prune_python.py missing - skipping prune (larger installer)'
+}
+
 # 4. Size report
 function SizeMB($p) {
   $bytes = (Get-ChildItem $p -Recurse -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
